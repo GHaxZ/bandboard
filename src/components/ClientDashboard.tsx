@@ -32,14 +32,21 @@ import {
 
 interface Track {
   id: string;
-  songId: string;
+  roleGroupId: string;
   instrumentName: string;
   role: string;
   details: string | null;
   tuning: string;
   tabLink: string;
+}
+
+interface RoleGroup {
+  id: string;
+  songId: string;
+  role: string;
   backingTrackLink: string | null;
   tabVideoLink: string | null;
+  tracks: Track[];
 }
 
 interface Song {
@@ -50,7 +57,7 @@ interface Song {
   albumArt: string | null;
   lyrics?: string | null;
   createdAt: number;
-  tracks: Track[];
+  roleGroups: RoleGroup[];
 }
 
 interface RehearsalSong {
@@ -594,7 +601,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                           )}
                           <div className="min-w-0">
                             <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
-                              {song.tracks?.length || 0} notation tracks
+                              {(song.roleGroups?.reduce((acc, rg) => acc + (rg.tracks?.length || 0), 0) || 0)} notation tracks
                             </span>
                             <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
                               {song.title}

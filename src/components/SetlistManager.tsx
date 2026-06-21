@@ -9,14 +9,21 @@ import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic } from "luci
 
 interface Track {
   id: string;
-  songId: string;
+  roleGroupId: string;
   instrumentName: string;
   role: string;
   details: string | null;
   tuning: string;
   tabLink: string;
+}
+
+interface RoleGroup {
+  id: string;
+  songId: string;
+  role: string;
   backingTrackLink: string | null;
   tabVideoLink: string | null;
+  tracks: Track[];
 }
 
 interface Song {
@@ -25,7 +32,7 @@ interface Song {
   artist: string;
   songsterrId: number | null;
   createdAt: number;
-  tracks: Track[];
+  roleGroups: RoleGroup[];
 }
 
 interface RehearsalSong {

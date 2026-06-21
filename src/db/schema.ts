@@ -11,16 +11,22 @@ export const songs = sqliteTable('songs', {
   createdAt: integer('created_at').notNull(),
 });
 
-export const tracks = sqliteTable('tracks', {
+export const roleGroups = sqliteTable('role_groups', {
   id: text('id').primaryKey(),
   songId: text('song_id').notNull().references(() => songs.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(), // 'Guitar' | 'Bass' | 'Drums' | 'Vocals' | 'Piano/Keyboard' | 'Other'
+  backingTrackLink: text('backing_track_link'),
+  tabVideoLink: text('tab_video_link'),
+});
+
+export const tracks = sqliteTable('tracks', {
+  id: text('id').primaryKey(),
+  roleGroupId: text('role_group_id').notNull().references(() => roleGroups.id, { onDelete: 'cascade' }),
   instrumentName: text('instrument_name').notNull(),
   role: text('role').notNull(), // 'Guitar' | 'Bass' | 'Drums' | 'Vocals' | 'Other'
   details: text('details'),
   tuning: text('tuning').notNull(),
   tabLink: text('tab_link').notNull(),
-  backingTrackLink: text('backing_track_link'),
-  tabVideoLink: text('tab_video_link'),
 });
 
 export const rehearsals = sqliteTable('rehearsals', {
@@ -40,14 +46,22 @@ export const rehearsalSongs = sqliteTable('rehearsal_songs', {
 
 // Drizzle Relations
 export const songsRelations = relations(songs, ({ many }) => ({
-  tracks: many(tracks),
+  roleGroups: many(roleGroups),
   rehearsalSongs: many(rehearsalSongs),
 }));
 
-export const tracksRelations = relations(tracks, ({ one }) => ({
+export const roleGroupsRelations = relations(roleGroups, ({ one, many }) => ({
   song: one(songs, {
-    fields: [tracks.songId],
+    fields: [roleGroups.songId],
     references: [songs.id],
+  }),
+  tracks: many(tracks),
+}));
+
+export const tracksRelations = relations(tracks, ({ one }) => ({
+  roleGroup: one(roleGroups, {
+    fields: [tracks.roleGroupId],
+    references: [roleGroups.id],
   }),
 }));
 

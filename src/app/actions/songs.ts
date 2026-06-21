@@ -2,8 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { db } from "@/db";
-import { songs, tracks } from "@/db/schema";
-import { eq, asc, and } from "drizzle-orm";
+import { songs, tracks, roleGroups } from "@/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
 
 function slugify(text: string): string {
@@ -148,6 +148,30 @@ export async function ingestSongData(title: string, artist: string) {
       console.error("iTunes album art lookup failed:", e);
     }
 
+    // Query Genius search for the direct song lyrics URL
+    let geniusLyricsUrl: string | null = null;
+    try {
+      const geniusQuery = `${verifiedArtist} ${verifiedTitle}`;
+      const geniusRes = await fetch(
+        `https://genius.com/api/search/multi?q=${encodeURIComponent(geniusQuery)}`,
+        {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          },
+          signal: AbortSignal.timeout(3000)
+        }
+      );
+      if (geniusRes.ok) {
+        const geniusData = await geniusRes.json().catch(() => null);
+        const songSection = geniusData?.response?.sections?.find((s: any) => s.type === "song");
+        if (songSection && songSection.hits && songSection.hits.length > 0) {
+          geniusLyricsUrl = songSection.hits[0].result.url || null;
+        }
+      }
+    } catch (e) {
+      console.error("Genius search lookup failed during ingestion:", e);
+    }
+
     const songId = crypto.randomUUID();
 
     // Insert Song
@@ -157,53 +181,83 @@ export async function ingestSongData(title: string, artist: string) {
       artist: verifiedArtist,
       songsterrId,
       albumArt,
-      lyrics: null, // Lyrics are no longer fetched or stored inline since we use external Genius links only
+      lyrics: geniusLyricsUrl,
       createdAt: Date.now(),
     });
 
     const artistSlug = slugify(verifiedArtist);
     const titleSlug = slugify(verifiedTitle);
 
-    // If there are tracks from Songsterr, insert them immediately with media links as null (lazy-loaded on click)
+    // If there are tracks from Songsterr, group them by role and insert
     if (rawTracks.length > 0) {
-      const trackPayloads = rawTracks.map((track, index) => {
+      // Group by role
+      const groupedByRole = new Map<string, { role: string; tracks: any[] }>();
+      
+      rawTracks.forEach((track, index) => {
         const role = determineRole(track.hash || "", track.instrumentId, track.instrument || "", track.name || "");
-        const instrumentName = role === "Vocals" ? "Vocals" : (track.instrument || track.name || "Instrument");
-        const details = track.name || "";
-        const tuning = parseTuning(track.tuning);
-
-        // Deep Link to Songsterr
-        const tabLink = songsterrId
-          ? `https://www.songsterr.com/a/wsa/${artistSlug}-${titleSlug}-tab-s${songsterrId}t${index}`
-          : `https://www.songsterr.com`;
-
-        return {
-          id: crypto.randomUUID(),
-          songId,
-          instrumentName,
-          role,
-          details,
-          tuning,
-          tabLink,
-          backingTrackLink: null,
-          tabVideoLink: null,
-        };
+        if (!groupedByRole.has(role)) {
+          groupedByRole.set(role, { role, tracks: [] });
+        }
+        groupedByRole.get(role)!.tracks.push({ track, index });
       });
 
-      // Batch insert tracks to database in a single query
-      await db.insert(tracks).values(trackPayloads);
+      for (const [roleName, group] of groupedByRole.entries()) {
+        const roleGroupId = crypto.randomUUID();
+        
+        // Insert role group
+        await db.insert(roleGroups).values({
+          id: roleGroupId,
+          songId,
+          role: roleName,
+          backingTrackLink: null,
+          tabVideoLink: null,
+        });
+
+        // Map sub-tracks
+        const trackPayloads = group.tracks.map(({ track, index }) => {
+          const role = roleName;
+          const instrumentName = role === "Vocals" ? "Vocals" : (track.instrument || track.name || "Instrument");
+          const details = track.name || "";
+          const tuning = parseTuning(track.tuning);
+
+          // Deep Link to Songsterr
+          const tabLink = songsterrId
+            ? `https://www.songsterr.com/a/wsa/${artistSlug}-${titleSlug}-tab-s${songsterrId}t${index}`
+            : `https://www.songsterr.com`;
+
+          return {
+            id: crypto.randomUUID(),
+            roleGroupId,
+            instrumentName,
+            role,
+            details,
+            tuning,
+            tabLink,
+          };
+        });
+
+        // Batch insert sub-tracks
+        await db.insert(tracks).values(trackPayloads);
+      }
     } else {
-      // Fallback: Create a generic track so there is at least one active view tab
+      // Fallback: Create a generic role group and track so there is at least one active view tab
+      const roleGroupId = crypto.randomUUID();
+      await db.insert(roleGroups).values({
+        id: roleGroupId,
+        songId,
+        role: "Guitar",
+        backingTrackLink: null,
+        tabVideoLink: null,
+      });
+
       await db.insert(tracks).values({
         id: crypto.randomUUID(),
-        songId,
+        roleGroupId,
         instrumentName: "Lead Guitar",
         role: "Guitar",
         details: "Auto-generated default track",
         tuning: "E-A-D-G-B-E",
         tabLink: "https://www.songsterr.com",
-        backingTrackLink: null,
-        tabVideoLink: null,
       });
     }
 
@@ -215,31 +269,34 @@ export async function ingestSongData(title: string, artist: string) {
 }
 
 // Lazy Load Youtube Links for a single track on-demand to avoid bot blocks and speed up ingestion
-export async function lazyLoadTrackMedia(trackId: string) {
+export async function lazyLoadTrackMedia(roleGroupId: string) {
   try {
-    const track = await db.query.tracks.findFirst({
-      where: eq(tracks.id, trackId),
+    const roleGroup = await db.query.roleGroups.findFirst({
+      where: eq(roleGroups.id, roleGroupId),
       with: {
         song: true,
+        tracks: true,
       },
     });
 
-    if (!track || !track.song) {
-      return { success: false, error: "Track not found" };
+    if (!roleGroup || !roleGroup.song) {
+      return { success: false, error: "Role group not found" };
     }
 
     // Skip if links are already loaded, or if non-standard instrument ("Other")
-    if ((track.backingTrackLink && track.tabVideoLink) || track.role === "Other") {
+    if ((roleGroup.backingTrackLink && roleGroup.tabVideoLink) || roleGroup.role === "Other") {
       return { success: true };
     }
 
-    const verifiedArtist = track.song.artist;
-    const verifiedTitle = track.song.title;
-    const instrumentName = track.instrumentName;
-    const role = track.role;
+    const verifiedArtist = roleGroup.song.artist;
+    const verifiedTitle = roleGroup.song.title;
+    const role = roleGroup.role;
+    
+    // Use the first track's name for fallbacks
+    const instrumentName = roleGroup.tracks[0]?.instrumentName || "Instrument";
 
-    let backingLink = track.backingTrackLink;
-    let tabVideoLink = track.tabVideoLink;
+    let backingLink = roleGroup.backingTrackLink;
+    let tabVideoLink = roleGroup.tabVideoLink;
 
     // Fetch backing track link if missing
     if (!backingLink) {
@@ -292,22 +349,14 @@ export async function lazyLoadTrackMedia(trackId: string) {
       }
     }
 
-    // Update tab video link for this specific track
+    // Update roleGroup in database
     await db
-      .update(tracks)
-      .set({ tabVideoLink: tabVideoLink })
-      .where(eq(tracks.id, trackId));
-
-    // Sync backing track link across all tracks of the same song sharing the same role
-    await db
-      .update(tracks)
-      .set({ backingTrackLink: backingLink })
-      .where(
-        and(
-          eq(tracks.songId, track.songId),
-          eq(tracks.role, track.role)
-        )
-      );
+      .update(roleGroups)
+      .set({
+        backingTrackLink: backingLink,
+        tabVideoLink: tabVideoLink,
+      })
+      .where(eq(roleGroups.id, roleGroupId));
 
     return { success: true, backingTrackLink: backingLink, tabVideoLink };
   } catch (error) {
@@ -331,7 +380,11 @@ export async function getSongs() {
     const list = await db.query.songs.findMany({
       orderBy: [asc(songs.title)],
       with: {
-        tracks: true,
+        roleGroups: {
+          with: {
+            tracks: true,
+          },
+        },
       },
     });
     return list;
@@ -346,7 +399,11 @@ export async function getSongDetails(songId: string) {
     const song = await db.query.songs.findFirst({
       where: eq(songs.id, songId),
       with: {
-        tracks: true,
+        roleGroups: {
+          with: {
+            tracks: true,
+          },
+        },
       },
     });
     return song || null;
@@ -357,32 +414,15 @@ export async function getSongDetails(songId: string) {
 }
 
 export async function updateTrackVideoLink(
-  trackId: string,
+  roleGroupId: string,
   type: "backing" | "tab",
   videoUrl: string | null
 ) {
   try {
-    const targetTrack = await db.query.tracks.findFirst({
-      where: eq(tracks.id, trackId),
-    });
-
-    if (!targetTrack) {
-      return { success: false, error: "Track not found" };
-    }
-
     if (type === "backing") {
-      // Sync backing track link across all tracks of the same song sharing the same role
-      await db
-        .update(tracks)
-        .set({ backingTrackLink: videoUrl })
-        .where(
-          and(
-            eq(tracks.songId, targetTrack.songId),
-            eq(tracks.role, targetTrack.role)
-          )
-        );
+      await db.update(roleGroups).set({ backingTrackLink: videoUrl }).where(eq(roleGroups.id, roleGroupId));
     } else {
-      await db.update(tracks).set({ tabVideoLink: videoUrl }).where(eq(tracks.id, trackId));
+      await db.update(roleGroups).set({ tabVideoLink: videoUrl }).where(eq(roleGroups.id, roleGroupId));
     }
     return { success: true };
   } catch (error) {
@@ -398,5 +438,52 @@ export async function searchYouTubeVideosAction(query: string) {
   } catch (error) {
     console.error("Failed to search YouTube videos:", error);
     return [];
+  }
+}
+
+export async function getGeniusLyricsLinkAction(
+  songId: string,
+  artist: string,
+  title: string
+): Promise<string> {
+  try {
+    const song = await db.query.songs.findFirst({
+      where: eq(songs.id, songId),
+      columns: { lyrics: true }
+    });
+
+    if (song?.lyrics && song.lyrics.startsWith("http")) {
+      return song.lyrics;
+    }
+
+    const query = `${artist} ${title}`;
+    const url = `https://genius.com/api/search/multi?q=${encodeURIComponent(query)}`;
+
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+
+    let resolvedUrl = `https://genius.com/search?q=${encodeURIComponent(artist + " " + title)}`;
+
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const songSection = data?.response?.sections?.find((s: any) => s.type === "song");
+      if (songSection && songSection.hits && songSection.hits.length > 0) {
+        resolvedUrl = songSection.hits[0].result.url || resolvedUrl;
+      }
+    }
+
+    await db
+      .update(songs)
+      .set({ lyrics: resolvedUrl })
+      .where(eq(songs.id, songId));
+
+    return resolvedUrl;
+  } catch (error) {
+    console.error("Failed to get Genius lyrics link:", error);
+    return `https://genius.com/search?q=${encodeURIComponent(artist + " " + title)}`;
   }
 }

@@ -39,7 +39,11 @@ export async function getRehearsals() {
           with: {
             song: {
               with: {
-                tracks: true,
+                roleGroups: {
+                  with: {
+                    tracks: true,
+                  },
+                },
               },
             },
           },
@@ -63,7 +67,11 @@ export async function getRehearsalDetails(rehearsalId: string) {
           with: {
             song: {
               with: {
-                tracks: true,
+                roleGroups: {
+                  with: {
+                    tracks: true,
+                  },
+                },
               },
             },
           },
