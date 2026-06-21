@@ -18,7 +18,11 @@ import {
   Save,
   Trash2,
   Settings,
-  Bookmark
+  Bookmark,
+  Info,
+  Users,
+  Lock,
+  Clock
 } from "lucide-react";
 import {
   saveSongProgress,
@@ -115,7 +119,7 @@ function useYoutubeApi() {
 
 export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeModeProps) {
   const apiLoaded = useYoutubeApi();
-  
+
   // Track selection
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
@@ -152,7 +156,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   // 1. Smart default instrument initialization
   useEffect(() => {
     const isStandardValid = standardRoleGroups.some((rg) => rg.id === activeTrackId);
-    
+
     if (!isStandardValid || song.id !== initializedSongId) {
       const preferredRole = localStorage.getItem("bandboard_instrument") || "Guitar";
       const matchingRoleGroup = standardRoleGroups.find(
@@ -177,7 +181,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
       setProgressStatus(prog.status);
       setProgressSpeed(prog.speed);
       setProgressNotes(prog.notes || "");
-      
+
       if (prog.practiceMarkers) {
         try {
           const parsed = JSON.parse(prog.practiceMarkers);
@@ -220,11 +224,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
     // Reset references
     if (backingPlayerRef.current) {
-      try { backingPlayerRef.current.destroy(); } catch (e) {}
+      try { backingPlayerRef.current.destroy(); } catch (e) { }
       backingPlayerRef.current = null;
     }
     if (tabPlayerRef.current) {
-      try { tabPlayerRef.current.destroy(); } catch (e) {}
+      try { tabPlayerRef.current.destroy(); } catch (e) { }
       tabPlayerRef.current = null;
     }
 
@@ -275,11 +279,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
     return () => {
       if (backingPlayerRef.current) {
-        try { backingPlayerRef.current.destroy(); } catch (e) {}
+        try { backingPlayerRef.current.destroy(); } catch (e) { }
         backingPlayerRef.current = null;
       }
       if (tabPlayerRef.current) {
-        try { tabPlayerRef.current.destroy(); } catch (e) {}
+        try { tabPlayerRef.current.destroy(); } catch (e) { }
         tabPlayerRef.current = null;
       }
     };
@@ -332,9 +336,9 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   // Synchronized video toggle action
   const handleToggleVideo = () => {
     if (!hasBothVideos) return;
-    
+
     const nextVideo = activeVideo === "backing" ? "tab" : "backing";
-    
+
     const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
     const inactivePlayer = activeVideo === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
 
@@ -348,7 +352,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
         const targetTime = Math.max(0, currentTime - activeOffset + inactiveOffset);
         inactivePlayer.seekTo(targetTime, true);
-        
+
         if (state === 1) {
           inactivePlayer.playVideo();
         } else if (state === 2) {
@@ -407,6 +411,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
   // Practice Markers Saving/Deleting
   const handleSaveMarker = async (newTime: number) => {
+    if (markers.length >= 9) {
+      alert("You can only save up to 9 practice markers. Please delete an existing one to add a new marker.");
+      return;
+    }
     // Unique list, sorted ascending
     const updated = Array.from(new Set([...markers, newTime])).sort((a, b) => a - b);
     setMarkers(updated);
@@ -502,11 +510,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
-          <div className="hidden sm:block">
-            <span className="text-[10px] font-extrabold text-[#acd1f8] uppercase tracking-wider bg-[#2e4057]/40 border border-[#446285]/50 px-2.5 py-1 rounded-full">
-              PRACTICE MODE
-            </span>
-          </div>
         </div>
         <div className="text-right">
           <h1 className="text-base font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
@@ -521,7 +524,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-[#27282b] bg-black shadow-2xl flex flex-col items-center justify-center">
             {/* Backing Track Player Frame Wrapper */}
             {backingVideoId && (
-              <div 
+              <div
                 key={`backing-container-${backingVideoId}`}
                 className="w-full h-full transition-opacity duration-200"
                 style={activeVideo === "backing" ? {
@@ -544,7 +547,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
             {/* Tab Video Player Frame Wrapper */}
             {tabVideoId && (
-              <div 
+              <div
                 key={`tab-container-${tabVideoId}`}
                 className="w-full h-full transition-opacity duration-200"
                 style={activeVideo === "tab" ? {
@@ -598,42 +601,50 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                     <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider block">
                       Feed Selector
                     </span>
-                    <Badge className="bg-[#1b2330] border border-[#2e4057] text-[#acd1f8] text-[9px] px-2 py-0.5 uppercase">
-                      Sync Enabled
-                    </Badge>
+                    <span className="text-[10px] text-[#acd1f8] flex items-center gap-1 font-semibold bg-[#2e4057]/20 border border-[#2e4057]/50 px-2 py-0.5 rounded">
+                      <Info className="w-3 h-3" />
+                      Auto-Sync Active
+                    </span>
                   </div>
-                  
+
                   {hasBothVideos ? (
-                    <div className="flex bg-[#0c0d0e]/60 p-1 border border-[#27282b] rounded-xl gap-1 w-full justify-between">
-                      <Button
-                        onClick={() => { if (activeVideo !== "backing") handleToggleVideo(); }}
-                        className={cn(
-                          "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
-                          activeVideo === "backing"
-                            ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                            : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
-                        )}
-                      >
-                        Instrumental
-                      </Button>
-                      <Button
-                        onClick={() => { if (activeVideo !== "tab") handleToggleVideo(); }}
-                        className={cn(
-                          "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
-                          activeVideo === "tab"
-                            ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                            : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
-                        )}
-                      >
-                        Vocal reference
-                      </Button>
-                    </div>
+                    (() => {
+                      const isVocals = activeRoleGroup?.role === "Vocals";
+                      const backingLabel = isVocals ? "Instrumental" : "Backing Track";
+                      const tabLabel = isVocals ? "Vocal reference" : "Tab";
+                      return (
+                        <div className="flex bg-[#0c0d0e]/60 p-1 border border-[#27282b] rounded-xl gap-1 w-full justify-between">
+                          <Button
+                            onClick={() => { if (activeVideo !== "backing") handleToggleVideo(); }}
+                            className={cn(
+                              "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
+                              activeVideo === "backing"
+                                ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                                : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                            )}
+                          >
+                            {backingLabel}
+                          </Button>
+                          <Button
+                            onClick={() => { if (activeVideo !== "tab") handleToggleVideo(); }}
+                            className={cn(
+                              "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
+                              activeVideo === "tab"
+                                ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                                : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                            )}
+                          >
+                            {tabLabel}
+                          </Button>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <p className="text-[11px] text-[#888d96]">Dual feeds not configured for this instrument.</p>
                   )}
-                  
-                  <p className="text-[10px] text-[#888d96] italic leading-normal">
-                    Tip: Press <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">TAB</kbd> on your keyboard to toggle feeds instantly.
+
+                  <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
+                    Press <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">TAB</kbd> on your keyboard to toggle feeds instantly.
                   </p>
                 </div>
 
@@ -644,7 +655,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                       <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
                       Practice Markers
                     </span>
-                    <span className="text-[9px] text-[#888d96] font-medium">Private</span>
+                    <span className="text-[10px] text-[#a7a7ad] font-bold bg-[#27282b]/50 border border-[#3b3e45]/50 px-2 py-0.5 rounded-full flex items-center gap-1" title="Only saved on your browser/device">
+                      <Lock className="w-3.5 h-3.5 text-[#888d96]" />
+                      Private to You
+                    </span>
                   </div>
 
                   <Button
@@ -655,11 +669,15 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                     Save Current Time
                   </Button>
 
+                  <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
+                    Press keyboard keys <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">1</kbd> - <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">9</kbd> to instantly skip to the respective marker.
+                  </p>
+
                   <div className="space-y-1.5">
                     {markers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto pr-1 scrollbar-thin">
+                      <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 scrollbar-thin">
                         {markers.map((time, idx) => {
-                          const displayLabel = `${idx + 1}: ${time.toFixed(1)}s`;
+                          const displayLabel = `${time.toFixed(1)}s`;
                           return (
                             <div key={idx} className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7">
                               <button
@@ -670,6 +688,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                                 className="text-[10px] font-bold text-[#acd1f8] hover:text-[#f1f2f4] px-2 h-full hover:bg-[#2e4057]/30 transition-all cursor-pointer border-0 flex items-center"
                                 title={`Jump to marker ${idx + 1}`}
                               >
+                                <kbd className="bg-[#161719] px-1 py-0.2 rounded border border-[#27282b] font-mono text-[8px] text-[#acd1f8] mr-1.5">{idx + 1}</kbd>
                                 {displayLabel}
                               </button>
                               <button
@@ -683,11 +702,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                           );
                         })}
                       </div>
-                    ) : (
-                      <p className="text-[10px] text-[#888d96] leading-normal italic text-center py-2">
-                        No markers saved. Save moments and press 1-9 to jump.
-                      </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
@@ -698,40 +713,129 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                       <Settings className="w-3.5 h-3.5 text-[#acd1f8]" />
                       Global Start Sync
                     </span>
-                    <span className="text-[9px] text-[#acd1f8] font-bold uppercase tracking-wider bg-[#1b2330] border border-[#2e4057] px-1 rounded">Band</span>
+                    <span className="text-[10px] text-[#acd1f8] font-bold bg-[#2e4057]/30 border border-[#446285]/50 px-2 py-0.5 rounded-full flex items-center gap-1" title="Synced globally across all band members">
+                      <Users className="w-3.5 h-3.5 text-[#acd1f8]" />
+                      Shared with Band
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">Instrumental (s)</label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={backingOffset}
-                        onChange={(e) => setBackingOffset(e.target.value)}
-                        className="bg-[#0c0d0e]/60 border border-[#27282b] text-[11px] rounded-lg text-[#f1f2f4] h-7 px-2"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">Vocal ref (s)</label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={tabOffset}
-                        onChange={(e) => setTabOffset(e.target.value)}
-                        className="bg-[#0c0d0e]/60 border border-[#27282b] text-[11px] rounded-lg text-[#f1f2f4] h-7 px-2"
-                        placeholder="0.0"
-                      />
-                    </div>
-                  </div>
+                  {(() => {
+                    const isVocals = activeRoleGroup?.role === "Vocals";
+                    return (
+                      <div className="space-y-2.5">
+                        {/* Backing Track Start Offset Row */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">
+                              {isVocals ? "Instrumental" : "Backing Track"} (s)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const time = backingPlayerRef.current?.getCurrentTime();
+                                if (typeof time === "number" && !isNaN(time)) {
+                                  setBackingOffset(time.toFixed(1));
+                                }
+                              }}
+                              className="text-[9px] text-[#acd1f8] hover:text-[#f1f2f4] px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                              title="Capture current playback time"
+                            >
+                              <Clock className="w-2.5 h-2.5" /> Capture
+                            </button>
+                          </div>
+
+                          <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7 w-full justify-between">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = Math.max(0, (parseFloat(backingOffset) || 0) - 0.1);
+                                setBackingOffset(val.toFixed(1));
+                              }}
+                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-r border-[#27282b] cursor-pointer flex items-center justify-center"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={backingOffset}
+                              onChange={(e) => setBackingOffset(e.target.value)}
+                              className="bg-transparent text-[11px] text-[#f1f2f4] text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = (parseFloat(backingOffset) || 0) + 0.1;
+                                setBackingOffset(val.toFixed(1));
+                              }}
+                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-l border-[#27282b] cursor-pointer flex items-center justify-center"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tab Video Start Offset Row */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">
+                              {isVocals ? "Vocal ref" : "Tab Video"} (s)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const time = tabPlayerRef.current?.getCurrentTime();
+                                if (typeof time === "number" && !isNaN(time)) {
+                                  setTabOffset(time.toFixed(1));
+                                }
+                              }}
+                              className="text-[9px] text-[#acd1f8] hover:text-[#f1f2f4] px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                              title="Capture current playback time"
+                            >
+                              <Clock className="w-2.5 h-2.5" /> Capture
+                            </button>
+                          </div>
+
+                          <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7 w-full justify-between">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = Math.max(0, (parseFloat(tabOffset) || 0) - 0.1);
+                                setTabOffset(val.toFixed(1));
+                              }}
+                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-r border-[#27282b] cursor-pointer flex items-center justify-center"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={tabOffset}
+                              onChange={(e) => setTabOffset(e.target.value)}
+                              className="bg-transparent text-[11px] text-[#f1f2f4] text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = (parseFloat(tabOffset) || 0) + 0.1;
+                                setTabOffset(val.toFixed(1));
+                              }}
+                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-l border-[#27282b] cursor-pointer flex items-center justify-center"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <Button
                     onClick={handleSaveOffsets}
                     disabled={isSavingOffsets || !activeRoleGroup}
-                    className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2"
                   >
                     {isSavingOffsets ? (
                       <>
@@ -813,7 +917,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                           </Badge>
                         )}
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-2 pt-1">
                         <a
                           href={links.tab}
@@ -892,8 +996,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                             ? status === "mastered"
                               ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
                               : status === "learning"
-                              ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
-                              : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
+                                ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
+                                : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
                             : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4]"
                         )}
                       >
