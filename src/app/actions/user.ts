@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { userSettings, userSongProgress, userSongMarkers, songs } from "@/db/schema";
+import { userSettings, userSongProgress, songs } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { cookies } from "next/headers";
 
@@ -118,53 +118,6 @@ export async function saveSongProgress(songId: string, status: string, speed: nu
   }
 }
 
-export async function getSongMarkers(songId: string) {
-  const uuid = await getUserUuid();
-  try {
-    return await db.select()
-      .from(userSongMarkers)
-      .where(and(eq(userSongMarkers.userUuid, uuid), eq(userSongMarkers.songId, songId)))
-      .orderBy(asc(userSongMarkers.timestamp));
-  } catch (error) {
-    console.error("Failed to get song markers:", error);
-    return [];
-  }
-}
-
-export async function addSongMarker(songId: string, name: string, timestamp: number) {
-  const uuid = await getUserUuid();
-  if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
-
-  try {
-    const id = `marker_${uuid}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-    await db.insert(userSongMarkers)
-      .values({
-        id,
-        userUuid: uuid,
-        songId,
-        name,
-        timestamp,
-        createdAt: Date.now(),
-      });
-    return { success: true, markerId: id };
-  } catch (error) {
-    console.error("Failed to add song marker:", error);
-    return { success: false, error: String(error) };
-  }
-}
-
-export async function deleteSongMarker(markerId: string) {
-  const uuid = await getUserUuid();
-  try {
-    await db.delete(userSongMarkers)
-      .where(and(eq(userSongMarkers.id, markerId), eq(userSongMarkers.userUuid, uuid)));
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to delete song marker:", error);
-    return { success: false, error: String(error) };
-  }
-}
-
 export async function exportUserData() {
   const uuid = await getUserUuid();
   if (uuid === "anonymous") {
@@ -174,7 +127,6 @@ export async function exportUserData() {
   try {
     const settings = await db.select().from(userSettings).where(eq(userSettings.userUuid, uuid)).limit(1);
     const progress = await db.select().from(userSongProgress).where(eq(userSongProgress.userUuid, uuid));
-    const markers = await db.select().from(userSongMarkers).where(eq(userSongMarkers.userUuid, uuid));
 
     return {
       success: true,
@@ -186,11 +138,6 @@ export async function exportUserData() {
           status: p.status,
           speed: p.speed,
           notes: p.notes,
-        })),
-        markers: markers.map(m => ({
-          songId: m.songId,
-          name: m.name,
-          timestamp: m.timestamp,
         })),
       }
     };
@@ -266,36 +213,7 @@ export async function importUserData(payload: any) {
       }
     }
 
-    // 3. Import markers
-    if (payload.markers && Array.isArray(payload.markers)) {
-      for (const m of payload.markers) {
-        const songExists = await db.select().from(songs).where(eq(songs.id, m.songId)).limit(1);
-        if (songExists.length === 0) continue;
 
-        const existingMarker = await db.select()
-          .from(userSongMarkers)
-          .where(and(
-            eq(userSongMarkers.userUuid, importUuid),
-            eq(userSongMarkers.songId, m.songId),
-            eq(userSongMarkers.name, m.name),
-            eq(userSongMarkers.timestamp, m.timestamp)
-          ))
-          .limit(1);
-
-        if (existingMarker.length === 0) {
-          const id = `marker_${importUuid}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-          await db.insert(userSongMarkers)
-            .values({
-              id,
-              userUuid: importUuid,
-              songId: m.songId,
-              name: m.name,
-              timestamp: m.timestamp,
-              createdAt: Date.now(),
-            });
-        }
-      }
-    }
 
     return { success: true, userUuid: importUuid };
   } catch (error) {

@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/user";
 import { SongDashboard } from "./SongDashboard";
 import { SetlistManager } from "./SetlistManager";
+import { PracticeMode } from "./PracticeMode";
 import { AddSongModal } from "./AddSongModal";
 import { AddRehearsalModal } from "./AddRehearsalModal";
 import { EditRehearsalModal } from "./EditRehearsalModal";
@@ -43,6 +44,7 @@ import {
   Upload,
   RefreshCw,
   Check,
+  Play,
 } from "lucide-react";
 
 interface Track {
@@ -144,6 +146,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   const [copySuccess, setCopySuccess] = useState(false);
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [practiceSongId, setPracticeSongId] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
 
@@ -433,6 +436,20 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
     );
   }
 
+  if (practiceSongId) {
+    const song = songsList.find((s) => s.id === practiceSongId);
+    if (song) {
+      return (
+        <PracticeMode
+          song={song}
+          onExit={() => setPracticeSongId(null)}
+          onRefresh={refreshData}
+          progressMap={progressMap}
+        />
+      );
+    }
+  }
+
   // Main UI
   return (
     <div className="flex-1 flex flex-col bg-[#0c0d0e] text-[#f1f2f4] pb-20 md:pb-6">
@@ -639,6 +656,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         onSelectSong={setSelectedRehearsalSongId}
                         onRefresh={refreshData}
                         progressMap={progressMap}
+                        onPracticeSong={(songId) => setPracticeSongId(songId)}
                       />
                     )}
                   </div>
@@ -789,6 +807,22 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                             </div>
                           </div>
                         </CardHeader>
+                        <div className="border-t border-[#27282b]/60 px-5 py-3.5 bg-[#161719]/25 flex items-center justify-between gap-2 mt-auto">
+                          <span className="text-[10px] text-[#888d96] font-mono tracking-wider">
+                            {(song.roleGroups?.length || 0)} instrument roles
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPracticeSongId(song.id);
+                            }}
+                            className="bg-[#2e4057] hover:bg-[#344b67] border border-[#446285] text-[#acd1f8] hover:text-[#cde3fa] font-bold text-xs rounded-xl flex items-center gap-1.5 h-8 px-3 shadow cursor-pointer transition-all"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            Practice
+                          </Button>
+                        </div>
                       </Card>
                     ))}
                   </div>
@@ -920,7 +954,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                   Practice Data & Device Sync
                 </CardTitle>
                 <CardDescription className="text-xs text-[#888d96] mt-1">
-                  Your practice speed preferences, learning logs, notes, and song section markers are automatically saved under your anonymous ID. Sync this ID or import/export files to share settings across multiple devices and browsers.
+                  Your practice speed preferences, learning logs, and notes are automatically saved under your anonymous ID. Sync this ID or import/export files to share settings across multiple devices and browsers.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">

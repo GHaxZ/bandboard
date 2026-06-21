@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getSongTunings } from "@/lib/tunings";
 import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehearsalSongs } from "@/app/actions/rehearsals";
 import { cn } from "@/lib/utils";
-import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic, Play } from "lucide-react";
 
 interface Track {
   id: string;
@@ -54,6 +54,7 @@ interface SetlistManagerProps {
   onSelectSong: (songId: string) => void;
   onRefresh: () => void;
   progressMap?: Record<string, { status: string; speed: number; notes: string | null }>;
+  onPracticeSong?: (songId: string) => void;
 }
 
 export function SetlistManager({
@@ -64,6 +65,7 @@ export function SetlistManager({
   onSelectSong,
   onRefresh,
   progressMap,
+  onPracticeSong,
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -231,6 +233,15 @@ export function SetlistManager({
 
                 {/* Reordering and removal controls */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onPracticeSong?.(rs.songId)}
+                    className="h-8 w-8 text-[#acd1f8] hover:text-[#cde3fa] hover:bg-[#2e4057]/40 rounded-lg mr-1 cursor-pointer"
+                    title="Practice Mode"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
