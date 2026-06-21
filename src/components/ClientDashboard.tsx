@@ -142,7 +142,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
   // User settings and sync state
   const [userUuid, setUserUuid] = useState<string>("");
-  const [progressMap, setProgressMap] = useState<Record<string, { status: string; speed: number; notes: string | null }>>({});
+  const [progressMap, setProgressMap] = useState<Record<string, { status: string; speed: number; notes: string | null; practiceMarkers?: string | null }>>({});
   const [copySuccess, setCopySuccess] = useState(false);
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
@@ -200,12 +200,13 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
       // 5. Load progress list
       const progressList = await getAllSongProgress();
-      const map: Record<string, { status: string; speed: number; notes: string | null }> = {};
+      const map: Record<string, { status: string; speed: number; notes: string | null; practiceMarkers?: string | null }> = {};
       progressList.forEach((p) => {
         map[p.songId] = {
           status: p.status,
           speed: p.speed,
           notes: p.notes,
+          practiceMarkers: p.practiceMarkers,
         };
       });
       setProgressMap(map);
@@ -230,12 +231,13 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
       // Refresh progress
       const progressList = await getAllSongProgress();
-      const map: Record<string, { status: string; speed: number; notes: string | null }> = {};
+      const map: Record<string, { status: string; speed: number; notes: string | null; practiceMarkers?: string | null }> = {};
       progressList.forEach((p) => {
         map[p.songId] = {
           status: p.status,
           speed: p.speed,
           notes: p.notes,
+          practiceMarkers: p.practiceMarkers,
         };
       });
       setProgressMap(map);

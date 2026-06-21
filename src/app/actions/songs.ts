@@ -487,3 +487,22 @@ export async function getGeniusLyricsLinkAction(
     return `https://genius.com/search?q=${encodeURIComponent(artist + " " + title)}`;
   }
 }
+
+export async function updateRoleGroupStartOffsets(
+  roleGroupId: string,
+  backingStartOffset: number,
+  tabStartOffset: number
+) {
+  try {
+    await db.update(roleGroups)
+      .set({
+        backingStartOffset,
+        tabStartOffset,
+      })
+      .where(eq(roleGroups.id, roleGroupId));
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update role group start offsets:", error);
+    return { success: false, error: String(error) };
+  }
+}

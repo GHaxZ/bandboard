@@ -118,6 +118,46 @@ export async function saveSongProgress(songId: string, status: string, speed: nu
   }
 }
 
+export async function savePracticeMarkers(songId: string, markers: number[]) {
+  const uuid = await getUserUuid();
+  if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
+
+  try {
+    const existing = await db.select()
+      .from(userSongProgress)
+      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
+      .limit(1);
+
+    const serialized = JSON.stringify(markers);
+
+    if (existing.length > 0) {
+      await db.update(userSongProgress)
+        .set({
+          practiceMarkers: serialized,
+          updatedAt: Date.now(),
+        })
+        .where(eq(userSongProgress.id, existing[0].id));
+    } else {
+      const id = `${uuid}_${songId}_${Date.now()}`;
+      await db.insert(userSongProgress)
+        .values({
+          id,
+          userUuid: uuid,
+          songId,
+          status: "learning",
+          speed: 100,
+          notes: null,
+          practiceMarkers: serialized,
+          updatedAt: Date.now(),
+        });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save practice markers:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function exportUserData() {
   const uuid = await getUserUuid();
   if (uuid === "anonymous") {
@@ -138,6 +178,7 @@ export async function exportUserData() {
           status: p.status,
           speed: p.speed,
           notes: p.notes,
+          practiceMarkers: p.practiceMarkers,
         })),
       }
     };
@@ -194,6 +235,7 @@ export async function importUserData(payload: any) {
               status: p.status || "learning",
               speed: p.speed || 100,
               notes: p.notes || null,
+              practiceMarkers: p.practiceMarkers || null,
               updatedAt: Date.now(),
             })
             .where(eq(userSongProgress.id, existingProg[0].id));
@@ -207,6 +249,7 @@ export async function importUserData(payload: any) {
               status: p.status || "learning",
               speed: p.speed || 100,
               notes: p.notes || null,
+              practiceMarkers: p.practiceMarkers || null,
               updatedAt: Date.now(),
             });
         }
