@@ -55,13 +55,13 @@ export function VideoSelector({
       let defaultQuery = "";
       if (type === "backing") {
         if (role === "Bass") {
-          defaultQuery = `${songArtist} ${songTitle} bassless backing track`;
+          defaultQuery = `${songArtist} ${songTitle} no bass backing track`;
         } else if (role === "Drums") {
-          defaultQuery = `${songArtist} ${songTitle} drumless backing track`;
+          defaultQuery = `${songArtist} ${songTitle} no drums backing track`;
         } else if (role === "Guitar") {
-          defaultQuery = `${songArtist} ${songTitle} guitarless backing track`;
+          defaultQuery = `${songArtist} ${songTitle} no guitar backing track`;
         } else if (role === "Vocals") {
-          defaultQuery = `${songArtist} ${songTitle} karaoke`;
+          defaultQuery = `${songArtist} ${songTitle} instrumental`;
         } else if (role === "Piano/Keyboard") {
           defaultQuery = `${songArtist} ${songTitle} no piano keyboard backing track`;
         } else {

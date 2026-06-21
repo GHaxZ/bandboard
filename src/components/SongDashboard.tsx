@@ -322,7 +322,7 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                       const links = getAlternativeLinks(track.tabLink);
                       const role = track.role;
 
-                      if (role === "Guitar" || role === "Bass" || role === "Piano/Keyboard") {
+                      if (role === "Guitar" || role === "Bass") {
                         return (
                           <>
                             <a
@@ -338,6 +338,37 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                               Open Interactive Tab
                               <ExternalLink className="w-3 h-3 text-[#888d96]" />
                             </a>
+                            <a
+                              href={links.sheet}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                buttonVariants({ variant: "default", size: "default" }),
+                                "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#f1f2f4] rounded-xl shadow-md flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold transition-all cursor-pointer"
+                              )}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#73a2cf]" />
+                              Open Sheet Music
+                              <ExternalLink className="w-3 h-3 text-[#888d96]" />
+                            </a>
+                            <a
+                              href={links.chords}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                buttonVariants({ variant: "default", size: "default" }),
+                                "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-[#f1f2f4] rounded-xl shadow-md flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold transition-all cursor-pointer"
+                              )}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#4ea388]" />
+                              Open Chords Sheet
+                              <ExternalLink className="w-3 h-3 text-[#888d96]" />
+                            </a>
+                          </>
+                        );
+                      } else if (role === "Piano/Keyboard") {
+                        return (
+                          <>
                             <a
                               href={links.sheet}
                               target="_blank"
@@ -406,31 +437,50 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                 </div>
 
                 {/* Backing Track & Video Lessons */}
-                {track.role === "Vocals" && song.lyrics ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* Lyrics Column */}
-                    <div className="lg:col-span-7 flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
-                      <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
-                        <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
-                          <FileText className="w-3.5 h-3.5 text-[#5b80a5]" /> Lyrics
-                        </span>
-                      </div>
-                      <div className="flex-1 p-5 overflow-y-auto max-h-[500px] font-mono text-[#f1f2f4] leading-relaxed whitespace-pre-wrap text-sm select-text scrollbar-thin scrollbar-thumb-[#27282b] scrollbar-track-[#0c0d0e] text-center">
-                        {song.lyrics}
-                      </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Backing Track Card */}
+                  <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
+                    <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
+                      <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
+                        <Play className="w-3.5 h-3.5 text-[#888d96]" /> {track.role === "Vocals" ? "Backing Track (Instrumental)" : "Backing Track"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setVideoSelectorState({
+                            isOpen: true,
+                            trackId: track.id,
+                            type: "backing",
+                            instrumentName: track.instrumentName,
+                            currentUrl: track.backingTrackLink === "none" ? null : track.backingTrackLink,
+                          })
+                        }
+                        className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
+                      >
+                        Change Video
+                      </Button>
                     </div>
-
-                    {/* Players Column */}
-                    <div className="lg:col-span-5 space-y-6">
-                      {/* Backing Track (Instrumental) */}
-                      <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
-                        <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
-                          <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
-                            <Play className="w-3.5 h-3.5 text-[#888d96]" /> Backing Track (Instrumental)
-                          </span>
+                    <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
+                      {isLazyLoading && track.backingTrackLink === null ? (
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
+                          <p className="text-xs text-[#888d96]">Searching YouTube backing track...</p>
+                        </div>
+                      ) : (backingVideoId && track.backingTrackLink !== "none") ? (
+                        <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
+                          <iframe
+                            src={`https://www.youtube.com/embed/${backingVideoId}`}
+                            title="Backing Track Player"
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-xs text-[#888d96] mb-4 font-medium">No backing track link found.</p>
                           <Button
-                            variant="ghost"
-                            size="sm"
                             onClick={() =>
                               setVideoSelectorState({
                                 isOpen: true,
@@ -440,58 +490,64 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                                 currentUrl: track.backingTrackLink === "none" ? null : track.backingTrackLink,
                               })
                             }
-                            className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
+                            className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
                           >
-                            Change Video
+                            Search Backing Track
                           </Button>
                         </div>
-                        <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                          {isLazyLoading && track.backingTrackLink === null ? (
-                            <div className="flex flex-col items-center justify-center py-8">
-                              <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                              <p className="text-xs text-[#888d96]">Searching YouTube backing track...</p>
-                            </div>
-                          ) : (backingVideoId && track.backingTrackLink !== "none") ? (
-                            <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
-                              <iframe
-                                src={`https://www.youtube.com/embed/${backingVideoId}`}
-                                title="Backing Track Player"
-                                className="w-full h-full border-0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : (
-                            <div className="text-center py-8">
-                              <p className="text-xs text-[#888d96] mb-4 font-medium">No backing track link found.</p>
-                              <Button
-                                onClick={() =>
-                                  setVideoSelectorState({
-                                    isOpen: true,
-                                    trackId: track.id,
-                                    type: "backing",
-                                    instrumentName: track.instrumentName,
-                                    currentUrl: track.backingTrackLink === "none" ? null : track.backingTrackLink,
-                                  })
-                                }
-                                className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
-                              >
-                                Search Backing Track
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      )}
+                    </div>
+                  </div>
 
-                      {/* Original Song (Vocal Reference) */}
-                      <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
-                        <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
-                          <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
-                            <Video className="w-3.5 h-3.5 text-[#888d96]" /> Original Song (Vocal Reference)
-                          </span>
+                  {/* Tab/Reference Video Card */}
+                  <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
+                    <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
+                      <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5 text-[#888d96]" /> {
+                          track.role === "Vocals" 
+                            ? "Original Song (Vocal Reference)" 
+                            : track.role === "Piano/Keyboard" 
+                            ? "Video Lesson / Cover" 
+                            : "Tab Video Lesson"
+                        }
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setVideoSelectorState({
+                            isOpen: true,
+                            trackId: track.id,
+                            type: "tab",
+                            instrumentName: track.instrumentName,
+                            currentUrl: track.tabVideoLink === "none" ? null : track.tabVideoLink,
+                          })
+                        }
+                        className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
+                      >
+                        Change Video
+                      </Button>
+                    </div>
+                    <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
+                      {isLazyLoading && track.tabVideoLink === null ? (
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
+                          <p className="text-xs text-[#888d96]">{track.role === "Vocals" ? "Searching original song..." : "Searching YouTube lesson..."}</p>
+                        </div>
+                      ) : (tabVideoId && track.tabVideoLink !== "none") ? (
+                        <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
+                          <iframe
+                            src={`https://www.youtube.com/embed/${tabVideoId}`}
+                            title="Tab Video Player"
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-xs text-[#888d96] mb-4 font-medium">{track.role === "Vocals" ? "No video reference found." : "No video lesson or cover found."}</p>
                           <Button
-                            variant="ghost"
-                            size="sm"
                             onClick={() =>
                               setVideoSelectorState({
                                 isOpen: true,
@@ -501,175 +557,21 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                                 currentUrl: track.tabVideoLink === "none" ? null : track.tabVideoLink,
                               })
                             }
-                            className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
+                            className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
                           >
-                            Change Video
+                            {
+                              track.role === "Vocals" 
+                                ? "Search Original Song" 
+                                : track.role === "Piano/Keyboard" 
+                                ? "Search Video Lesson" 
+                                : "Search Tab Video"
+                            }
                           </Button>
                         </div>
-                        <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                          {isLazyLoading && track.tabVideoLink === null ? (
-                            <div className="flex flex-col items-center justify-center py-8">
-                              <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                              <p className="text-xs text-[#888d96]">Searching YouTube lesson...</p>
-                            </div>
-                          ) : (tabVideoId && track.tabVideoLink !== "none") ? (
-                            <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
-                              <iframe
-                                src={`https://www.youtube.com/embed/${tabVideoId}`}
-                                title="Tab Video Player"
-                                className="w-full h-full border-0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : (
-                            <div className="text-center py-8">
-                              <p className="text-xs text-[#888d96] mb-4 font-medium">No video lesson or cover found.</p>
-                              <Button
-                                onClick={() =>
-                                  setVideoSelectorState({
-                                    isOpen: true,
-                                    trackId: track.id,
-                                    type: "tab",
-                                    instrumentName: track.instrumentName,
-                                    currentUrl: track.tabVideoLink === "none" ? null : track.tabVideoLink,
-                                  })
-                                }
-                                className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
-                              >
-                                Search Tab Video
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Backing Track Card */}
-                    <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
-                      <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
-                        <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
-                          <Play className="w-3.5 h-3.5 text-[#888d96]" /> Backing Track
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setVideoSelectorState({
-                              isOpen: true,
-                              trackId: track.id,
-                              type: "backing",
-                              instrumentName: track.instrumentName,
-                              currentUrl: track.backingTrackLink === "none" ? null : track.backingTrackLink,
-                            })
-                          }
-                          className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
-                        >
-                          Change Video
-                        </Button>
-                      </div>
-                      <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                        {isLazyLoading && track.backingTrackLink === null ? (
-                          <div className="flex flex-col items-center justify-center py-8">
-                            <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                            <p className="text-xs text-[#888d96]">Searching YouTube backing track...</p>
-                          </div>
-                        ) : (backingVideoId && track.backingTrackLink !== "none") ? (
-                          <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
-                            <iframe
-                              src={`https://www.youtube.com/embed/${backingVideoId}`}
-                              title="Backing Track Player"
-                              className="w-full h-full border-0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-xs text-[#888d96] mb-4 font-medium">No backing track link found.</p>
-                            <Button
-                              onClick={() =>
-                                setVideoSelectorState({
-                                  isOpen: true,
-                                  trackId: track.id,
-                                  type: "backing",
-                                  instrumentName: track.instrumentName,
-                                  currentUrl: track.backingTrackLink === "none" ? null : track.backingTrackLink,
-                                })
-                              }
-                              className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
-                            >
-                              Search Backing Track
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Tab Video Card */}
-                    <div className="flex flex-col bg-[#0c0d0e] border border-[#27282b] rounded-2xl overflow-hidden shadow-lg">
-                      <div className="p-4 border-b border-[#27282b] flex items-center justify-between bg-[#161719]/20">
-                        <span className="text-xs font-bold text-[#f1f2f4] flex items-center gap-1.5">
-                          <Video className="w-3.5 h-3.5 text-[#888d96]" /> Tab Video Lesson
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setVideoSelectorState({
-                              isOpen: true,
-                              trackId: track.id,
-                              type: "tab",
-                              instrumentName: track.instrumentName,
-                              currentUrl: track.tabVideoLink === "none" ? null : track.tabVideoLink,
-                            })
-                          }
-                          className="text-[10px] font-bold text-[#888d96] hover:text-[#f1f2f4] h-8 rounded-lg"
-                        >
-                          Change Video
-                        </Button>
-                      </div>
-                      <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                        {isLazyLoading && track.tabVideoLink === null ? (
-                          <div className="flex flex-col items-center justify-center py-8">
-                            <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                            <p className="text-xs text-[#888d96]">Searching YouTube lesson...</p>
-                          </div>
-                        ) : (tabVideoId && track.tabVideoLink !== "none") ? (
-                          <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
-                            <iframe
-                              src={`https://www.youtube.com/embed/${tabVideoId}`}
-                              title="Tab Video Player"
-                              className="w-full h-full border-0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-xs text-[#888d96] mb-4 font-medium">No video lesson or cover found.</p>
-                            <Button
-                              onClick={() =>
-                                setVideoSelectorState({
-                                  isOpen: true,
-                                  trackId: track.id,
-                                  type: "tab",
-                                  instrumentName: track.instrumentName,
-                                  currentUrl: track.tabVideoLink === "none" ? null : track.tabVideoLink,
-                                })
-                              }
-                              className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs rounded-xl"
-                            >
-                              Search Tab Video
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </TabsContent>
             );
           })}
@@ -712,30 +614,16 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
 
                     {/* Right details panel for the selected other instrument */}
                     <div className="md:col-span-3 space-y-6">
-                      {/* Tuning & Role details */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-[#0c0d0e] border border-[#27282b] rounded-2xl p-4 flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] text-[#888d96] uppercase tracking-wider font-bold block">Tuning</span>
-                            <span className="text-lg font-mono font-extrabold text-[#f1f2f4] tracking-wider">
-                              {currentOtherTrack.tuning}
-                            </span>
-                          </div>
-                          <div className="h-10 w-10 rounded-xl bg-[#161719] border border-[#27282b] flex items-center justify-center">
-                            <Sliders className="w-4 h-4 text-[#888d96]" />
-                          </div>
+                      {/* Equipment / Role Info details */}
+                      <div className="bg-[#0c0d0e] border border-[#27282b] rounded-2xl p-4 flex items-center justify-between">
+                        <div className="flex-1">
+                          <span className="text-[10px] text-[#888d96] uppercase tracking-wider font-bold block">Equipment / Role Info</span>
+                          <span className="text-sm font-semibold text-[#f1f2f4] block mt-0.5 leading-relaxed whitespace-normal">
+                            {currentOtherTrack.details || `Role: ${currentOtherTrack.role}`}
+                          </span>
                         </div>
-
-                        <div className="bg-[#0c0d0e] border border-[#27282b] rounded-2xl p-4 flex items-center justify-between">
-                          <div className="flex-1">
-                            <span className="text-[10px] text-[#888d96] uppercase tracking-wider font-bold block">Equipment / Role Info</span>
-                            <span className="text-sm font-semibold text-[#f1f2f4] block mt-0.5 leading-relaxed whitespace-normal">
-                              {currentOtherTrack.details || `Role: ${currentOtherTrack.role}`}
-                            </span>
-                          </div>
-                          <div className="h-10 w-10 rounded-xl bg-[#161719] border border-[#27282b] flex items-center justify-center flex-shrink-0 ml-2">
-                            <Info className="w-4 h-4 text-[#888d96]" />
-                          </div>
+                        <div className="h-10 w-10 rounded-xl bg-[#161719] border border-[#27282b] flex items-center justify-center flex-shrink-0 ml-2">
+                          <Info className="w-4 h-4 text-[#888d96]" />
                         </div>
                       </div>
 
