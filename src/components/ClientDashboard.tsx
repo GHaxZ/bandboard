@@ -5,6 +5,13 @@ import { useState, useEffect, useTransition } from "react";
 import { getSongs, deleteSong } from "@/app/actions/songs";
 import { getRehearsals, deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
 import { checkSecret, isSecretRequired } from "@/app/actions/auth";
+import {
+  getUserSettings,
+  saveUserSettings,
+  exportUserData,
+  importUserData,
+  getAllSongProgress,
+} from "@/app/actions/user";
 import { SongDashboard } from "./SongDashboard";
 import { SetlistManager } from "./SetlistManager";
 import { AddSongModal } from "./AddSongModal";
@@ -31,6 +38,11 @@ import {
   Sliders,
   CheckCircle,
   Edit,
+  Copy,
+  Download,
+  Upload,
+  RefreshCw,
+  Check,
 } from "lucide-react";
 
 interface Track {
@@ -126,17 +138,23 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   // Profile preferences
   const [instrument, setInstrument] = useState("Guitar");
 
+  // User settings and sync state
+  const [userUuid, setUserUuid] = useState<string>("");
+  const [progressMap, setProgressMap] = useState<Record<string, { status: string; speed: number; notes: string | null }>>({});
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [syncIdInput, setSyncIdInput] = useState("");
+  const [syncError, setSyncError] = useState("");
+
   const [, startTransition] = useTransition();
 
-  // URL Parsing and auth verification on mount
+  // URL Parsing and auth verification on mount + user preferences and progress
   useEffect(() => {
-    async function verifyAccess() {
+    async function initUserAndAccess() {
       // 1. Capture token from URL
       const searchParams = new URLSearchParams(window.location.search);
       const secretParam = searchParams.get("secret");
       if (secretParam) {
         localStorage.setItem("bandboard_secret", secretParam);
-        // Remove token from address bar for visual cleanliness
         const newUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, document.title, newUrl);
       }
@@ -153,18 +171,44 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
         setIsAuthVerified(true);
       }
       setIsCheckingSecret(false);
+
+      // 3. User anonymous identity
+      const uid = localStorage.getItem("band_orchestrator_uid") || "";
+      setUserUuid(uid);
+
+      // 4. Load instrument preferences from DB or fallback
+      const dbSettings = await getUserSettings();
+      const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
+      
+      let finalInst = "Guitar";
+      if (dbSettings && dbSettings.preferredInstrument) {
+        finalInst = dbSettings.preferredInstrument;
+        localStorage.setItem("bandboard_instrument", dbSettings.preferredInstrument);
+      } else if (savedInstrument) {
+        finalInst = savedInstrument;
+        await saveUserSettings(savedInstrument);
+      }
+
+      if (finalInst.toLowerCase() === "keyboard" || finalInst.toLowerCase() === "piano") {
+        setInstrument("Piano/Keyboard");
+      } else {
+        setInstrument(finalInst);
+      }
+
+      // 5. Load progress list
+      const progressList = await getAllSongProgress();
+      const map: Record<string, { status: string; speed: number; notes: string | null }> = {};
+      progressList.forEach((p) => {
+        map[p.songId] = {
+          status: p.status,
+          speed: p.speed,
+          notes: p.notes,
+        };
+      });
+      setProgressMap(map);
     }
 
-    verifyAccess();
-
-    // Load profile preferences
-    const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
-    if (savedInstrument.toLowerCase() === "keyboard" || savedInstrument.toLowerCase() === "piano") {
-      setInstrument("Piano/Keyboard");
-      localStorage.setItem("bandboard_instrument", "Piano/Keyboard");
-    } else {
-      setInstrument(savedInstrument);
-    }
+    initUserAndAccess();
   }, []);
 
   // Sync data refresh helper
@@ -180,6 +224,18 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
         const details = await getRehearsalDetails(selectedRehearsalId);
         setSelectedRehearsalDetails(details);
       }
+
+      // Refresh progress
+      const progressList = await getAllSongProgress();
+      const map: Record<string, { status: string; speed: number; notes: string | null }> = {};
+      progressList.forEach((p) => {
+        map[p.songId] = {
+          status: p.status,
+          speed: p.speed,
+          notes: p.notes,
+        };
+      });
+      setProgressMap(map);
     });
   }
 
@@ -202,7 +258,6 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
       getRehearsalDetails(selectedRehearsalId).then((details) => {
         setSelectedRehearsalDetails(details);
         if (details && details.rehearsalSongs.length > 0) {
-          // Auto select first song in setlist
           setSelectedRehearsalSongId(details.rehearsalSongs[0].songId);
         } else {
           setSelectedRehearsalSongId(null);
@@ -225,10 +280,76 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   }, [selectedSongId, selectedRehearsalId, selectedRehearsalSongId]);
 
   // Handle instrument setting change
-  function handleInstrumentChange(val: string) {
+  async function handleInstrumentChange(val: string) {
     setInstrument(val);
     localStorage.setItem("bandboard_instrument", val);
+    await saveUserSettings(val);
   }
+
+  const handleCopyId = () => {
+    if (typeof navigator !== "undefined" && userUuid) {
+      navigator.clipboard.writeText(userUuid);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
+
+  const handleSyncId = () => {
+    setSyncError("");
+    const trimmed = syncIdInput.trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(trimmed)) {
+      setSyncError("Invalid Device ID format. Must be a valid UUID v4.");
+      return;
+    }
+
+    localStorage.setItem("band_orchestrator_uid", trimmed);
+    document.cookie = `band_orchestrator_uid=${trimmed}; path=/; max-age=${60 * 60 * 24 * 365 * 10}; SameSite=Lax`;
+    window.location.reload();
+  };
+
+  const handleExportProfile = async () => {
+    const result = await exportUserData();
+    if (result.success && result.data) {
+      const dataStr = JSON.stringify(result.data, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `bandboard_profile_${userUuid.substring(0, 8)}.json`;
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    } else {
+      alert("Export failed: " + (result.error || "Unknown error"));
+    }
+  };
+
+  const handleImportProfile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = async (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (!parsed.band_orchestrator_uid) {
+            alert("Invalid file: No Device ID found.");
+            return;
+          }
+
+          const res = await importUserData(parsed);
+          if (res.success && res.userUuid) {
+            localStorage.setItem("band_orchestrator_uid", res.userUuid);
+            document.cookie = `band_orchestrator_uid=${res.userUuid}; path=/; max-age=${60 * 60 * 24 * 365 * 10}; SameSite=Lax`;
+            alert("Profile imported successfully!");
+            window.location.reload();
+          } else {
+            alert("Import failed: " + (res.error || "Database error"));
+          }
+        } catch (err) {
+          alert("Failed to parse file as JSON.");
+        }
+      };
+    }
+  };
 
   // Delete song callback
   async function handleDeleteSong(songId: string) {
@@ -517,6 +638,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         activeSongId={selectedRehearsalSongId}
                         onSelectSong={setSelectedRehearsalSongId}
                         onRefresh={refreshData}
+                        progressMap={progressMap}
                       />
                     )}
                   </div>
@@ -613,9 +735,25 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                             />
                           )}
                           <div className="min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
-                              {(song.roleGroups?.reduce((acc, rg) => acc + (rg.tracks?.length || 0), 0) || 0)} notation tracks
-                            </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
+                                {(song.roleGroups?.reduce((acc, rg) => acc + (rg.tracks?.length || 0), 0) || 0)} notation tracks
+                              </span>
+                              {progressMap[song.id] && (
+                                <Badge
+                                  className={cn(
+                                    "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
+                                    progressMap[song.id].status === "mastered"
+                                      ? "bg-emerald-950/40 text-emerald-400"
+                                      : progressMap[song.id].status === "learning"
+                                      ? "bg-sky-950/40 text-sky-400"
+                                      : "bg-zinc-800/40 text-zinc-400"
+                                  )}
+                                >
+                                  {progressMap[song.id].status}
+                                </Badge>
+                              )}
+                            </div>
                             <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
                               {song.title}
                             </CardTitle>
@@ -773,6 +911,94 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                 </CardContent>
               </Card>
             </div>
+
+            {/* Practice Sync & Backup Card */}
+            <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg mt-6">
+              <CardHeader>
+                <CardTitle className="text-base font-bold text-[#f1f2f4] flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-[#888d96]" />
+                  Practice Data & Device Sync
+                </CardTitle>
+                <CardDescription className="text-xs text-[#888d96] mt-1">
+                  Your practice speed preferences, learning logs, notes, and song section markers are automatically saved under your anonymous ID. Sync this ID or import/export files to share settings across multiple devices and browsers.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Identity Display */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[#888d96] uppercase tracking-wider block">Your Anonymous Device ID</label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-[#0c0d0e] border border-[#27282b] text-xs text-[#5b80a5] font-mono px-4 py-3 rounded-xl select-all break-all leading-normal">
+                      {userUuid || "Generating..."}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCopyId}
+                      className="h-11 w-11 border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] rounded-xl flex-shrink-0 text-[#888d96] hover:text-[#f1f2f4]"
+                      title="Copy Device ID"
+                    >
+                      {copySuccess ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  {/* Sync Section */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-[#888d96] uppercase tracking-wider block">Sync Another Device</label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Paste another device's ID..."
+                        value={syncIdInput}
+                        onChange={(e) => setSyncIdInput(e.target.value)}
+                        className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] text-xs px-3 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-10"
+                      />
+                      <Button
+                        onClick={handleSyncId}
+                        className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
+                      >
+                        Sync ID
+                      </Button>
+                    </div>
+                    {syncError && <p className="text-xs text-red-400 font-semibold">{syncError}</p>}
+                  </div>
+
+                  {/* Backup/Import Section */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-[#888d96] uppercase tracking-wider block">Backup &amp; Import Profile</label>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        onClick={handleExportProfile}
+                        variant="outline"
+                        className="border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-xs font-bold text-[#acd1f8] hover:text-[#f1f2f4] py-2 h-10 px-4 rounded-xl flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Export Profile
+                      </Button>
+                      
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept=".json"
+                          id="profile-import-file"
+                          onChange={handleImportProfile}
+                          className="hidden"
+                        />
+                        <Button
+                          onClick={() => document.getElementById("profile-import-file")?.click()}
+                          variant="outline"
+                          className="border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] py-2 h-10 px-4 rounded-xl flex items-center gap-1.5"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Import Profile
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>

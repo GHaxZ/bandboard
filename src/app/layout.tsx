@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AnonymousUserProvider } from "@/components/AnonymousUserProvider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -22,7 +23,12 @@ export default function RootLayout({
       lang="en"
       className={`dark ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#0c0d0e] text-[#f1f2f4]">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#0c0d0e] text-[#f1f2f4]">
+        <AnonymousUserProvider>
+          {children}
+        </AnonymousUserProvider>
+      </body>
     </html>
   );
 }
+

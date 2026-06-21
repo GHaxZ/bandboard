@@ -53,6 +53,7 @@ interface SetlistManagerProps {
   activeSongId: string | null;
   onSelectSong: (songId: string) => void;
   onRefresh: () => void;
+  progressMap?: Record<string, { status: string; speed: number; notes: string | null }>;
 }
 
 export function SetlistManager({
@@ -62,6 +63,7 @@ export function SetlistManager({
   activeSongId,
   onSelectSong,
   onRefresh,
+  progressMap,
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -181,6 +183,20 @@ export function SetlistManager({
                       <p className={`text-sm font-bold truncate ${isSelected ? "text-[#f1f2f4]" : "text-[#d1d1d6]"}`}>
                         {rs.song.title}
                       </p>
+                      {progressMap && progressMap[rs.songId] && (
+                        <Badge
+                          className={cn(
+                            "text-[8px] font-extrabold uppercase px-1 py-0 rounded-md border-0 shrink-0",
+                            progressMap[rs.songId].status === "mastered"
+                              ? "bg-emerald-950/40 text-emerald-400"
+                              : progressMap[rs.songId].status === "learning"
+                              ? "bg-sky-950/40 text-sky-400"
+                              : "bg-zinc-800/40 text-zinc-400"
+                          )}
+                        >
+                          {progressMap[rs.songId].status}
+                        </Badge>
+                      )}
                       {/* Tuning Badges */}
                       {(() => {
                         const songTunings = getSongTunings(rs.song);

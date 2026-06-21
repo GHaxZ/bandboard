@@ -5,10 +5,18 @@ import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updateTrackVideoLink, lazyLoadTrackMedia, getGeniusLyricsLinkAction } from "@/app/actions/songs";
 import { VideoSelector } from "./VideoSelector";
-import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
+import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown, Sliders, Clock } from "lucide-react";
+import {
+  getSongProgress,
+  saveSongProgress,
+  getSongMarkers,
+  addSongMarker,
+  deleteSongMarker
+} from "@/app/actions/user";
 
 interface Track {
   id: string;
@@ -79,6 +87,121 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
   
   // Track selected non-standard instrument when "Other Instruments" tab is active
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
+
+  // User progress and custom markers state
+  const [progressStatus, setProgressStatus] = useState<string>("learning");
+  const [progressSpeed, setProgressSpeed] = useState<number>(100);
+  const [progressNotes, setProgressNotes] = useState<string>("");
+  const [markers, setMarkers] = useState<{ id: string; name: string; timestamp: number }[]>([]);
+  const [isSavingProgress, setIsSavingProgress] = useState<boolean>(false);
+
+  // New marker inputs
+  const [newMarkerName, setNewMarkerName] = useState<string>("");
+  const [newMarkerTime, setNewMarkerTime] = useState<string>("");
+
+  // Target player timestamps for jump
+  const [backingStartSeconds, setBackingStartSeconds] = useState<number | null>(null);
+  const [tabStartSeconds, setTabStartSeconds] = useState<number | null>(null);
+
+  // Load progress and markers when song.id changes
+  useEffect(() => {
+    async function loadSongUserData() {
+      if (!song.id) return;
+      
+      setBackingStartSeconds(null);
+      setTabStartSeconds(null);
+      
+      const prog = await getSongProgress(song.id);
+      if (prog) {
+        setProgressStatus(prog.status);
+        setProgressSpeed(prog.speed);
+        setProgressNotes(prog.notes || "");
+      } else {
+        setProgressStatus("learning");
+        setProgressSpeed(100);
+        setProgressNotes("");
+      }
+      
+      const mk = await getSongMarkers(song.id);
+      setMarkers(mk);
+    }
+    
+    loadSongUserData();
+  }, [song.id]);
+
+  // Save progress helper
+  async function handleSaveProgress() {
+    setIsSavingProgress(true);
+    try {
+      const res = await saveSongProgress(song.id, progressStatus, progressSpeed, progressNotes);
+      if (res.success) {
+        onRefresh();
+      } else {
+        alert("Failed to save practice log: " + res.error);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingProgress(false);
+    }
+  }
+
+  // Parse time helper
+  function parseTimestamp(val: string): number {
+    const trimmed = val.trim();
+    if (trimmed.includes(":")) {
+      const parts = trimmed.split(":");
+      if (parts.length === 2) {
+        const m = parseInt(parts[0], 10);
+        const s = parseInt(parts[1], 10);
+        if (!isNaN(m) && !isNaN(s)) {
+          return m * 60 + s;
+        }
+      }
+    }
+    const secs = parseInt(trimmed, 10);
+    return isNaN(secs) ? 0 : secs;
+  }
+
+  // Add marker helper
+  async function handleAddMarker() {
+    if (!newMarkerName.trim()) {
+      alert("Please enter a section name.");
+      return;
+    }
+    if (!newMarkerTime.trim()) {
+      alert("Please enter a timestamp.");
+      return;
+    }
+
+    const timestamp = parseTimestamp(newMarkerTime);
+    const res = await addSongMarker(song.id, newMarkerName.trim(), timestamp);
+    if (res.success) {
+      const updated = await getSongMarkers(song.id);
+      setMarkers(updated);
+      setNewMarkerName("");
+      setNewMarkerTime("");
+    } else {
+      alert("Failed to add section marker: " + res.error);
+    }
+  }
+
+  // Delete marker helper
+  async function handleDeleteMarker(markerId: string) {
+    const res = await deleteSongMarker(markerId);
+    if (res.success) {
+      const updated = await getSongMarkers(song.id);
+      setMarkers(updated);
+    } else {
+      alert("Failed to delete marker: " + res.error);
+    }
+  }
+
+  // Jump to timestamp helper
+  function handleJumpToTime(timestamp: number) {
+    setBackingStartSeconds(timestamp);
+    setTabStartSeconds(timestamp);
+  }
 
   // Track expanded state of additional notation tracks inside role groups
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
@@ -519,7 +642,8 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                       ) : (backingVideoId && roleGroup.backingTrackLink !== "none") ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
                           <iframe
-                            src={`https://www.youtube.com/embed/${backingVideoId}`}
+                            key={`${backingVideoId}-${backingStartSeconds}`}
+                            src={backingStartSeconds !== null ? `https://www.youtube.com/embed/${backingVideoId}?start=${backingStartSeconds}&autoplay=1` : `https://www.youtube.com/embed/${backingVideoId}`}
                             title="Backing Track Player"
                             className="w-full h-full border-0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -586,7 +710,8 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                       ) : (tabVideoId && roleGroup.tabVideoLink !== "none") ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-[#27282b] bg-black">
                           <iframe
-                            src={`https://www.youtube.com/embed/${tabVideoId}`}
+                            key={`${tabVideoId}-${tabStartSeconds}`}
+                            src={tabStartSeconds !== null ? `https://www.youtube.com/embed/${tabVideoId}?start=${tabStartSeconds}&autoplay=1` : `https://www.youtube.com/embed/${tabVideoId}`}
                             title="Tab Video Player"
                             className="w-full h-full border-0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -618,6 +743,192 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                           </Button>
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* PRACTICE PROGRESS & SECTION MARKERS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mt-6">
+                  {/* Left: Practice settings & status (5 columns) */}
+                  <div className="md:col-span-5 bg-[#0c0d0e]/60 border border-[#27282b]/60 rounded-2xl p-5 space-y-4">
+                    <div>
+                      <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
+                        <Sliders className="w-4 h-4 text-[#888d96]" />
+                        My Rehearsal Log &amp; Speed
+                      </h4>
+                      <p className="text-[10px] text-[#888d96] mt-0.5 font-medium">Log your practice speed and status for this song.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Progress Status Selection */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Learning Status</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {["not_started", "learning", "mastered"].map((status) => {
+                            const isSelected = progressStatus === status;
+                            const label = status === "not_started" ? "Not Started" : status === "learning" ? "Learning" : "Mastered";
+                            return (
+                              <Button
+                                key={status}
+                                type="button"
+                                variant={isSelected ? "default" : "outline"}
+                                onClick={() => setProgressStatus(status)}
+                                className={cn(
+                                  "rounded-lg text-[10px] font-bold h-8 px-2 transition-all",
+                                  isSelected
+                                    ? status === "mastered"
+                                      ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
+                                      : status === "learning"
+                                      ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
+                                      : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
+                                    : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4]"
+                                )}
+                              >
+                                {label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Speed Preference slider or number */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider">Practice Speed</label>
+                          <span className="text-xs font-mono font-bold text-[#5b80a5]">{progressSpeed}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="50"
+                          max="150"
+                          step="5"
+                          value={progressSpeed}
+                          onChange={(e) => setProgressSpeed(parseInt(e.target.value))}
+                          className="w-full h-1.5 bg-[#161719] border border-[#27282b] rounded-lg appearance-none cursor-pointer accent-[#5b80a5]"
+                        />
+                        <div className="flex justify-between text-[9px] text-[#888d96] font-mono">
+                          <span>50% (Slow)</span>
+                          <span>100% (Normal)</span>
+                          <span>150% (Fast)</span>
+                        </div>
+                      </div>
+
+                      {/* Practice Notes */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Rehearsal Notes</label>
+                        <textarea
+                          placeholder="E.g. Struggling with alternative picking in the chorus, review bars 40-50..."
+                          value={progressNotes}
+                          onChange={(e) => setProgressNotes(e.target.value)}
+                          className="w-full bg-[#0c0d0e] border border-[#27282b] rounded-xl text-xs text-[#f1f2f4] p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-[#5b80a5] resize-none h-24 placeholder:text-[#4e525a]"
+                        />
+                      </div>
+
+                      {/* Save Button */}
+                      <Button
+                        onClick={handleSaveProgress}
+                        disabled={isSavingProgress}
+                        className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5"
+                      >
+                        {isSavingProgress ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Saving Log...
+                          </>
+                        ) : (
+                          "Save Rehearsal Log"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Right: Section markers / timestamps (7 columns) */}
+                  <div className="md:col-span-7 bg-[#0c0d0e]/60 border border-[#27282b]/60 rounded-2xl p-5 space-y-4">
+                    <div>
+                      <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-[#888d96]" />
+                        Custom Section Markers
+                      </h4>
+                      <p className="text-[10px] text-[#888d96] mt-0.5 font-medium">Create section bookmarks to instantly jump to specific times in the video players.</p>
+                    </div>
+
+                    {/* List of saved markers */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {markers.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-[#888d96] bg-[#0c0d0e]/20 border border-[#27282b]/40 rounded-xl leading-normal">
+                          No section markers added yet. Add section times below to enable instant-jump shortcuts.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {markers.map((marker) => {
+                            const min = Math.floor(marker.timestamp / 60);
+                            const sec = marker.timestamp % 60;
+                            const timeStr = `${min}:${sec.toString().padStart(2, "0")}`;
+                            return (
+                              <div
+                                key={marker.id}
+                                className="flex items-center justify-between bg-[#161719]/40 border border-[#27282b] rounded-xl p-2 pl-3 group hover:border-[#383a3f] transition-all"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleJumpToTime(marker.timestamp)}
+                                  className="flex-1 text-left min-w-0 flex items-center gap-2 cursor-pointer"
+                                  title={`Jump video players to ${timeStr}`}
+                                >
+                                  <span className="bg-[#1b2330] border border-[#2e4057] text-[#acd1f8] font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded">
+                                    {timeStr}
+                                  </span>
+                                  <span className="text-xs font-bold text-[#d1d1d6] truncate group-hover:text-[#f1f2f4]">
+                                    {marker.name}
+                                  </span>
+                                </button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteMarker(marker.id)}
+                                  className="h-6 w-6 text-[#888d96] hover:text-red-400 hover:bg-red-950/20 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Delete Marker"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Form to add marker */}
+                    <div className="border-t border-[#27282b]/60 pt-4 space-y-3">
+                      <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Add Section Marker</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="sm:col-span-2">
+                          <Input
+                            placeholder="Section Name (e.g. Intro Riff, Chorus, Solo)..."
+                            value={newMarkerName}
+                            onChange={(e) => setNewMarkerName(e.target.value)}
+                            className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] text-xs px-3 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-9"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="MM:SS (e.g. 1:30)"
+                            value={newMarkerTime}
+                            onChange={(e) => setNewMarkerTime(e.target.value)}
+                            className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] text-xs px-3 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-9 font-mono"
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleAddMarker}
+                            className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-xs font-bold px-3.5 h-9 rounded-xl flex-shrink-0"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-[#888d96] leading-relaxed">
+                        Tip: Enter section timestamps like <strong className="font-bold text-[#acd1f8]">1:23</strong> or <strong className="font-bold text-[#acd1f8]">83</strong>. Clicking on a bookmark automatically rolls back/forwards video lessons.
+                      </p>
                     </div>
                   </div>
                 </div>

@@ -48,6 +48,8 @@ export const rehearsalSongs = sqliteTable('rehearsal_songs', {
 export const songsRelations = relations(songs, ({ many }) => ({
   roleGroups: many(roleGroups),
   rehearsalSongs: many(rehearsalSongs),
+  userProgress: many(userSongProgress),
+  userMarkers: many(userSongMarkers),
 }));
 
 export const roleGroupsRelations = relations(roleGroups, ({ one, many }) => ({
@@ -79,3 +81,44 @@ export const rehearsalSongsRelations = relations(rehearsalSongs, ({ one }) => ({
     references: [songs.id],
   }),
 }));
+
+export const userSettings = sqliteTable('user_settings', {
+  userUuid: text('user_uuid').primaryKey(),
+  preferredInstrument: text('preferred_instrument').notNull().default('Guitar'),
+  theme: text('theme').notNull().default('dark'),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const userSongProgress = sqliteTable('user_song_progress', {
+  id: text('id').primaryKey(),
+  userUuid: text('user_uuid').notNull(),
+  songId: text('song_id').notNull().references(() => songs.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('learning'), // 'learning' | 'mastered' | 'not_started'
+  speed: integer('speed').notNull().default(100),
+  notes: text('notes'),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const userSongMarkers = sqliteTable('user_song_markers', {
+  id: text('id').primaryKey(),
+  userUuid: text('user_uuid').notNull(),
+  songId: text('song_id').notNull().references(() => songs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  timestamp: integer('timestamp').notNull(), // seconds
+  createdAt: integer('created_at').notNull(),
+});
+
+export const userSongProgressRelations = relations(userSongProgress, ({ one }) => ({
+  song: one(songs, {
+    fields: [userSongProgress.songId],
+    references: [songs.id],
+  }),
+}));
+
+export const userSongMarkersRelations = relations(userSongMarkers, ({ one }) => ({
+  song: one(songs, {
+    fields: [userSongMarkers.songId],
+    references: [songs.id],
+  }),
+}));
+
