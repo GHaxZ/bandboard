@@ -27,31 +27,70 @@ function parseTuning(tuningArray?: number[]): string {
     .join("-");
 }
 
-function determineRole(instrumentId: number, name: string): "Guitar" | "Bass" | "Drums" | "Vocals" | "Keyboard" | "Other" {
-  const lowerName = name.toLowerCase();
-  
-  if (instrumentId === 42 || lowerName.includes("vocal") || lowerName.includes("sing") || lowerName.includes("voice")) {
+function determineRole(hash: string, instrumentId: number, instrument: string, trackName: string): "Guitar" | "Bass" | "Drums" | "Vocals" | "Piano/Keyboard" | "Other" {
+  const lowerHash = (hash || "").toLowerCase();
+  const lowerInst = (instrument || "").toLowerCase();
+  const lowerTrack = (trackName || "").toLowerCase();
+  const combined = `${lowerInst} ${lowerTrack}`.trim();
+
+  // 1. Vocals check
+  if (lowerHash.startsWith("vocals")
+      || instrumentId === 42
+      || combined.includes("vocal")
+      || combined.includes("sing")
+      || combined.includes("voice")
+      || combined.includes("choir")) {
     return "Vocals";
   }
-  if (instrumentId === 1024 || lowerName.includes("drum") || lowerName.includes("percussion")) {
+
+  // 2. Drums check
+  if (lowerHash.startsWith("drums") || instrumentId === 1024 || combined.includes("drum")) {
+    const nonDrumsPerc = [
+      "glockenspiel", "marimba", "xylophone", "vibraphone", "timpani", "bell", "chime", 
+      "triangle", "tambourine", "shaker", "claves", "cowbell", "cabasa", "maracas", 
+      "congas", "bongos", "guiro", "steel drum", "woodblock", "castanets"
+    ];
+    if (nonDrumsPerc.some(p => combined.includes(p))) {
+      return "Other";
+    }
     return "Drums";
   }
-  if ([32, 33, 34].includes(instrumentId) || lowerName.includes("bass")) {
+
+  // 3. Bass check
+  if (lowerHash.startsWith("bass") || [32, 33, 34].includes(instrumentId) || combined.includes("bass")) {
+    if (combined.includes("synth bass") || combined.includes("keyboard bass")) {
+      return "Piano/Keyboard";
+    }
+    if (combined.includes("double bass") || combined.includes("contrabass") || combined.includes("cello") || combined.includes("upright bass")) {
+      return "Other";
+    }
     return "Bass";
   }
-  if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(instrumentId)
-      || lowerName.includes("piano")
-      || lowerName.includes("keyboard")
-      || lowerName.includes("organ")
-      || lowerName.includes("synth")
-      || lowerName.includes("clav")
-      || lowerName.includes("harpsichord")
-      || lowerName.includes("mellotron")) {
-    return "Keyboard";
+
+  // 4. Piano/Keyboard check
+  if ([0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20].includes(instrumentId)
+      || combined.includes("piano")
+      || combined.includes("keyboard")
+      || combined.includes("organ")
+      || combined.includes("synth")
+      || combined.includes("clav")
+      || combined.includes("harpsichord")
+      || combined.includes("mellotron")
+      || combined.includes("rhodes")
+      || combined.includes("wurlitzer")) {
+    
+    const nonKeyboard = ["glockenspiel", "celesta", "music box", "vibraphone", "marimba", "xylophone", "tubular bells", "dulcimer"];
+    if (nonKeyboard.some(k => combined.includes(k))) {
+      return "Other";
+    }
+    return "Piano/Keyboard";
   }
-  if (instrumentId === 30 || lowerName.includes("guitar")) {
+
+  // 5. Guitar check
+  if (lowerHash.startsWith("guitar") || instrumentId === 30 || combined.includes("guitar")) {
     return "Guitar";
   }
+
   return "Other";
 }
 
@@ -135,7 +174,7 @@ export async function ingestSongData(title: string, artist: string) {
     if (rawTracks.length > 0) {
       const trackPayloads = rawTracks.map((track, index) => {
         const instrumentName = track.instrument || track.name || "Instrument";
-        const role = determineRole(track.instrumentId, instrumentName);
+        const role = determineRole(track.hash || "", track.instrumentId, track.instrument || "", track.name || "");
         const details = track.name || "";
         const tuning = parseTuning(track.tuning);
 
@@ -220,8 +259,8 @@ export async function lazyLoadTrackMedia(trackId: string) {
         backingQuery = `${verifiedArtist} ${verifiedTitle} no drums backing track`;
       } else if (role === "Guitar") {
         backingQuery = `${verifiedArtist} ${verifiedTitle} no guitar backing track`;
-      } else if (role === "Keyboard") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} no keyboard backing track`;
+      } else if (role === "Piano/Keyboard") {
+        backingQuery = `${verifiedArtist} ${verifiedTitle} no piano keyboard backing track`;
       } else {
         backingQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} backing track`;
       }
@@ -229,6 +268,8 @@ export async function lazyLoadTrackMedia(trackId: string) {
       const backingResults = await searchYouTube(backingQuery);
       if (backingResults.length > 0) {
         backingLink = backingResults[0].url;
+      } else {
+        backingLink = "none";
       }
     }
 
@@ -238,6 +279,14 @@ export async function lazyLoadTrackMedia(trackId: string) {
       if (role === "Vocals") {
         // Singers listen to original song
         tabVideoQuery = `${verifiedArtist} ${verifiedTitle}`;
+      } else if (role === "Piano/Keyboard") {
+        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} piano keyboard tab`;
+      } else if (role === "Guitar") {
+        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} guitar tab`;
+      } else if (role === "Bass") {
+        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} bass tab`;
+      } else if (role === "Drums") {
+        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} drums tab`;
       } else {
         tabVideoQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} tab`;
       }
@@ -245,6 +294,8 @@ export async function lazyLoadTrackMedia(trackId: string) {
       const tabVideoResults = await searchYouTube(tabVideoQuery);
       if (tabVideoResults.length > 0) {
         tabVideoLink = tabVideoResults[0].url;
+      } else {
+        tabVideoLink = "none";
       }
     }
 

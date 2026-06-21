@@ -148,7 +148,12 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
     // Load profile preferences
     const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
-    setInstrument(savedInstrument);
+    if (savedInstrument.toLowerCase() === "keyboard" || savedInstrument.toLowerCase() === "piano") {
+      setInstrument("Piano/Keyboard");
+      localStorage.setItem("bandboard_instrument", "Piano/Keyboard");
+    } else {
+      setInstrument(savedInstrument);
+    }
   }, []);
 
   // Sync data refresh helper
@@ -662,7 +667,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {["Guitar", "Bass", "Drums", "Vocals", "Keyboard", "Other"].map((inst) => {
+                    {["Guitar", "Bass", "Drums", "Vocals", "Piano/Keyboard", "Other"].map((inst) => {
                       const isSelected = instrument.toLowerCase() === inst.toLowerCase();
                       return (
                         <Button

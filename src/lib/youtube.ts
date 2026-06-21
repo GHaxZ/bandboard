@@ -44,6 +44,7 @@ async function scrapeYouTube(query: string): Promise<YouTubeVideo[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
       },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -138,7 +139,9 @@ async function apiYouTube(query: string, apiKey: string): Promise<YouTubeVideo[]
       query
     )}&type=video&key=${apiKey}&maxResults=10`;
     
-    const res = await fetch(searchUrl);
+    const res = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) {
       throw new Error(`YouTube API returned status ${res.status}`);
     }
@@ -152,7 +155,9 @@ async function apiYouTube(query: string, apiKey: string): Promise<YouTubeVideo[]
     const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds.join(
       ','
     )}&key=${apiKey}`;
-    const statsRes = await fetch(statsUrl);
+    const statsRes = await fetch(statsUrl, {
+      signal: AbortSignal.timeout(5000),
+    });
     const statsData = statsRes.ok ? await statsRes.json() : { items: [] };
     const viewMap = new Map<string, number>();
     const viewTextMap = new Map<string, string>();

@@ -13,6 +13,7 @@ interface VideoSelectorProps {
   onClose: () => void;
   trackId: string;
   type: "backing" | "tab";
+  role: string;
   songTitle: string;
   songArtist: string;
   instrumentName: string;
@@ -34,6 +35,7 @@ export function VideoSelector({
   onClose,
   trackId,
   type,
+  role,
   songTitle,
   songArtist,
   instrumentName,
@@ -52,24 +54,38 @@ export function VideoSelector({
       setManualUrl(currentUrl || "");
       let defaultQuery = "";
       if (type === "backing") {
-        if (instrumentName.toLowerCase().includes("bass")) {
+        if (role === "Bass") {
           defaultQuery = `${songArtist} ${songTitle} bassless backing track`;
-        } else if (instrumentName.toLowerCase().includes("drum")) {
+        } else if (role === "Drums") {
           defaultQuery = `${songArtist} ${songTitle} drumless backing track`;
-        } else if (instrumentName.toLowerCase().includes("guitar")) {
+        } else if (role === "Guitar") {
           defaultQuery = `${songArtist} ${songTitle} guitarless backing track`;
-        } else if (instrumentName.toLowerCase().includes("vocal") || instrumentName.toLowerCase().includes("sing")) {
+        } else if (role === "Vocals") {
           defaultQuery = `${songArtist} ${songTitle} karaoke`;
+        } else if (role === "Piano/Keyboard") {
+          defaultQuery = `${songArtist} ${songTitle} no piano keyboard backing track`;
         } else {
           defaultQuery = `${songArtist} ${songTitle} ${instrumentName} backing track`;
         }
       } else {
-        defaultQuery = `${songArtist} ${songTitle} ${instrumentName} tab`;
+        if (role === "Piano/Keyboard") {
+          defaultQuery = `${songArtist} ${songTitle} piano keyboard tab`;
+        } else if (role === "Guitar") {
+          defaultQuery = `${songArtist} ${songTitle} guitar tab`;
+        } else if (role === "Bass") {
+          defaultQuery = `${songArtist} ${songTitle} bass tab`;
+        } else if (role === "Drums") {
+          defaultQuery = `${songArtist} ${songTitle} drums tab`;
+        } else if (role === "Vocals") {
+          defaultQuery = `${songArtist} ${songTitle}`;
+        } else {
+          defaultQuery = `${songArtist} ${songTitle} ${instrumentName} tab`;
+        }
       }
       setQuery(defaultQuery);
       handleSearch(defaultQuery);
     }
-  }, [isOpen, trackId, type, songTitle, songArtist, instrumentName, currentUrl]);
+  }, [isOpen, trackId, type, role, songTitle, songArtist, instrumentName, currentUrl]);
 
   async function handleSearch(searchQuery: string) {
     if (!searchQuery.trim()) return;
