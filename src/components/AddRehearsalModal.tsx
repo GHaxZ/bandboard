@@ -17,20 +17,21 @@ interface AddRehearsalModalProps {
 export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalModalProps) {
   const [title, setTitle] = useState("");
   const [dateStr, setDateStr] = useState("");
-  const [timeStr, setTimeStr] = useState("");
+  const [hourStr, setHourStr] = useState("19"); // Default to 7 PM / 19:00
+  const [minuteStr, setMinuteStr] = useState("00");
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !dateStr || !timeStr) return;
+    if (!title.trim() || !dateStr) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = new Date(`${dateStr}T${timeStr}`).getTime();
+      const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
       if (isNaN(timestamp)) {
         throw new Error("Invalid date or time selected");
       }
@@ -39,7 +40,8 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
       if (res.success && res.rehearsalId) {
         setTitle("");
         setDateStr("");
-        setTimeStr("");
+        setHourStr("19");
+        setMinuteStr("00");
         setNotes("");
         onSuccess(res.rehearsalId);
         onClose();
@@ -84,7 +86,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             />
           </div>
 
-          {/* Date & Time Picker Row */}
+          {/* Date & Split Time Picker Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="rehearsalDate" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
@@ -100,19 +102,44 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                 className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
               />
             </div>
+            
             <div className="space-y-1.5">
-              <Label htmlFor="rehearsalTime" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+              <Label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
                 Select Time
               </Label>
-              <Input
-                id="rehearsalTime"
-                type="time"
-                required
-                disabled={isLoading}
-                value={timeStr}
-                onChange={(e) => setTimeStr(e.target.value)}
-                className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
-              />
+              <div className="flex items-center gap-1.5">
+                <select
+                  disabled={isLoading}
+                  value={hourStr}
+                  onChange={(e) => setHourStr(e.target.value)}
+                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                >
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const h = String(i).padStart(2, "0");
+                    return (
+                      <option key={h} value={h} className="bg-[#161719]">
+                        {h}
+                      </option>
+                    );
+                  })}
+                </select>
+                <span className="text-[#888d96] font-bold">:</span>
+                <select
+                  disabled={isLoading}
+                  value={minuteStr}
+                  onChange={(e) => setMinuteStr(e.target.value)}
+                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                >
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const m = String(i * 5).padStart(2, "0");
+                    return (
+                      <option key={m} value={m} className="bg-[#161719]">
+                        {m}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -150,7 +177,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !dateStr || !timeStr}
+              disabled={isLoading || !title.trim() || !dateStr}
               className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
             >
               {isLoading ? (

@@ -26,6 +26,7 @@ interface Song {
   title: string;
   artist: string;
   songsterrId: number | null;
+  albumArt: string | null;
   createdAt: number;
   tracks: Track[];
 }
@@ -46,6 +47,7 @@ function getYouTubeId(url: string | null): string | null {
 
 export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps) {
   const [activeTrackId, setActiveTrackId] = useState<string>("");
+  const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
     isOpen: boolean;
     trackId: string;
@@ -54,9 +56,9 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
     currentUrl: string | null;
   } | null>(null);
 
-  // Smart initialization: select the track that matches the user's preferred instrument/role
+  // Smart initialization: select the track that matches the user's preferred instrument/role ONLY once when the song ID changes
   useEffect(() => {
-    if (song.tracks && song.tracks.length > 0) {
+    if (song.tracks && song.tracks.length > 0 && song.id !== initializedSongId) {
       const preferredRole = localStorage.getItem("bandboard_instrument") || "Guitar";
       
       // Try to find a track matching the preferred role
@@ -70,8 +72,9 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
         // Fallback to first track
         setActiveTrackId(song.tracks[0].id);
       }
+      setInitializedSongId(song.id);
     }
-  }, [song, song.tracks]);
+  }, [song, initializedSongId]);
 
   if (!song.tracks || song.tracks.length === 0) {
     return (
@@ -99,22 +102,28 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
   return (
     <Card className="border-[#27282b] bg-[#161719] overflow-hidden rounded-2xl shadow-xl">
       <CardHeader className="border-b border-[#27282b] pb-5 pt-6 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest bg-[#27282b]/60 border border-[#3b3e45]/50 px-2.5 py-1 rounded-full">
-            Song Details
-          </span>
-          <CardTitle className="text-2xl font-black text-[#f1f2f4] mt-2.5 flex items-center gap-2">
-            {song.title}
-          </CardTitle>
-          <CardDescription className="text-[#888d96] text-xs mt-0.5 font-medium">
-            by {song.artist}
-          </CardDescription>
+        <div className="flex items-center gap-4">
+          {song.albumArt && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={song.albumArt}
+              alt=""
+              className="w-14 h-14 rounded-xl object-cover border border-[#27282b] flex-shrink-0"
+            />
+          )}
+          <div>
+            <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest bg-[#27282b]/60 border border-[#3b3e45]/50 px-2.5 py-1 rounded-full">
+              Song Details
+            </span>
+            <CardTitle className="text-2xl font-black text-[#f1f2f4] mt-2 flex items-center gap-2">
+              {song.title}
+            </CardTitle>
+            <CardDescription className="text-[#888d96] text-xs mt-0.5 font-medium">
+              by {song.artist}
+            </CardDescription>
+          </div>
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
-          <div className="bg-[#0c0d0e] border border-[#27282b] px-3 py-1.5 rounded-xl text-center">
-            <span className="block text-[9px] text-[#888d96] uppercase tracking-wider font-bold">Global Tuning</span>
-            <span className="text-xs font-mono font-bold text-[#f1f2f4]">{activeTrack?.tuning || "Standard"}</span>
-          </div>
           {onDelete && (
             <Button
               variant="destructive"
@@ -152,7 +161,7 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#0c0d0e] border border-[#27282b] rounded-2xl p-4 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-[#888d96] uppercase tracking-wider font-bold block">Tuning Layout</span>
+                  <span className="text-[10px] text-[#888d96] uppercase tracking-wider font-bold block">Tuning</span>
                   <span className="text-lg font-mono font-extrabold text-[#f1f2f4] tracking-wider">
                     {activeTrack.tuning}
                   </span>

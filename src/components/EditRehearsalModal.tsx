@@ -23,7 +23,8 @@ interface EditRehearsalModalProps {
 export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: EditRehearsalModalProps) {
   const [title, setTitle] = useState(rehearsal.title);
   const [dateStr, setDateStr] = useState("");
-  const [timeStr, setTimeStr] = useState("");
+  const [hourStr, setHourStr] = useState("19");
+  const [minuteStr, setMinuteStr] = useState("00");
   const [notes, setNotes] = useState(rehearsal.notes || "");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,22 +40,28 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
       const month = String(d.getMonth() + 1).padStart(2, "0");
       const day = String(d.getDate()).padStart(2, "0");
       const hours = String(d.getHours()).padStart(2, "0");
-      const minutes = String(d.getMinutes()).padStart(2, "0");
+      
+      // Round minutes to nearest 5 for selector compatibility
+      const rawMins = d.getMinutes();
+      const roundedMins = Math.round(rawMins / 5) * 5;
+      const finalMins = roundedMins >= 60 ? 55 : roundedMins;
+      const minutes = String(finalMins).padStart(2, "0");
 
       setDateStr(`${year}-${month}-${day}`);
-      setTimeStr(`${hours}:${minutes}`);
+      setHourStr(hours);
+      setMinuteStr(minutes);
     }
   }, [isOpen, rehearsal]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !dateStr || !timeStr) return;
+    if (!title.trim() || !dateStr) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = new Date(`${dateStr}T${timeStr}`).getTime();
+      const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
       if (isNaN(timestamp)) {
         throw new Error("Invalid date or time selected");
       }
@@ -104,7 +111,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             />
           </div>
 
-          {/* Date & Time Picker Row */}
+          {/* Date & Split Time Picker Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="editRehearsalDate" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
@@ -120,19 +127,44 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                 className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
               />
             </div>
+            
             <div className="space-y-1.5">
-              <Label htmlFor="editRehearsalTime" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+              <Label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
                 Select Time
               </Label>
-              <Input
-                id="editRehearsalTime"
-                type="time"
-                required
-                disabled={isLoading}
-                value={timeStr}
-                onChange={(e) => setTimeStr(e.target.value)}
-                className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
-              />
+              <div className="flex items-center gap-1.5">
+                <select
+                  disabled={isLoading}
+                  value={hourStr}
+                  onChange={(e) => setHourStr(e.target.value)}
+                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                >
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const h = String(i).padStart(2, "0");
+                    return (
+                      <option key={h} value={h} className="bg-[#161719]">
+                        {h}
+                      </option>
+                    );
+                  })}
+                </select>
+                <span className="text-[#888d96] font-bold">:</span>
+                <select
+                  disabled={isLoading}
+                  value={minuteStr}
+                  onChange={(e) => setMinuteStr(e.target.value)}
+                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                >
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const m = String(i * 5).padStart(2, "0");
+                    return (
+                      <option key={m} value={m} className="bg-[#161719]">
+                        {m}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -170,7 +202,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !dateStr || !timeStr}
+              disabled={isLoading || !title.trim() || !dateStr}
               className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
             >
               {isLoading ? (

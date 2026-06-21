@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { songs, tracks, rehearsals, rehearsalSongs } from "@/db/schema";
-import { eq, asc, and } from "drizzle-orm";
+import { songs, tracks } from "@/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
 
 function slugify(text: string): string {
@@ -35,6 +35,8 @@ function getRoleFromInstrumentId(instrumentId: number): "Guitar" | "Bass" | "Dru
   return "Other";
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function ingestSongData(title: string, artist: string) {
   try {
     const formattedTitle = title.trim();
@@ -63,81 +65,101 @@ export async function ingestSongData(title: string, artist: string) {
       }
     }
 
+    // Query iTunes API for album cover art (free, no key required)
+    let albumArt: string | null = null;
+    try {
+      const itunesRes = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(verifiedArtist)}+${encodeURIComponent(
+          verifiedTitle
+        )}&entity=song&limit=1`
+      );
+      if (itunesRes.ok) {
+        const itunesData = await itunesRes.json();
+        if (itunesData.results && itunesData.results.length > 0) {
+          // Normalize to a larger 300x300 cover picture
+          albumArt = itunesData.results[0].artworkUrl100?.replace("100x100bb.jpg", "300x300bb.jpg") || null;
+        }
+      }
+    } catch (e) {
+      console.error("iTunes album art lookup failed:", e);
+    }
+
     const songId = crypto.randomUUID();
 
-    // Insert Song
+    // Insert Song with album cover artwork
     await db.insert(songs).values({
       id: songId,
       title: verifiedTitle,
       artist: verifiedArtist,
       songsterrId,
+      albumArt,
       createdAt: Date.now(),
     });
 
     const artistSlug = slugify(verifiedArtist);
     const titleSlug = slugify(verifiedTitle);
 
-    // If there are tracks from Songsterr, fetch backing tracks and tab videos for each role
+    // If there are tracks from Songsterr, fetch backing tracks and tab videos for each role sequentially
     if (rawTracks.length > 0) {
-      // Resolve backing track and tab video links in parallel for all tracks
-      const trackPayloads = await Promise.all(
-        rawTracks.map(async (track, index) => {
-          const role = getRoleFromInstrumentId(track.instrumentId);
-          const instrumentName = track.instrument || track.name || "Instrument";
-          const details = track.name || "";
-          const tuning = parseTuning(track.tuning);
+      const trackPayloads = [];
 
-          // Deep Link to Songsterr
-          const tabLink = songsterrId
-            ? `https://www.songsterr.com/a/wsa/${artistSlug}-${titleSlug}-tab-s${songsterrId}t${index}`
-            : `https://www.songsterr.com`;
+      for (let index = 0; index < rawTracks.length; index++) {
+        const track = rawTracks[index];
+        const role = getRoleFromInstrumentId(track.instrumentId);
+        const instrumentName = track.instrument || track.name || "Instrument";
+        const details = track.name || "";
+        const tuning = parseTuning(track.tuning);
 
-          // Formulate backing track query based on role
-          let backingQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} backing track`;
-          if (role === "Bass") {
-            backingQuery = `${verifiedArtist} ${verifiedTitle} no bass backing track`;
-          } else if (role === "Drums") {
-            backingQuery = `${verifiedArtist} ${verifiedTitle} no drums backing track`;
-          } else if (role === "Guitar") {
-            backingQuery = `${verifiedArtist} ${verifiedTitle} no guitar backing track`;
-          } else if (role === "Vocals") {
-            backingQuery = `${verifiedArtist} ${verifiedTitle} karaoke`;
-          }
+        // Deep Link to Songsterr
+        const tabLink = songsterrId
+          ? `https://www.songsterr.com/a/wsa/${artistSlug}-${titleSlug}-tab-s${songsterrId}t${index}`
+          : `https://www.songsterr.com`;
 
-          // Formulate tab video query
-          const tabVideoQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} tab`;
+        // Formulate backing track query based on role
+        let backingQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} backing track`;
+        if (role === "Bass") {
+          backingQuery = `${verifiedArtist} ${verifiedTitle} no bass backing track`;
+        } else if (role === "Drums") {
+          backingQuery = `${verifiedArtist} ${verifiedTitle} no drums backing track`;
+        } else if (role === "Guitar") {
+          backingQuery = `${verifiedArtist} ${verifiedTitle} no guitar backing track`;
+        } else if (role === "Vocals") {
+          backingQuery = `${verifiedArtist} ${verifiedTitle} karaoke`;
+        }
 
-          // Run YouTube searches in parallel
-          const [backingResults, tabVideoResults] = await Promise.all([
-            searchYouTube(backingQuery),
-            searchYouTube(tabVideoQuery),
-          ]);
+        // Formulate tab video query
+        const tabVideoQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} tab`;
 
-          // Pick the most viewed matching video
-          // Search results are already retrieved, sort them by viewCount desc
-          const backingTrackLink =
-            backingResults.length > 0
-              ? [...backingResults].sort((a, b) => b.viewCount - a.viewCount)[0].url
-              : null;
+        // Search YouTube sequentially to avoid bot blocking / rate-limiting
+        let backingResults: any[] = [];
+        let tabVideoResults: any[] = [];
 
-          const tabVideoLink =
-            tabVideoResults.length > 0
-              ? [...tabVideoResults].sort((a, b) => b.viewCount - a.viewCount)[0].url
-              : null;
+        try {
+          backingResults = await searchYouTube(backingQuery);
+          // Small safety delay between search queries
+          await delay(350);
+          tabVideoResults = await searchYouTube(tabVideoQuery);
+          await delay(350);
+        } catch (searchError) {
+          console.error("YouTube automated ingestion failed for track:", instrumentName, searchError);
+        }
 
-          return {
-            id: crypto.randomUUID(),
-            songId,
-            instrumentName,
-            role,
-            details,
-            tuning,
-            tabLink,
-            backingTrackLink,
-            tabVideoLink,
-          };
-        })
-      );
+        // Trust YouTube's relevance ranking: Pick the first ranked result instead of sorting by viewCount
+        const backingTrackLink = backingResults.length > 0 ? backingResults[0].url : null;
+        const tabVideoLink = tabVideoResults.length > 0 ? tabVideoResults[0].url : null;
+
+        trackPayloads.push({
+          id: crypto.randomUUID(),
+          songId,
+          instrumentName,
+          role,
+          details,
+          tuning,
+          tabLink,
+          backingTrackLink,
+          tabVideoLink,
+        });
+      }
 
       // Save tracks to DB
       for (const payload of trackPayloads) {
@@ -226,8 +248,8 @@ export async function updateTrackVideoLink(
 export async function searchYouTubeVideosAction(query: string) {
   try {
     const results = await searchYouTube(query);
-    // Sort by viewCount descending and return the top 10 results
-    return results.sort((a, b) => b.viewCount - a.viewCount).slice(0, 10);
+    // Trust YouTube's relevance order; slice first 10 matches
+    return results.slice(0, 10);
   } catch (error) {
     console.error("Failed to search YouTube videos:", error);
     return [];

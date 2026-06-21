@@ -46,6 +46,7 @@ interface Song {
   title: string;
   artist: string;
   songsterrId: number | null;
+  albumArt: string | null;
   createdAt: number;
   tracks: Track[];
 }
@@ -575,16 +576,26 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         onClick={() => setSelectedSongId(song.id)}
                         className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg"
                       >
-                        <CardHeader className="p-5">
-                          <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
-                            {song.tracks?.length || 0} notation tracks
-                          </span>
-                          <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
-                            {song.title}
-                          </CardTitle>
-                          <CardDescription className="text-xs text-[#888d96] mt-0.5 truncate font-medium">
-                            by {song.artist}
-                          </CardDescription>
+                        <CardHeader className="p-5 flex flex-row items-center gap-4">
+                          {song.albumArt && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={song.albumArt}
+                              alt=""
+                              className="w-12 h-12 rounded-xl object-cover border border-[#27282b] flex-shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
+                              {song.tracks?.length || 0} notation tracks
+                            </span>
+                            <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
+                              {song.title}
+                            </CardTitle>
+                            <CardDescription className="text-xs text-[#888d96] mt-0.5 truncate font-medium">
+                              by {song.artist}
+                            </CardDescription>
+                          </div>
                         </CardHeader>
                       </Card>
                     ))}
@@ -670,7 +681,9 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[#888d96] bg-[#0c0d0e]/40 border border-[#27282b] p-3 rounded-xl leading-relaxed">
                     <CheckCircle className="w-4 h-4 text-[#5b80a5] shrink-0" />
-                    Your role is saved locally on this device as <span className="font-bold text-[#f1f2f4]">{instrument}</span>.
+                    {"Your role is saved locally on this device as "}
+                    <span className="font-bold text-[#f1f2f4]">{instrument}</span>
+                    {"."}
                   </div>
                 </CardContent>
               </Card>
