@@ -7,6 +7,7 @@ export const songs = sqliteTable('songs', {
   artist: text('artist').notNull(),
   songsterrId: integer('songsterr_id'),
   albumArt: text('album_art'),
+  lyrics: text('lyrics'),
   createdAt: integer('created_at').notNull(),
 });
 

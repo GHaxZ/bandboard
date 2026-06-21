@@ -47,6 +47,7 @@ interface Song {
   artist: string;
   songsterrId: number | null;
   albumArt: string | null;
+  lyrics?: string | null;
   createdAt: number;
   tracks: Track[];
 }
@@ -642,7 +643,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
             <div>
               <h2 className="text-lg font-black text-[#f1f2f4] flex items-center gap-2">
                 <SettingsIcon className="w-5 h-5 text-[#888d96]" />
-                Settings &amp; Preferences
+                Settings & Preferences
               </h2>
               <p className="text-xs text-[#888d96] mt-0.5">Customize your instrument settings and view identity preferences.</p>
             </div>
@@ -681,9 +682,10 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[#888d96] bg-[#0c0d0e]/40 border border-[#27282b] p-3 rounded-xl leading-relaxed">
                     <CheckCircle className="w-4 h-4 text-[#5b80a5] shrink-0" />
-                    {"Your role is saved locally on this device as "}
-                    <span className="font-bold text-[#f1f2f4]">{instrument}</span>
-                    {"."}
+                    <span>
+                      Your role is saved locally on this device as{" "}
+                      <strong className="font-bold text-[#f1f2f4]">{instrument}</strong>.
+                    </span>
                   </div>
                 </CardContent>
               </Card>
