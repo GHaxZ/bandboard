@@ -158,6 +158,50 @@ export async function savePracticeMarkers(songId: string, markers: number[]) {
   }
 }
 
+export async function saveStartOffsets(
+  songId: string,
+  backingStartOffset: number,
+  tabStartOffset: number
+) {
+  const uuid = await getUserUuid();
+  if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
+
+  try {
+    const existing = await db.select()
+      .from(userSongProgress)
+      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(userSongProgress)
+        .set({
+          backingStartOffset,
+          tabStartOffset,
+          updatedAt: Date.now(),
+        })
+        .where(eq(userSongProgress.id, existing[0].id));
+    } else {
+      const id = `${uuid}_${songId}_${Date.now()}`;
+      await db.insert(userSongProgress)
+        .values({
+          id,
+          userUuid: uuid,
+          songId,
+          status: "learning",
+          speed: 100,
+          notes: null,
+          backingStartOffset,
+          tabStartOffset,
+          updatedAt: Date.now(),
+        });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save start offsets:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function exportUserData() {
   const uuid = await getUserUuid();
   if (uuid === "anonymous") {
@@ -179,6 +223,8 @@ export async function exportUserData() {
           speed: p.speed,
           notes: p.notes,
           practiceMarkers: p.practiceMarkers,
+          backingStartOffset: p.backingStartOffset,
+          tabStartOffset: p.tabStartOffset,
         })),
       }
     };
@@ -236,6 +282,8 @@ export async function importUserData(payload: any) {
               speed: p.speed || 100,
               notes: p.notes || null,
               practiceMarkers: p.practiceMarkers || null,
+              backingStartOffset: p.backingStartOffset || null,
+              tabStartOffset: p.tabStartOffset || null,
               updatedAt: Date.now(),
             })
             .where(eq(userSongProgress.id, existingProg[0].id));
@@ -250,6 +298,8 @@ export async function importUserData(payload: any) {
               speed: p.speed || 100,
               notes: p.notes || null,
               practiceMarkers: p.practiceMarkers || null,
+              backingStartOffset: p.backingStartOffset || null,
+              tabStartOffset: p.tabStartOffset || null,
               updatedAt: Date.now(),
             });
         }

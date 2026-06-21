@@ -17,8 +17,8 @@ export const roleGroups = sqliteTable('role_groups', {
   role: text('role').notNull(), // 'Guitar' | 'Bass' | 'Drums' | 'Vocals' | 'Piano/Keyboard' | 'Other'
   backingTrackLink: text('backing_track_link'),
   tabVideoLink: text('tab_video_link'),
-  backingStartOffset: real('backing_start_offset'),
-  tabStartOffset: real('tab_start_offset'),
+  backingStartOffset: real('backing_start_offset'), // Deprecated (offsets are now private to userSongProgress)
+  tabStartOffset: real('tab_start_offset'), // Deprecated (offsets are now private to userSongProgress)
 });
 
 export const tracks = sqliteTable('tracks', {
@@ -98,6 +98,8 @@ export const userSongProgress = sqliteTable('user_song_progress', {
   speed: integer('speed').notNull().default(100),
   notes: text('notes'),
   practiceMarkers: text('practice_markers'),
+  backingStartOffset: real('backing_start_offset'),
+  tabStartOffset: real('tab_start_offset'),
   updatedAt: integer('updated_at').notNull(),
 });
 

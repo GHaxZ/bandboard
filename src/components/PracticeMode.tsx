@@ -27,9 +27,9 @@ import {
 import {
   saveSongProgress,
   saveUserSettings,
-  savePracticeMarkers
+  savePracticeMarkers,
+  saveStartOffsets
 } from "@/app/actions/user";
-import { updateRoleGroupStartOffsets } from "@/app/actions/songs";
 
 interface Track {
   id: string;
@@ -47,8 +47,6 @@ interface RoleGroup {
   role: string;
   backingTrackLink: string | null;
   tabVideoLink: string | null;
-  backingStartOffset?: number | null;
-  tabStartOffset?: number | null;
   tracks: Track[];
 }
 
@@ -66,7 +64,14 @@ interface PracticeModeProps {
   song: Song;
   onExit: () => void;
   onRefresh: () => void;
-  progressMap: Record<string, { status: string; speed: number; notes: string | null; practiceMarkers?: string | null }>;
+  progressMap: Record<string, {
+    status: string;
+    speed: number;
+    notes: string | null;
+    practiceMarkers?: string | null;
+    backingStartOffset?: number | null;
+    tabStartOffset?: number | null;
+  }>;
 }
 
 function getYouTubeId(url: string | null): string | null {
@@ -138,7 +143,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   // Practice markers (user-specific timestamps)
   const [markers, setMarkers] = useState<number[]>([]);
 
-  // Start Sync Offsets (global)
+  // Start Sync Offsets (private)
   const [backingOffset, setBackingOffset] = useState<string>("0");
   const [tabOffset, setTabOffset] = useState<string>("0");
   const [isSavingOffsets, setIsSavingOffsets] = useState<boolean>(false);
@@ -201,13 +206,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
     setMarkers([]);
   }, [song.id, progressMap]);
 
-  // Sync offsets from activeRoleGroup
+  // Sync offsets from progressMap (user-specific/private)
   useEffect(() => {
-    if (activeRoleGroup) {
-      setBackingOffset(String(activeRoleGroup.backingStartOffset ?? 0));
-      setTabOffset(String(activeRoleGroup.tabStartOffset ?? 0));
-    }
-  }, [activeRoleGroup]);
+    const prog = progressMap[song.id];
+    setBackingOffset(String(prog?.backingStartOffset ?? 0));
+    setTabOffset(String(prog?.tabStartOffset ?? 0));
+  }, [song.id, progressMap]);
 
   // Set default active video state on track change depending on what's available
   useEffect(() => {
@@ -232,8 +236,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
       tabPlayerRef.current = null;
     }
 
-    const backingOffsetVal = activeRoleGroup?.backingStartOffset ?? 0;
-    const tabOffsetVal = activeRoleGroup?.tabStartOffset ?? 0;
+    const backingOffsetVal = progressMap[song.id]?.backingStartOffset ?? 0;
+    const tabOffsetVal = progressMap[song.id]?.tabStartOffset ?? 0;
 
     // Initialize backing track player
     if (backingVideoId) {
@@ -312,8 +316,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
             const activePlayer = activeVideo === "backing" ? backingPlayer : tabPlayer;
             const inactivePlayer = activeVideo === "backing" ? tabPlayer : backingPlayer;
 
-            const activeOffset = activeVideo === "backing" ? (activeRoleGroup?.backingStartOffset ?? 0) : (activeRoleGroup?.tabStartOffset ?? 0);
-            const inactiveOffset = activeVideo === "backing" ? (activeRoleGroup?.tabStartOffset ?? 0) : (activeRoleGroup?.backingStartOffset ?? 0);
+            const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
+            const inactiveOffset = activeVideo === "backing" ? (progressMap[song.id]?.tabStartOffset ?? 0) : (progressMap[song.id]?.backingStartOffset ?? 0);
 
             const activeTime = activePlayer.getCurrentTime();
             const inactiveTime = inactivePlayer.getCurrentTime();
@@ -331,7 +335,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
       }, 500);
     }
     return () => clearInterval(interval);
-  }, [activeVideo, hasBothVideos, activeRoleGroup]);
+  }, [activeVideo, hasBothVideos, song.id, progressMap]);
 
   // Synchronized video toggle action
   const handleToggleVideo = () => {
@@ -342,8 +346,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
     const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
     const inactivePlayer = activeVideo === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
 
-    const activeOffset = activeVideo === "backing" ? (activeRoleGroup?.backingStartOffset ?? 0) : (activeRoleGroup?.tabStartOffset ?? 0);
-    const inactiveOffset = activeVideo === "backing" ? (activeRoleGroup?.tabStartOffset ?? 0) : (activeRoleGroup?.backingStartOffset ?? 0);
+    const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
+    const inactiveOffset = activeVideo === "backing" ? (progressMap[song.id]?.tabStartOffset ?? 0) : (progressMap[song.id]?.backingStartOffset ?? 0);
 
     if (activePlayer && inactivePlayer) {
       try {
@@ -452,14 +456,13 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
     }
   };
 
-  // Global Sync Offsets Saving
+  // Private Sync Offsets Saving
   const handleSaveOffsets = async () => {
-    if (!activeRoleGroup) return;
     setIsSavingOffsets(true);
     try {
       const bOffset = parseFloat(backingOffset) || 0;
       const tOffset = parseFloat(tabOffset) || 0;
-      const res = await updateRoleGroupStartOffsets(activeRoleGroup.id, bOffset, tOffset);
+      const res = await saveStartOffsets(song.id, bOffset, tOffset);
       if (res.success) {
         onRefresh();
       } else {
@@ -510,6 +513,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
+          <span className="text-[10px] text-[#a7a7ad] font-bold bg-[#27282b]/50 border border-[#3b3e45]/50 px-2.5 py-1.5 rounded-full flex items-center gap-1.5" title="All settings, offsets, speed, and markers in Practice Mode are private to your device.">
+            <Lock className="w-3.5 h-3.5 text-[#888d96]" />
+            Settings synced only for you
+          </span>
         </div>
         <div className="text-right">
           <h1 className="text-base font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
@@ -655,10 +662,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                       <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
                       Practice Markers
                     </span>
-                    <span className="text-[10px] text-[#a7a7ad] font-bold bg-[#27282b]/50 border border-[#3b3e45]/50 px-2 py-0.5 rounded-full flex items-center gap-1" title="Only saved on your browser/device">
-                      <Lock className="w-3.5 h-3.5 text-[#888d96]" />
-                      Private to You
-                    </span>
                   </div>
 
                   <Button
@@ -670,7 +673,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                   </Button>
 
                   <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
-                    Press keyboard keys <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">1</kbd> - <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">9</kbd> to instantly skip to the respective marker.
+                    💡 Press keyboard keys <span className="text-[#acd1f8] font-bold">1-9</span> to instantly skip to the respective marker.
                   </p>
 
                   <div className="space-y-1.5">
@@ -706,16 +709,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                   </div>
                 </div>
 
-                {/* Col 3: Global Offsets (Shared) */}
+                {/* Col 3: Start Sync Offsets (Private) */}
                 <div className="space-y-3 pt-4 md:pt-0 md:pl-4">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider flex items-center gap-1">
                       <Settings className="w-3.5 h-3.5 text-[#acd1f8]" />
-                      Global Start Sync
-                    </span>
-                    <span className="text-[10px] text-[#acd1f8] font-bold bg-[#2e4057]/30 border border-[#446285]/50 px-2 py-0.5 rounded-full flex items-center gap-1" title="Synced globally across all band members">
-                      <Users className="w-3.5 h-3.5 text-[#acd1f8]" />
-                      Shared with Band
+                      Start Sync Offsets
                     </span>
                   </div>
 
