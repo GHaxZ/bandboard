@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehearsalSongs } from "@/app/actions/rehearsals";
-import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, Check, ListMusic } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic } from "lucide-react";
 
 interface Track {
   id: string;

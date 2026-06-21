@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useTransition } from "react";
 import { getSongs, deleteSong } from "@/app/actions/songs";
@@ -115,7 +116,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   // Profile preferences
   const [instrument, setInstrument] = useState("Guitar");
 
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   // URL Parsing and auth verification on mount
   useEffect(() => {

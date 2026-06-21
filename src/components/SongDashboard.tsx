@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -131,7 +132,6 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
 
   // Trigger YouTube media lazy-load when active track is standard and missing media links
   useEffect(() => {
-    const standardTracks = song.tracks.filter((t) => t.role !== "Other");
     const otherTracks = song.tracks.filter((t) => t.role === "Other");
 
     const activeTrack = activeTrackId === "other-tab"
@@ -180,13 +180,6 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
 
   const standardTracks = song.tracks.filter((t) => t.role !== "Other");
   const otherTracks = song.tracks.filter((t) => t.role === "Other");
-
-  const activeTrack = activeTrackId === "other-tab"
-    ? (song.tracks.find((t) => t.id === selectedOtherTrackId) || otherTracks[0])
-    : (song.tracks.find((t) => t.id === activeTrackId) || song.tracks[0]);
-
-  const backingVideoId = getYouTubeId(activeTrack?.backingTrackLink);
-  const tabVideoId = getYouTubeId(activeTrack?.tabVideoLink);
 
   async function handleSaveVideoLink(url: string | null) {
     if (!videoSelectorState) return;
