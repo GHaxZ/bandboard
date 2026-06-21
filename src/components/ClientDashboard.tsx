@@ -1,0 +1,781 @@
+"use client";
+
+import { useState, useEffect, useTransition } from "react";
+import { getSongs, deleteSong } from "@/app/actions/songs";
+import { getRehearsals, deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
+import { checkSecret, isSecretRequired } from "@/app/actions/auth";
+import { SongDashboard } from "./SongDashboard";
+import { SetlistManager } from "./SetlistManager";
+import { AddSongModal } from "./AddSongModal";
+import { AddRehearsalModal } from "./AddRehearsalModal";
+import { EditRehearsalModal } from "./EditRehearsalModal";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Calendar as CalendarIcon,
+  Music as MusicIcon,
+  Settings as SettingsIcon,
+  Plus,
+  Search,
+  ArrowLeft,
+  Clock,
+  Lock,
+  Loader2,
+  FileText,
+  Sliders,
+  CheckCircle,
+  Edit,
+} from "lucide-react";
+
+interface Track {
+  id: string;
+  songId: string;
+  instrumentName: string;
+  role: string;
+  details: string | null;
+  tuning: string;
+  tabLink: string;
+  backingTrackLink: string | null;
+  tabVideoLink: string | null;
+}
+
+interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  songsterrId: number | null;
+  createdAt: number;
+  tracks: Track[];
+}
+
+interface RehearsalSong {
+  rehearsalId: string;
+  songId: string;
+  sortOrder: number;
+  song: Song;
+}
+
+interface Rehearsal {
+  id: string;
+  title: string;
+  date: number;
+  notes: string | null;
+  rehearsalSongs: {
+    song: Song;
+  }[];
+}
+
+interface RehearsalDetails {
+  id: string;
+  title: string;
+  date: number;
+  notes: string | null;
+  rehearsalSongs: RehearsalSong[];
+}
+
+interface ClientDashboardProps {
+  initialSongs: Song[];
+  initialRehearsals: Rehearsal[];
+}
+
+export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashboardProps) {
+  // Access control state
+  const [isCheckingSecret, setIsCheckingSecret] = useState(true);
+  const [isSecretNeeded, setIsSecretNeeded] = useState(false);
+  const [isAuthVerified, setIsAuthVerified] = useState(false);
+  const [secretInput, setSecretInput] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  // Navigation state: 'rehearsals' | 'songs' | 'settings'
+  const [activeTab, setActiveTab] = useState<"rehearsals" | "songs" | "settings">("rehearsals");
+
+  // Data states
+  const [songsList, setSongsList] = useState<Song[]>(initialSongs);
+  const [rehearsalsList, setRehearsalsList] = useState<Rehearsal[]>(initialRehearsals);
+
+  // Active view detail states
+  const [selectedRehearsalId, setSelectedRehearsalId] = useState<string | null>(null);
+  const [selectedRehearsalDetails, setSelectedRehearsalDetails] = useState<RehearsalDetails | null>(null);
+  const [selectedRehearsalSongId, setSelectedRehearsalSongId] = useState<string | null>(null);
+
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+
+  // Search filter states
+  const [songSearchQuery, setSongSearchQuery] = useState("");
+
+  // Dialog triggers
+  const [isAddSongOpen, setIsAddSongOpen] = useState(false);
+  const [isAddRehearsalOpen, setIsAddRehearsalOpen] = useState(false);
+  const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
+
+  // Profile preferences
+  const [instrument, setInstrument] = useState("Guitar");
+
+  const [isPending, startTransition] = useTransition();
+
+  // URL Parsing and auth verification on mount
+  useEffect(() => {
+    async function verifyAccess() {
+      // 1. Capture token from URL
+      const searchParams = new URLSearchParams(window.location.search);
+      const secretParam = searchParams.get("secret");
+      if (secretParam) {
+        localStorage.setItem("bandboard_secret", secretParam);
+        // Remove token from address bar for visual cleanliness
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+
+      // 2. Query server if a secret token is required
+      const required = await isSecretRequired();
+      setIsSecretNeeded(required);
+
+      if (required) {
+        const storedSecret = localStorage.getItem("bandboard_secret") || "";
+        const auth = await checkSecret(storedSecret);
+        setIsAuthVerified(auth.isValid);
+      } else {
+        setIsAuthVerified(true);
+      }
+      setIsCheckingSecret(false);
+    }
+
+    verifyAccess();
+
+    // Load profile preferences
+    const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
+    setInstrument(savedInstrument);
+  }, []);
+
+  // Sync data refresh helper
+  async function refreshData() {
+    startTransition(async () => {
+      const updatedSongs = await getSongs();
+      const updatedRehearsals = await getRehearsals();
+      setSongsList(updatedSongs);
+      setRehearsalsList(updatedRehearsals);
+
+      // Refresh details if viewing a rehearsal
+      if (selectedRehearsalId) {
+        const details = await getRehearsalDetails(selectedRehearsalId);
+        setSelectedRehearsalDetails(details);
+      }
+    });
+  }
+
+  // Handle password authentication
+  async function handleAuthenticate(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError("");
+    const auth = await checkSecret(secretInput);
+    if (auth.isValid) {
+      localStorage.setItem("bandboard_secret", secretInput);
+      setIsAuthVerified(true);
+    } else {
+      setAuthError("Incorrect password token. Please try again.");
+    }
+  }
+
+  // Load rehearsal details when selected
+  useEffect(() => {
+    if (selectedRehearsalId) {
+      getRehearsalDetails(selectedRehearsalId).then((details) => {
+        setSelectedRehearsalDetails(details);
+        if (details && details.rehearsalSongs.length > 0) {
+          // Auto select first song in setlist
+          setSelectedRehearsalSongId(details.rehearsalSongs[0].songId);
+        } else {
+          setSelectedRehearsalSongId(null);
+        }
+      });
+    } else {
+      setSelectedRehearsalDetails(null);
+      setSelectedRehearsalSongId(null);
+    }
+  }, [selectedRehearsalId]);
+
+  // Handle instrument setting change
+  function handleInstrumentChange(val: string) {
+    setInstrument(val);
+    localStorage.setItem("bandboard_instrument", val);
+  }
+
+  // Delete song callback
+  async function handleDeleteSong(songId: string) {
+    if (confirm("Are you sure you want to delete this song and all its associated notation/media tracks?")) {
+      const res = await deleteSong(songId);
+      if (res.success) {
+        setSelectedSongId(null);
+        refreshData();
+      }
+    }
+  }
+
+  // Delete rehearsal callback
+  async function handleDeleteRehearsal(rehearsalId: string) {
+    if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
+      const res = await deleteRehearsal(rehearsalId);
+      if (res.success) {
+        setSelectedRehearsalId(null);
+        refreshData();
+      }
+    }
+  }
+
+  // Filtered song list
+  const filteredSongs = songsList.filter(
+    (s) =>
+      s.title.toLowerCase().includes(songSearchQuery.toLowerCase()) ||
+      s.artist.toLowerCase().includes(songSearchQuery.toLowerCase())
+  );
+
+  // Loading screen
+  if (isCheckingSecret) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0c0d0e] text-[#f1f2f4] gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-[#5b80a5]" />
+        <p className="text-sm font-semibold text-[#888d96]">Loading BandBoard...</p>
+      </div>
+    );
+  }
+
+  // Authentication screen
+  if (isSecretNeeded && !isAuthVerified) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0c0d0e] text-[#f1f2f4] p-4">
+        <Card className="max-w-md w-full border-[#27282b] bg-[#161719] rounded-2xl shadow-2xl p-6">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto w-12 h-12 bg-[#27282b]/60 border border-[#3b3e45]/50 rounded-2xl flex items-center justify-center mb-3">
+              <Lock className="w-5 h-5 text-[#888d96]" />
+            </div>
+            <CardTitle className="text-2xl font-black tracking-tight text-[#f1f2f4]">Enter Shared Secret</CardTitle>
+            <CardDescription className="text-[#888d96] mt-1 text-xs">
+              Access is protected. Enter your band&apos;s shared secret token to view sheets and tracks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAuthenticate} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="secretToken" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+                  Secret Password
+                </Label>
+                <Input
+                  id="secretToken"
+                  type="password"
+                  required
+                  placeholder="Enter shared secret..."
+                  value={secretInput}
+                  onChange={(e) => setSecretInput(e.target.value)}
+                  className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                />
+              </div>
+
+              {authError && <p className="text-xs font-semibold text-red-400 text-center">{authError}</p>}
+
+              <Button type="submit" className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl font-bold py-2.5">
+                Unlock BandBoard
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Main UI
+  return (
+    <div className="flex-1 flex flex-col bg-[#0c0d0e] text-[#f1f2f4] pb-20 md:pb-6">
+      {/* Top Header */}
+      <header className="sticky top-0 z-40 bg-[#0c0d0e]/80 backdrop-blur-lg border-b border-[#27282b] px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-[#24272c] border border-[#3b3e45] flex items-center justify-center text-[#f1f2f4] font-black text-sm">
+            BB
+          </div>
+          <div>
+            <h1 className="text-base font-black tracking-tight text-[#f1f2f4] leading-none">BandBoard</h1>
+            <span className="text-[10px] font-bold text-[#888d96] flex items-center gap-1 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#5b80a5] animate-ping"></span> Live Setlist Sync
+            </span>
+          </div>
+        </div>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-1.5 bg-[#161719] border border-[#27282b] p-1 rounded-xl">
+          <button
+            onClick={() => {
+              setActiveTab("rehearsals");
+              setSelectedRehearsalId(null);
+              setSelectedSongId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+              activeTab === "rehearsals" ? "bg-[#27282b] text-[#f1f2f4]" : "text-[#888d96] hover:text-[#f1f2f4]"
+            }`}
+          >
+            <CalendarIcon className="w-4 h-4" /> Rehearsals
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("songs");
+              setSelectedRehearsalId(null);
+              setSelectedSongId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+              activeTab === "songs" ? "bg-[#27282b] text-[#f1f2f4]" : "text-[#888d96] hover:text-[#f1f2f4]"
+            }`}
+          >
+            <MusicIcon className="w-4 h-4" /> Song Library
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("settings");
+              setSelectedRehearsalId(null);
+              setSelectedSongId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+              activeTab === "settings" ? "bg-[#27282b] text-[#f1f2f4]" : "text-[#888d96] hover:text-[#f1f2f4]"
+            }`}
+          >
+            <SettingsIcon className="w-4 h-4" /> Settings
+          </button>
+        </nav>
+      </header>
+
+      {/* Main Content Area - Full width on large displays, padding handles spacing */}
+      <main className="flex-1 w-full max-w-none px-4 md:px-8 py-6 space-y-6">
+        {/* REHEARSALS TAB */}
+        {activeTab === "rehearsals" && (
+          <div className="space-y-6">
+            {!selectedRehearsalId ? (
+              // Rehearsals List View
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-black text-[#f1f2f4] flex items-center gap-2">
+                      <CalendarIcon className="w-5 h-5 text-[#888d96]" />
+                      Rehearsal Sessions
+                    </h2>
+                    <p className="text-xs text-[#888d96] mt-0.5">Organize setlists and check instrument tracks during practice.</p>
+                  </div>
+                  <Button
+                    onClick={() => setIsAddRehearsalOpen(true)}
+                    className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold text-xs"
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Schedule Prep
+                  </Button>
+                </div>
+
+                {rehearsalsList.length === 0 ? (
+                  <div className="text-center py-16 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
+                    <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b]" />
+                    <h3 className="font-semibold text-lg text-[#f1f2f4]">No Rehearsals Scheduled</h3>
+                    <p className="text-sm mt-1">Get started by creating a practice session and adding songs.</p>
+                    <Button
+                      onClick={() => setIsAddRehearsalOpen(true)}
+                      className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl mt-4 text-xs font-bold"
+                    >
+                      Schedule Your First Prep
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {rehearsalsList.map((reh) => {
+                      const dateObj = new Date(reh.date);
+                      return (
+                        <Card
+                          key={reh.id}
+                          onClick={() => setSelectedRehearsalId(reh.id)}
+                          className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg"
+                        >
+                          <CardHeader className="p-5 pb-3">
+                            <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
+                              {dateObj.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                            </span>
+                            <CardTitle className="text-base font-bold text-[#f1f2f4] mt-1 line-clamp-1">
+                              {reh.title}
+                            </CardTitle>
+                            {reh.notes && (
+                              <CardDescription className="text-xs text-[#888d96] mt-1 line-clamp-2 leading-relaxed">
+                                {reh.notes}
+                              </CardDescription>
+                            )}
+                          </CardHeader>
+                          <CardContent className="px-5 pb-5 pt-0 flex items-center justify-between text-xs text-[#888d96] border-t border-[#27282b]/60 mt-3 pt-3">
+                            <span className="flex items-center gap-1 font-semibold text-[#888d96]">
+                              <MusicIcon className="w-3.5 h-3.5 text-[#888d96]" /> {reh.rehearsalSongs?.length || 0} songs
+                            </span>
+                            <span className="flex items-center gap-1 font-semibold text-[#888d96]">
+                              <Clock className="w-3.5 h-3.5 text-[#888d96]" />{" "}
+                              {dateObj.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Rehearsal Detailed Setlist & Player View
+              <div className="space-y-6">
+                {/* Back Link Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#27282b] pb-5">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSelectedRehearsalId(null)}
+                      className="text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719] rounded-xl"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                    <div>
+                      <h2 className="text-xl font-black text-[#f1f2f4] flex items-center gap-2">
+                        {selectedRehearsalDetails?.title || "Loading..."}
+                      </h2>
+                      <p className="text-xs text-[#888d96] mt-0.5">
+                        {selectedRehearsalDetails
+                          ? new Date(selectedRehearsalDetails.date).toLocaleString(undefined, {
+                              weekday: "long",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setIsEditRehearsalOpen(true)}
+                      className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold px-3.5 h-9"
+                    >
+                      <Edit className="w-3.5 h-3.5 mr-1" /> Edit Details
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => selectedRehearsalDetails && handleDeleteRehearsal(selectedRehearsalDetails.id)}
+                      className="bg-red-950/25 hover:bg-red-900/40 border border-red-950/40 text-red-400 hover:text-white rounded-xl text-xs font-bold px-3.5 h-9"
+                    >
+                      Delete Session
+                    </Button>
+                  </div>
+                </div>
+
+                {selectedRehearsalDetails?.notes && (
+                  <div className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex gap-3 text-xs leading-relaxed text-[#888d96]">
+                    <FileText className="w-4 h-4 text-[#888d96] flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-[#f1f2f4] block mb-0.5 uppercase tracking-wide text-[10px]">
+                        Session Notes
+                      </span>
+                      {selectedRehearsalDetails.notes}
+                    </div>
+                  </div>
+                )}
+
+                {/* Grid layout: Setlist Column (Left) & Dynamic Active Track Details Dashboard (Right) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Setlist Column (Left) - Expanded layout width handles spacing */}
+                  <div className="lg:col-span-4 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 shadow-lg h-fit">
+                    {selectedRehearsalDetails && (
+                      <SetlistManager
+                        rehearsalId={selectedRehearsalDetails.id}
+                        rehearsalSongs={selectedRehearsalDetails.rehearsalSongs}
+                        allSongs={songsList}
+                        activeSongId={selectedRehearsalSongId}
+                        onSelectSong={setSelectedRehearsalSongId}
+                        onRefresh={refreshData}
+                      />
+                    )}
+                  </div>
+
+                  {/* Player Dashboard Column (Right) */}
+                  <div className="lg:col-span-8">
+                    {selectedRehearsalSongId ? (
+                      (() => {
+                        const currentRehSong = selectedRehearsalDetails?.rehearsalSongs.find(
+                          (rs) => rs.songId === selectedRehearsalSongId
+                        );
+                        if (!currentRehSong) return null;
+                        return (
+                          <SongDashboard
+                            song={currentRehSong.song}
+                            onRefresh={refreshData}
+                          />
+                        );
+                      })()
+                    ) : (
+                      <div className="text-center py-20 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
+                        <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
+                        <h3 className="font-semibold text-[#888d96]">No Song Selected</h3>
+                        <p className="text-xs mt-1">Select a song from the setlist on the left to load its notations and backing players.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SONG LIBRARY TAB */}
+        {activeTab === "songs" && (
+          <div className="space-y-6">
+            {!selectedSongId ? (
+              // Song List View
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-black text-[#f1f2f4] flex items-center gap-2">
+                      <MusicIcon className="w-5 h-5 text-[#888d96]" />
+                      Song Library
+                    </h2>
+                    <p className="text-xs text-[#888d96] mt-0.5">Master repository of notations, tracks, and metadata.</p>
+                  </div>
+                  <Button
+                    onClick={() => setIsAddSongOpen(true)}
+                    className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold text-xs"
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add New Song
+                  </Button>
+                </div>
+
+                {/* Search query */}
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#888d96]" />
+                  <Input
+                    placeholder="Search library by title or artist..."
+                    value={songSearchQuery}
+                    onChange={(e) => setSongSearchQuery(e.target.value)}
+                    className="bg-[#161719] border-[#27282b] text-[#f1f2f4] pl-11 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                  />
+                </div>
+
+                {filteredSongs.length === 0 ? (
+                  <div className="text-center py-16 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
+                    <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b]" />
+                    <h3 className="font-semibold text-lg text-[#f1f2f4]">No Songs Found</h3>
+                    <p className="text-sm mt-1">Add a new song to download notation tabs, backing tracks and scores.</p>
+                    <Button
+                      onClick={() => setIsAddSongOpen(true)}
+                      className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl mt-4 text-xs font-bold"
+                    >
+                      Add Your First Song
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredSongs.map((song) => (
+                      <Card
+                        key={song.id}
+                        onClick={() => setSelectedSongId(song.id)}
+                        className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg"
+                      >
+                        <CardHeader className="p-5">
+                          <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
+                            {song.tracks?.length || 0} notation tracks
+                          </span>
+                          <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
+                            {song.title}
+                          </CardTitle>
+                          <CardDescription className="text-xs text-[#888d96] mt-0.5 truncate font-medium">
+                            by {song.artist}
+                          </CardDescription>
+                        </CardHeader>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Song Detail View
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-[#27282b] pb-5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedSongId(null)}
+                    className="text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719] rounded-xl"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <div>
+                    <h2 className="text-lg font-black text-[#f1f2f4]">Library Details</h2>
+                    <p className="text-xs text-[#888d96] mt-0.5">Inspect and customize tracks for this song.</p>
+                  </div>
+                </div>
+
+                {(() => {
+                  const currentSong = songsList.find((s) => s.id === selectedSongId);
+                  if (!currentSong) return null;
+                  return (
+                    <SongDashboard
+                      song={currentSong}
+                      onRefresh={refreshData}
+                      onDelete={() => handleDeleteSong(currentSong.id)}
+                    />
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-black text-[#f1f2f4] flex items-center gap-2">
+                <SettingsIcon className="w-5 h-5 text-[#888d96]" />
+                Settings &amp; Preferences
+              </h2>
+              <p className="text-xs text-[#888d96] mt-0.5">Customize your instrument settings and view identity preferences.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Instrument Setting */}
+              <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-base font-bold text-[#f1f2f4] flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-[#888d96]" />
+                    My Role (Instrument)
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#888d96] mt-1">
+                    Select your main role. When viewing a song dashboard, details for this instrument category will be shown by default.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {["Guitar", "Bass", "Drums", "Vocals", "Keyboard", "Other"].map((inst) => {
+                      const isSelected = instrument.toLowerCase() === inst.toLowerCase();
+                      return (
+                        <Button
+                          key={inst}
+                          variant={isSelected ? "default" : "outline"}
+                          onClick={() => handleInstrumentChange(inst)}
+                          className={`rounded-xl h-11 font-bold text-xs ${
+                            isSelected
+                              ? "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] border-0"
+                              : "border-[#27282b] bg-[#0c0d0e]/40 text-[#888d96] hover:bg-[#27282b] hover:text-[#f1f2f4]"
+                          }`}
+                        >
+                          {inst}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[#888d96] bg-[#0c0d0e]/40 border border-[#27282b] p-3 rounded-xl leading-relaxed">
+                    <CheckCircle className="w-4 h-4 text-[#5b80a5] shrink-0" />
+                    Your role is saved locally on this device as <span className="font-bold text-[#f1f2f4]">{instrument}</span>.
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Shared Secret Settings */}
+              <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-base font-bold text-[#f1f2f4] flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#888d96]" />
+                    Authentication Secret
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#888d96] mt-1">
+                    Manage your access token for this deployment.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#888d96] leading-relaxed font-medium">
+                      If your band administrator has set an access password, you must be logged in to view setlists. You are currently authenticated.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        localStorage.removeItem("bandboard_secret");
+                        window.location.reload();
+                      }}
+                      className="border-[#27282b] bg-[#0c0d0e]/40 text-red-400 hover:bg-red-950/20 hover:text-red-300 rounded-xl text-xs font-bold py-1.5 h-9"
+                    >
+                      Clear Saved Secret (Log Out)
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Sticky Bottom Navigation Bar for Mobile */}
+      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#161719]/90 backdrop-blur-lg border-t border-[#27282b] px-6 py-2.5 flex items-center justify-around shadow-2xl">
+        <button
+          onClick={() => {
+            setActiveTab("rehearsals");
+            setSelectedRehearsalId(null);
+            setSelectedSongId(null);
+          }}
+          className={`flex flex-col items-center gap-1 py-1 font-bold text-[10px] transition-all duration-200 ${
+            activeTab === "rehearsals" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
+          }`}
+        >
+          <CalendarIcon className="w-5.5 h-5.5" />
+          Rehearsals
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("songs");
+            setSelectedRehearsalId(null);
+            setSelectedSongId(null);
+          }}
+          className={`flex flex-col items-center gap-1 py-1 font-bold text-[10px] transition-all duration-200 ${
+            activeTab === "songs" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
+          }`}
+        >
+          <MusicIcon className="w-5.5 h-5.5" />
+          Library
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("settings");
+            setSelectedRehearsalId(null);
+            setSelectedSongId(null);
+          }}
+          className={`flex flex-col items-center gap-1 py-1 font-bold text-[10px] transition-all duration-200 ${
+            activeTab === "settings" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
+          }`}
+        >
+          <SettingsIcon className="w-5.5 h-5.5" />
+          Settings
+        </button>
+      </footer>
+
+      {/* Modals */}
+      <AddSongModal
+        isOpen={isAddSongOpen}
+        onClose={() => setIsAddSongOpen(false)}
+        onSuccess={refreshData}
+      />
+      
+      <AddRehearsalModal
+        isOpen={isAddRehearsalOpen}
+        onClose={() => setIsAddRehearsalOpen(false)}
+        onSuccess={(id) => {
+          refreshData();
+          setSelectedRehearsalId(id);
+        }}
+      />
+
+      {selectedRehearsalDetails && (
+        <EditRehearsalModal
+          isOpen={isEditRehearsalOpen}
+          onClose={() => setIsEditRehearsalOpen(false)}
+          rehearsal={selectedRehearsalDetails}
+          onSuccess={refreshData}
+        />
+      )}
+    </div>
+  );
+}
