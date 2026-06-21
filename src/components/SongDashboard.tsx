@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updateTrackVideoLink, lazyLoadTrackMedia, getGeniusLyricsLinkAction } from "@/app/actions/songs";
 import { VideoSelector } from "./VideoSelector";
+import { PracticeLogCard } from "./PracticeLogCard";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown, Sliders, Clock, Save } from "lucide-react";
 import {
   getSongProgress,
@@ -86,10 +87,6 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
 
   // User progress state
-  const [progressStatus, setProgressStatus] = useState<string>("learning");
-  const [progressSpeed, setProgressSpeed] = useState<number>(100);
-  const [progressNotes, setProgressNotes] = useState<string>("");
-  const [isSavingProgress, setIsSavingProgress] = useState<boolean>(false);
   const [initialProgress, setInitialProgress] = useState<{ status: string; speed: number; notes: string } | null>(null);
 
   // Load progress when song.id changes
@@ -99,44 +96,14 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
       
       const prog = await getSongProgress(song.id);
       if (prog) {
-        setProgressStatus(prog.status);
-        setProgressSpeed(prog.speed);
-        setProgressNotes(prog.notes || "");
         setInitialProgress({ status: prog.status, speed: prog.speed, notes: prog.notes || "" });
       } else {
-        setProgressStatus("learning");
-        setProgressSpeed(100);
-        setProgressNotes("");
         setInitialProgress({ status: "learning", speed: 100, notes: "" });
       }
     }
     
     loadSongUserData();
   }, [song.id]);
-
-  const hasUnsavedProgress = initialProgress
-    ? progressStatus !== initialProgress.status ||
-      progressSpeed !== initialProgress.speed ||
-      progressNotes !== initialProgress.notes
-    : false;
-
-  // Save progress helper
-  async function handleSaveProgress() {
-    setIsSavingProgress(true);
-    try {
-      const res = await saveSongProgress(song.id, progressStatus, progressSpeed, progressNotes);
-      if (res.success) {
-        setInitialProgress({ status: progressStatus, speed: progressSpeed, notes: progressNotes });
-        onRefresh();
-      } else {
-        alert("Failed to save practice log: " + res.error);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSavingProgress(false);
-    }
-  }
 
   // Track expanded state of additional notation tracks inside role groups
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
@@ -681,114 +648,20 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                 </div>
 
                 {/* PRACTICE PROGRESS/REHEARSAL LOG CARD */}
-                <div className="bg-[#0c0d0e]/60 border border-[#27282b]/60 rounded-2xl p-5 space-y-4 mt-6">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
-                        <Sliders className="w-4 h-4 text-[#888d96]" />
-                        My Rehearsal Log &amp; Speed
-                      </h4>
-                      <p className="text-[10px] text-[#888d96] mt-0.5 font-medium">Log your practice speed and status for this song.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Status Selection */}
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Learning Status</label>
-                      <div className="flex flex-col gap-2">
-                        {["not_started", "learning", "ready_to_play", "mastered"].map((status) => {
-                          const isSelected = progressStatus === status;
-                          const label = 
-                            status === "not_started" 
-                              ? "Not Started" 
-                              : status === "learning" 
-                              ? "Learning" 
-                              : status === "ready_to_play"
-                              ? "Ready to Play"
-                              : "Mastered";
-                          return (
-                            <Button
-                              key={status}
-                              type="button"
-                              variant={isSelected ? "default" : "outline"}
-                              onClick={() => setProgressStatus(status)}
-                              className={cn(
-                                "rounded-lg text-[10px] font-bold h-8 px-2 transition-all justify-start",
-                                isSelected
-                                  ? status === "mastered"
-                                    ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50 w-full"
-                                    : status === "ready_to_play"
-                                    ? "bg-purple-950/40 border border-purple-800 text-purple-400 hover:bg-purple-950/50 w-full"
-                                    : status === "learning"
-                                    ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50 w-full"
-                                    : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50 w-full"
-                                  : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4] w-full"
-                              )}
-                            >
-                              {label}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Notes & Speed (2 cols span) */}
-                    <div className="md:col-span-2 space-y-4">
-                      {/* Speed Preference slider or number */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider">Practice Speed</label>
-                          <span className="text-xs font-mono font-bold text-[#5b80a5]">{progressSpeed}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="50"
-                          max="150"
-                          step="5"
-                          value={progressSpeed}
-                          onChange={(e) => setProgressSpeed(parseInt(e.target.value))}
-                          className="w-full h-1.5 bg-[#161719] border border-[#27282b] rounded-lg appearance-none cursor-pointer accent-[#5b80a5]"
-                        />
-                      </div>
-
-                      {/* Practice Notes */}
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Rehearsal Notes</label>
-                        <textarea
-                          placeholder="E.g. Struggling with alternative picking in the chorus, review bars 40-50..."
-                          value={progressNotes}
-                          onChange={(e) => setProgressNotes(e.target.value)}
-                          className="w-full bg-[#0c0d0e] border border-[#27282b] rounded-xl text-xs text-[#f1f2f4] p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-[#5b80a5] resize-none h-24 placeholder:text-[#4e525a]"
-                        />
-                      </div>
-
-                      {/* Save Button */}
-                      <Button
-                        onClick={handleSaveProgress}
-                        disabled={isSavingProgress}
-                        className={cn(
-                          "rounded-xl text-xs font-bold py-2 h-10 w-full flex items-center justify-center gap-1.5 mt-2 transition-all duration-300",
-                          hasUnsavedProgress && !isSavingProgress
-                            ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
-                            : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
-                        )}
-                      >
-                        {isSavingProgress ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Saving Log...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-3.5 h-3.5" />
-                            Save Rehearsal Log
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <PracticeLogCard
+                  songId={song.id}
+                  initialStatus={initialProgress?.status}
+                  initialNotes={initialProgress?.notes ?? ""}
+                  initialSpeed={initialProgress?.speed}
+                  onSaveSuccess={async () => {
+                    const prog = await getSongProgress(song.id);
+                    if (prog) {
+                      setInitialProgress({ status: prog.status, speed: prog.speed, notes: prog.notes || "" });
+                    }
+                    onRefresh();
+                  }}
+                  className="mt-6 border-[#27282b]/60 bg-[#0c0d0e]/60"
+                />
               </TabsContent>
             );
           })}
