@@ -99,20 +99,26 @@ export async function ingestSongData(title: string, artist: string) {
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
 
-    // Query Songsterr API
-    const response = await fetch(
-      `https://www.songsterr.com/api/songs?pattern=${encodeURIComponent(formattedTitle)}+${encodeURIComponent(
-        formattedArtist
-      )}`
-    );
+    // Query Songsterr API with a timeout
+    let response;
+    try {
+      response = await fetch(
+        `https://www.songsterr.com/api/songs?pattern=${encodeURIComponent(formattedTitle)}+${encodeURIComponent(
+          formattedArtist
+        )}`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+    } catch (e) {
+      console.error("Songsterr API lookup failed/timed out:", e);
+    }
 
     let songsterrId: number | null = null;
     let verifiedTitle = formattedTitle;
     let verifiedArtist = formattedArtist;
     let rawTracks: any[] = [];
 
-    if (response.ok) {
-      const data = await response.json();
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
       if (Array.isArray(data) && data.length > 0) {
         const bestMatch = data[0];
         songsterrId = bestMatch.songId;
@@ -122,36 +128,23 @@ export async function ingestSongData(title: string, artist: string) {
       }
     }
 
-    // Query iTunes API for album cover art
+    // Query iTunes API for album cover art with a timeout
     let albumArt: string | null = null;
     try {
       const itunesRes = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(verifiedArtist)}+${encodeURIComponent(
           verifiedTitle
-        )}&entity=song&limit=1`
+        )}&entity=song&limit=1`,
+        { signal: AbortSignal.timeout(3000) }
       );
       if (itunesRes.ok) {
-        const itunesData = await itunesRes.json();
-        if (itunesData.results && itunesData.results.length > 0) {
+        const itunesData = await itunesRes.json().catch(() => null);
+        if (itunesData && itunesData.results && itunesData.results.length > 0) {
           albumArt = itunesData.results[0].artworkUrl100?.replace("100x100bb.jpg", "300x300bb.jpg") || null;
         }
       }
     } catch (e) {
       console.error("iTunes album art lookup failed:", e);
-    }
-
-    // Query lyrics API (lyrics.ovh is a free, keyless endpoint)
-    let lyrics: string | null = null;
-    try {
-      const lyricsRes = await fetch(
-        `https://api.lyrics.ovh/v1/${encodeURIComponent(verifiedArtist)}/${encodeURIComponent(verifiedTitle)}`
-      );
-      if (lyricsRes.ok) {
-        const lyricsData = await lyricsRes.json();
-        lyrics = lyricsData.lyrics || null;
-      }
-    } catch (e) {
-      console.error("Lyrics search failed:", e);
     }
 
     const songId = crypto.randomUUID();
@@ -163,7 +156,7 @@ export async function ingestSongData(title: string, artist: string) {
       artist: verifiedArtist,
       songsterrId,
       albumArt,
-      lyrics,
+      lyrics: null, // Lyrics are no longer fetched or stored inline since we use external Genius links only
       createdAt: Date.now(),
     });
 
@@ -196,9 +189,8 @@ export async function ingestSongData(title: string, artist: string) {
         };
       });
 
-      for (const payload of trackPayloads) {
-        await db.insert(tracks).values(payload);
-      }
+      // Batch insert tracks to database in a single query
+      await db.insert(tracks).values(trackPayloads);
     } else {
       // Fallback: Create a generic track so there is at least one active view tab
       await db.insert(tracks).values({
