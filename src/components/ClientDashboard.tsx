@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { getSongTunings } from "@/lib/tunings";
+import { cn } from "@/lib/utils";
 import {
   Calendar as CalendarIcon,
   Music as MusicIcon,
@@ -210,6 +213,16 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
       setSelectedRehearsalSongId(null);
     }
   }, [selectedRehearsalId]);
+
+  // Keep instrument state in sync with local storage whenever views change
+  useEffect(() => {
+    const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
+    if (savedInstrument.toLowerCase() === "keyboard" || savedInstrument.toLowerCase() === "piano") {
+      setInstrument("Piano/Keyboard");
+    } else {
+      setInstrument(savedInstrument);
+    }
+  }, [selectedSongId, selectedRehearsalId, selectedRehearsalSongId]);
 
   // Handle instrument setting change
   function handleInstrumentChange(val: string) {
@@ -599,16 +612,43 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                               className="w-12 h-12 rounded-xl object-cover border border-[#27282b] flex-shrink-0"
                             />
                           )}
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
                               {(song.roleGroups?.reduce((acc, rg) => acc + (rg.tracks?.length || 0), 0) || 0)} notation tracks
                             </span>
                             <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
                               {song.title}
                             </CardTitle>
-                            <CardDescription className="text-xs text-[#888d96] mt-0.5 truncate font-medium">
-                              by {song.artist}
-                            </CardDescription>
+                            <div className="flex flex-col gap-1.5 mt-1">
+                              <CardDescription className="text-xs text-[#888d96] truncate font-medium">
+                                by {song.artist}
+                              </CardDescription>
+                              {/* Tuning Badges */}
+                              {(() => {
+                                const songTunings = getSongTunings(song);
+                                if (songTunings.length === 0) return null;
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {songTunings.map((ind) => {
+                                      const isHighlighted = (instrument === "Guitar" && ind.role === "Guitar") || (instrument === "Bass" && ind.role === "Bass");
+                                      return (
+                                        <Badge
+                                          key={`${ind.role}-${ind.tuning}`}
+                                          className={cn(
+                                            "text-[9px] font-mono tracking-wide px-1.5 py-0.5 border",
+                                            isHighlighted
+                                              ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
+                                              : "bg-[#161719]/40 border-[#27282b] text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
+                                          )}
+                                        >
+                                          {ind.tuning}
+                                        </Badge>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </CardHeader>
                       </Card>

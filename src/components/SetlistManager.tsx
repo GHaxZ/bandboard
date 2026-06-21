@@ -1,10 +1,14 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { getSongTunings } from "@/lib/tunings";
 import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehearsalSongs } from "@/app/actions/rehearsals";
+import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic } from "lucide-react";
 
 interface Track {
@@ -61,6 +65,17 @@ export function SetlistManager({
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [preferredInstrument, setPreferredInstrument] = useState<string>("Guitar");
+
+  // Keep preferredInstrument in sync with local storage
+  useEffect(() => {
+    const saved = localStorage.getItem("bandboard_instrument") || "Guitar";
+    if (saved.toLowerCase() === "keyboard" || saved.toLowerCase() === "piano") {
+      setPreferredInstrument("Piano/Keyboard");
+    } else {
+      setPreferredInstrument(saved);
+    }
+  }, [activeSongId, isAddOpen]);
 
   const currentSongIds = new Set(rehearsalSongs.map((rs) => rs.songId));
   
@@ -161,10 +176,37 @@ export function SetlistManager({
                   <span className="text-xs font-mono font-bold text-[#888d96] w-5 text-right flex-shrink-0">
                     {index + 1}.
                   </span>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-bold truncate ${isSelected ? "text-[#f1f2f4]" : "text-[#d1d1d6]"}`}>
-                      {rs.song.title}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className={`text-sm font-bold truncate ${isSelected ? "text-[#f1f2f4]" : "text-[#d1d1d6]"}`}>
+                        {rs.song.title}
+                      </p>
+                      {/* Tuning Badges */}
+                      {(() => {
+                        const songTunings = getSongTunings(rs.song);
+                        if (songTunings.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {songTunings.map((ind) => {
+                              const isHighlighted = (preferredInstrument === "Guitar" && ind.role === "Guitar") || (preferredInstrument === "Bass" && ind.role === "Bass");
+                              return (
+                                <Badge
+                                  key={`${ind.role}-${ind.tuning}`}
+                                  className={cn(
+                                    "text-[8px] font-mono tracking-wide px-1 py-0 border",
+                                    isHighlighted
+                                      ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
+                                      : "bg-[#161719]/40 border-[#27282b] text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
+                                  )}
+                                >
+                                  {ind.tuning}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <p className="text-xs text-[#888d96] truncate mt-0.5 font-medium">
                       {rs.song.artist}
                     </p>
@@ -247,8 +289,35 @@ export function SetlistManager({
                   key={song.id}
                   className="flex items-center justify-between p-3 rounded-xl border border-[#27282b]/60 bg-[#0c0d0e]/40"
                 >
-                  <div className="min-w-0 pr-3">
-                    <p className="text-sm font-bold text-[#f1f2f4] truncate">{song.title}</p>
+                  <div className="min-w-0 pr-3 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-[#f1f2f4] truncate">{song.title}</p>
+                      {/* Tuning Badges */}
+                      {(() => {
+                        const songTunings = getSongTunings(song);
+                        if (songTunings.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {songTunings.map((ind) => {
+                              const isHighlighted = (preferredInstrument === "Guitar" && ind.role === "Guitar") || (preferredInstrument === "Bass" && ind.role === "Bass");
+                              return (
+                                <Badge
+                                  key={`${ind.role}-${ind.tuning}`}
+                                  className={cn(
+                                    "text-[8px] font-mono tracking-wide px-1 py-0 border",
+                                    isHighlighted
+                                      ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
+                                      : "bg-[#161719]/40 border-[#27282b] text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
+                                  )}
+                                >
+                                  {ind.tuning}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <p className="text-xs text-[#888d96] truncate mt-0.5">{song.artist}</p>
                   </div>
                   <Button
