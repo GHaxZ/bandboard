@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PracticeLogCard } from "./PracticeLogCard";
+import { PrivateIndicator } from "./PrivateIndicator";
 import {
   Music,
   Video,
@@ -491,10 +492,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
-          <span className="text-[10px] text-[#a7a7ad] font-bold bg-[#27282b]/50 border border-[#3b3e45]/50 px-2.5 py-1.5 rounded-full flex items-center gap-1.5" title="All settings, offsets, speed, and markers in Practice Mode are private to your device.">
-            <Lock className="w-3.5 h-3.5 text-[#888d96]" />
-            Settings synced only for you
-          </span>
+          <PrivateIndicator
+            text="Settings synced only for you"
+            tooltip="All settings, offsets, and markers in Practice Mode are private to your device."
+          />
         </div>
         <div className="text-right">
           <h1 className="text-base font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>

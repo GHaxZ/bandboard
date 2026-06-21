@@ -50,6 +50,7 @@ interface SongDashboardProps {
   song: Song;
   onRefresh: () => void;
   onDelete?: () => void;
+  onPractice?: () => void;
 }
 
 function getYouTubeId(url: string | null): string | null {
@@ -60,7 +61,7 @@ function getYouTubeId(url: string | null): string | null {
   return match ? match[1] : null;
 }
 
-export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps) {
+export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDashboardProps) {
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
@@ -259,6 +260,16 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
           </div>
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
+          {onPractice && (
+            <Button
+              onClick={onPractice}
+              className="bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] hover:text-[#f1f2f4] rounded-xl h-10 px-4 transition-all duration-200 flex items-center gap-2 cursor-pointer font-bold text-xs"
+              title="Start Practice Mode"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              Practice
+            </Button>
+          )}
           {onDelete && (
             <Button
               variant="destructive"
@@ -661,6 +672,7 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                     onRefresh();
                   }}
                   className="mt-6 border-[#27282b]/60 bg-[#0c0d0e]/60"
+                  showPrivateIndicator
                 />
               </TabsContent>
             );

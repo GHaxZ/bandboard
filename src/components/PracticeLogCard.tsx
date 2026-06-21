@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { saveSongProgress } from "@/app/actions/user";
 import { Loader2, FileText, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PrivateIndicator } from "./PrivateIndicator";
 
 interface PracticeLogCardProps {
   songId: string;
@@ -14,6 +15,7 @@ interface PracticeLogCardProps {
   initialSpeed?: number;
   onSaveSuccess?: () => void;
   className?: string;
+  showPrivateIndicator?: boolean;
 }
 
 export function PracticeLogCard({
@@ -22,7 +24,8 @@ export function PracticeLogCard({
   initialNotes = "",
   initialSpeed = 100,
   onSaveSuccess,
-  className
+  className,
+  showPrivateIndicator = false,
 }: PracticeLogCardProps) {
   const [progressStatus, setProgressStatus] = useState<string>(initialStatus);
   const [progressNotes, setProgressNotes] = useState<string>(initialNotes);
@@ -61,9 +64,15 @@ export function PracticeLogCard({
   return (
     <Card className={cn("border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg", className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2">
+        <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2 flex-wrap">
           <FileText className="w-4 h-4 text-[#888d96]" />
           Practice Log
+          {showPrivateIndicator && (
+            <PrivateIndicator
+              text="Only synced for you"
+              tooltip="Your learning status and notes are private to your device."
+            />
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

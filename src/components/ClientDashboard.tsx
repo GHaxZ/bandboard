@@ -679,6 +679,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                           <SongDashboard
                             song={currentRehSong.song}
                             onRefresh={refreshData}
+                            onPractice={() => setPracticeSongId(currentRehSong.songId)}
                           />
                         );
                       })()
@@ -866,6 +867,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                       song={currentSong}
                       onRefresh={refreshData}
                       onDelete={() => handleDeleteSong(currentSong.id)}
+                      onPractice={() => setPracticeSongId(currentSong.id)}
                     />
                   );
                 })()}
