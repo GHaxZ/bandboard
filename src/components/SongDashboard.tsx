@@ -302,10 +302,10 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
                       <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
-                        <Music className="w-4 h-4 text-[#888d96]" /> Songsterr Notation &amp; Sheets
+                        <Music className="w-4 h-4 text-[#888d96]" /> Notation, Sheets &amp; Lyrics
                       </h4>
                       <p className="text-xs text-[#888d96] mt-1 font-medium">
-                        Select a representation format to view the interactive notations on Songsterr.
+                        Select a format to view the interactive tab, sheet music, chords, or lyrics.
                       </p>
                     </div>
                   </div>
@@ -403,7 +403,7 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                             )}
                           >
                             <FileText className="w-3.5 h-3.5 text-[#cf73b5]" />
-                            Open Lyrics (Genius)
+                            Open Lyrics
                             <ExternalLink className="w-3 h-3 text-[#888d96]" />
                           </a>
                         );
@@ -624,10 +624,10 @@ export function SongDashboard({ song, onRefresh, onDelete }: SongDashboardProps)
                       <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
                         <div>
                           <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
-                            <Music className="w-4 h-4 text-[#888d96]" /> Songsterr Notation &amp; Sheets
+                            <Music className="w-4 h-4 text-[#888d96]" /> Notation &amp; Sheets
                           </h4>
                           <p className="text-xs text-[#888d96] mt-1 font-medium">
-                            Open the interactive sheet music or tab representation on Songsterr.
+                            Open the interactive sheet music or tab representation.
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-3">

@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { songs, tracks } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
 
 function slugify(text: string): string {
@@ -167,8 +167,8 @@ export async function ingestSongData(title: string, artist: string) {
     // If there are tracks from Songsterr, insert them immediately with media links as null (lazy-loaded on click)
     if (rawTracks.length > 0) {
       const trackPayloads = rawTracks.map((track, index) => {
-        const instrumentName = track.instrument || track.name || "Instrument";
         const role = determineRole(track.hash || "", track.instrumentId, track.instrument || "", track.name || "");
+        const instrumentName = role === "Vocals" ? "Vocals" : (track.instrument || track.name || "Instrument");
         const details = track.name || "";
         const tuning = parseTuning(track.tuning);
 
@@ -292,14 +292,22 @@ export async function lazyLoadTrackMedia(trackId: string) {
       }
     }
 
-    // Update track in database
+    // Update tab video link for this specific track
     await db
       .update(tracks)
-      .set({
-        backingTrackLink: backingLink,
-        tabVideoLink: tabVideoLink,
-      })
+      .set({ tabVideoLink: tabVideoLink })
       .where(eq(tracks.id, trackId));
+
+    // Sync backing track link across all tracks of the same song sharing the same role
+    await db
+      .update(tracks)
+      .set({ backingTrackLink: backingLink })
+      .where(
+        and(
+          eq(tracks.songId, track.songId),
+          eq(tracks.role, track.role)
+        )
+      );
 
     return { success: true, backingTrackLink: backingLink, tabVideoLink };
   } catch (error) {
@@ -354,8 +362,25 @@ export async function updateTrackVideoLink(
   videoUrl: string | null
 ) {
   try {
+    const targetTrack = await db.query.tracks.findFirst({
+      where: eq(tracks.id, trackId),
+    });
+
+    if (!targetTrack) {
+      return { success: false, error: "Track not found" };
+    }
+
     if (type === "backing") {
-      await db.update(tracks).set({ backingTrackLink: videoUrl }).where(eq(tracks.id, trackId));
+      // Sync backing track link across all tracks of the same song sharing the same role
+      await db
+        .update(tracks)
+        .set({ backingTrackLink: videoUrl })
+        .where(
+          and(
+            eq(tracks.songId, targetTrack.songId),
+            eq(tracks.role, targetTrack.role)
+          )
+        );
     } else {
       await db.update(tracks).set({ tabVideoLink: videoUrl }).where(eq(tracks.id, trackId));
     }
