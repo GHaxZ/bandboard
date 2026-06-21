@@ -769,12 +769,18 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                                     "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
                                     progressMap[song.id].status === "mastered"
                                       ? "bg-emerald-950/40 text-emerald-400"
+                                      : progressMap[song.id].status === "ready_to_play"
+                                      ? "bg-purple-950/40 text-purple-400"
                                       : progressMap[song.id].status === "learning"
                                       ? "bg-sky-950/40 text-sky-400"
                                       : "bg-zinc-800/40 text-zinc-400"
                                   )}
                                 >
-                                  {progressMap[song.id].status}
+                                  {progressMap[song.id].status === "ready_to_play"
+                                    ? "Ready to Play"
+                                    : progressMap[song.id].status === "not_started"
+                                    ? "Not Started"
+                                    : progressMap[song.id].status}
                                 </Badge>
                               )}
                             </div>

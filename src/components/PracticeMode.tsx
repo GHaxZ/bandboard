@@ -148,6 +148,18 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   const [tabOffset, setTabOffset] = useState<string>("0");
   const [isSavingOffsets, setIsSavingOffsets] = useState<boolean>(false);
 
+  // Check if there are unsaved offsets
+  const initialBackingOffset = progressMap[song.id]?.backingStartOffset ?? 0;
+  const initialTabOffset = progressMap[song.id]?.tabStartOffset ?? 0;
+  const currentBackingOffset = parseFloat(backingOffset) || 0;
+  const currentTabOffset = parseFloat(tabOffset) || 0;
+  const hasUnsavedOffsets = currentBackingOffset !== initialBackingOffset || currentTabOffset !== initialTabOffset;
+
+  // Check if there are unsaved progress log settings
+  const initialStatus = progressMap[song.id]?.status ?? "learning";
+  const initialNotes = progressMap[song.id]?.notes ?? "";
+  const hasUnsavedProgress = progressStatus !== initialStatus || progressNotes !== initialNotes;
+
   const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
   const otherRoleGroup = song.roleGroups.find((rg) => rg.role === "Other");
   const otherTracks = otherRoleGroup?.tracks || [];
@@ -834,7 +846,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                   <Button
                     onClick={handleSaveOffsets}
                     disabled={isSavingOffsets || !activeRoleGroup}
-                    className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                    className={cn(
+                      "w-full text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-300",
+                      hasUnsavedOffsets && !isSavingOffsets
+                        ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+                        : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+                    )}
                   >
                     {isSavingOffsets ? (
                       <>
@@ -843,7 +860,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                       </>
                     ) : (
                       <>
-                        <Save className="w-3 h-3 text-[#5b80a5]" />
+                        <Save className="w-3 h-3" />
                         Save Sync Offsets
                       </>
                     )}
@@ -979,10 +996,17 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
               {/* Learning Status */}
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Learning Status</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {["not_started", "learning", "mastered"].map((status) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {["not_started", "learning", "ready_to_play", "mastered"].map((status) => {
                     const isSelected = progressStatus === status;
-                    const label = status === "not_started" ? "Not Started" : status === "learning" ? "Learning" : "Mastered";
+                    const label = 
+                      status === "not_started" 
+                        ? "Not Started" 
+                        : status === "learning" 
+                        ? "Learning" 
+                        : status === "ready_to_play"
+                        ? "Ready to Play"
+                        : "Mastered";
                     return (
                       <Button
                         key={status}
@@ -990,38 +1014,24 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                         variant={isSelected ? "default" : "outline"}
                         onClick={() => setProgressStatus(status)}
                         className={cn(
-                          "rounded-lg text-[10px] font-bold h-8 px-2 transition-all",
+                          "rounded-lg text-[9px] font-bold h-8 px-1 transition-all truncate",
                           isSelected
                             ? status === "mastered"
                               ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
+                              : status === "ready_to_play"
+                              ? "bg-purple-950/40 border border-purple-800 text-purple-400 hover:bg-purple-950/50"
                               : status === "learning"
-                                ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
-                                : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
+                              ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
+                              : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
                             : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4]"
                         )}
+                        title={label}
                       >
                         {label}
                       </Button>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Speed Slider */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider">Practice Speed</label>
-                  <span className="text-xs font-mono font-bold text-[#5b80a5]">{progressSpeed}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="150"
-                  step="5"
-                  value={progressSpeed}
-                  onChange={(e) => setProgressSpeed(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-[#161719] border border-[#27282b] rounded-lg appearance-none cursor-pointer accent-[#5b80a5]"
-                />
               </div>
 
               {/* Notes */}
@@ -1039,7 +1049,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
               <Button
                 onClick={handleSaveProgress}
                 disabled={isSavingProgress}
-                className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5"
+                className={cn(
+                  "w-full text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5 transition-all duration-300 rounded-xl",
+                  hasUnsavedProgress && !isSavingProgress
+                    ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+                    : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+                )}
               >
                 {isSavingProgress ? (
                   <>
@@ -1047,7 +1062,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                     Saving...
                   </>
                 ) : (
-                  "Save Practice Log"
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    Save Practice Log
+                  </>
                 )}
               </Button>
             </CardContent>

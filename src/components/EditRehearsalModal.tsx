@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { updateRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Save } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface EditRehearsalModalProps {
   isOpen: boolean;
@@ -29,6 +30,31 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
   const [notes, setNotes] = useState(rehearsal.notes || "");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Calculate initial date/time values to compare against current state
+  const d = new Date(rehearsal?.date || 0);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const rawMins = d.getMinutes();
+  const roundedMins = Math.round(rawMins / 5) * 5;
+  const finalMins = roundedMins >= 60 ? 55 : roundedMins;
+  const minutes = String(finalMins).padStart(2, "0");
+
+  const initialTitle = rehearsal?.title || "";
+  const initialNotes = rehearsal?.notes || "";
+  const initialDateStr = rehearsal ? `${year}-${month}-${day}` : "";
+  const initialHourStr = rehearsal ? hours : "19";
+  const initialMinuteStr = rehearsal ? minutes : "00";
+
+  const hasUnsavedChanges = rehearsal && (
+    title !== initialTitle ||
+    notes !== initialNotes ||
+    dateStr !== initialDateStr ||
+    hourStr !== initialHourStr ||
+    minuteStr !== initialMinuteStr
+  );
 
   // Initialize date and time strings from stored timestamp in local timezone
   useEffect(() => {
@@ -204,7 +230,12 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             <Button
               type="submit"
               disabled={isLoading || !title.trim() || !dateStr}
-              className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
+              className={cn(
+                "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
+                hasUnsavedChanges && !isLoading
+                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+                  : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+              )}
             >
               {isLoading ? (
                 <>
