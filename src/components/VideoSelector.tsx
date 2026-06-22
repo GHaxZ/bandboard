@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { searchYouTubeVideosAction } from "@/app/actions/songs";
 import { Loader2, Search, Play, Check, Video } from "lucide-react";
+import { getYouTubeQuery } from "@/lib/utils";
 
 interface VideoSelectorProps {
   isOpen: boolean;
@@ -53,36 +54,7 @@ export function VideoSelector({
   useEffect(() => {
     if (isOpen) {
       setManualUrl(currentUrl || "");
-      let defaultQuery = "";
-      if (type === "backing") {
-        if (role === "Bass") {
-          defaultQuery = `${songArtist} ${songTitle} no bass backing track`;
-        } else if (role === "Drums") {
-          defaultQuery = `${songArtist} ${songTitle} no drums backing track`;
-        } else if (role === "Guitar") {
-          defaultQuery = `${songArtist} ${songTitle} no guitar backing track`;
-        } else if (role === "Vocals") {
-          defaultQuery = `${songArtist} ${songTitle} instrumental`;
-        } else if (role === "Piano/Keyboard") {
-          defaultQuery = `${songArtist} ${songTitle} no piano keyboard backing track`;
-        } else {
-          defaultQuery = `${songArtist} ${songTitle} ${instrumentName} backing track`;
-        }
-      } else {
-        if (role === "Piano/Keyboard") {
-          defaultQuery = `${songArtist} ${songTitle} piano keyboard tab`;
-        } else if (role === "Guitar") {
-          defaultQuery = `${songArtist} ${songTitle} guitar tab`;
-        } else if (role === "Bass") {
-          defaultQuery = `${songArtist} ${songTitle} bass tab`;
-        } else if (role === "Drums") {
-          defaultQuery = `${songArtist} ${songTitle} drums tab`;
-        } else if (role === "Vocals") {
-          defaultQuery = `${songArtist} ${songTitle}`;
-        } else {
-          defaultQuery = `${songArtist} ${songTitle} ${instrumentName} tab`;
-        }
-      }
+      const defaultQuery = getYouTubeQuery(songArtist, songTitle, role, type, instrumentName);
       setQuery(defaultQuery);
       handleSearch(defaultQuery);
     }

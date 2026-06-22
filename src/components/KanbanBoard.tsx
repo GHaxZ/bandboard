@@ -142,7 +142,7 @@ export function KanbanBoard({
               return (
                 <div
                   key={column.id}
-                  className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-align-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
+                  className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
                 >
                   {/* Column Header */}
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#27282b]/60 flex-shrink-0">
@@ -164,7 +164,7 @@ export function KanbanBoard({
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex flex-col gap-3 flex-1 overflow-y-auto pr-1.5 transition-all duration-200 rounded-xl scrollbar-thin scrollbar-thumb-[#27282b] scrollbar-track-transparent",
+                          "flex flex-col gap-3 flex-1 overflow-y-auto pr-1.5 transition-all duration-200 rounded-xl",
                           snapshot.isDraggingOver ? "bg-[#27282b]/15" : ""
                         )}
                       >
@@ -312,7 +312,7 @@ export function KanbanBoard({
           {COLUMNS.map((column) => (
             <div
               key={column.id}
-              className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-align-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
+              className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#27282b]/60">
                 <div className="flex items-center gap-2">

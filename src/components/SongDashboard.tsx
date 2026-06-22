@@ -5,15 +5,13 @@ import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, getAlternativeLinks } from "@/lib/utils";
 import { updateTrackVideoLink, lazyLoadTrackMedia, getGeniusLyricsLinkAction } from "@/app/actions/songs";
 import { VideoSelector } from "./VideoSelector";
 import { PracticeLogCard } from "./PracticeLogCard";
-import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown, Sliders, Clock, Save } from "lucide-react";
+import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import {
-  getSongProgress,
-  saveSongProgress
+  getSongProgress
 } from "@/app/actions/user";
 
 interface Track {
@@ -108,24 +106,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDas
 
   // Track expanded state of additional notation tracks inside role groups
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
-
-  // Helper to generate alternate representation links from Songsterr URL
-  function getAlternativeLinks(tabLink: string) {
-    if (!tabLink || !tabLink.includes("-tab-s")) {
-      return {
-        tab: tabLink,
-        sheet: tabLink,
-        chords: tabLink,
-      };
-    }
-    const sheet = tabLink.replace("-tab-s", "-sheet-s");
-    const chords = tabLink.replace(/-tab-s(\d+)(t\d+)?/, "-chords-s$1");
-    return {
-      tab: tabLink,
-      sheet,
-      chords,
-    };
-  }
 
   // Smart initialization: select the roleGroup that matches the user's preferred instrument/role
   useEffect(() => {

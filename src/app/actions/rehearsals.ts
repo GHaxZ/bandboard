@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { rehearsals, rehearsalSongs } from "@/db/schema";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, count, gt, sql } from "drizzle-orm";
 
 export async function createRehearsal(title: string, date: number, notes?: string) {
   try {
@@ -99,12 +99,12 @@ export async function addSongToRehearsalSetlist(rehearsalId: string, songId: str
     }
 
     // Find the next sort order
-    const existing = await db
-      .select({ count: rehearsalSongs.songId })
+    const existingCount = await db
+      .select({ val: count() })
       .from(rehearsalSongs)
       .where(eq(rehearsalSongs.rehearsalId, rehearsalId));
     
-    const sortOrder = existing.length;
+    const sortOrder = existingCount[0]?.val || 0;
 
     await db.insert(rehearsalSongs).values({
       rehearsalId,
@@ -120,30 +120,35 @@ export async function addSongToRehearsalSetlist(rehearsalId: string, songId: str
 
 export async function removeSongFromRehearsalSetlist(rehearsalId: string, songId: string) {
   try {
-    await db
-      .delete(rehearsalSongs)
-      .where(
-        and(
-          eq(rehearsalSongs.rehearsalId, rehearsalId),
-          eq(rehearsalSongs.songId, songId)
-        )
-      );
+    const songToRemove = await db.query.rehearsalSongs.findFirst({
+      where: and(
+        eq(rehearsalSongs.rehearsalId, rehearsalId),
+        eq(rehearsalSongs.songId, songId)
+      )
+    });
 
-    // Re-adjust sort orders
-    const remaining = await db
-      .select()
-      .from(rehearsalSongs)
-      .where(eq(rehearsalSongs.rehearsalId, rehearsalId))
-      .orderBy(asc(rehearsalSongs.sortOrder));
+    if (songToRemove) {
+      const removedSortOrder = songToRemove.sortOrder;
 
-    for (let i = 0; i < remaining.length; i++) {
       await db
-        .update(rehearsalSongs)
-        .set({ sortOrder: i })
+        .delete(rehearsalSongs)
         .where(
           and(
             eq(rehearsalSongs.rehearsalId, rehearsalId),
-            eq(rehearsalSongs.songId, remaining[i].songId)
+            eq(rehearsalSongs.songId, songId)
+          )
+        );
+
+      // Shift sortOrder of subsequent songs down by 1 in a single query
+      await db
+        .update(rehearsalSongs)
+        .set({
+          sortOrder: sql`${rehearsalSongs.sortOrder} - 1`
+        })
+        .where(
+          and(
+            eq(rehearsalSongs.rehearsalId, rehearsalId),
+            gt(rehearsalSongs.sortOrder, removedSortOrder)
           )
         );
     }

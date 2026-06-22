@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { songs, tracks, roleGroups } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
+import { getYouTubeQuery } from "@/lib/utils";
 
 function slugify(text: string): string {
   return text
@@ -300,21 +301,7 @@ export async function lazyLoadTrackMedia(roleGroupId: string) {
 
     // Fetch backing track link if missing
     if (!backingLink) {
-      let backingQuery = "";
-      if (role === "Vocals") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} instrumental`;
-      } else if (role === "Bass") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} no bass backing track`;
-      } else if (role === "Drums") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} no drums backing track`;
-      } else if (role === "Guitar") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} no guitar backing track`;
-      } else if (role === "Piano/Keyboard") {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} no piano keyboard backing track`;
-      } else {
-        backingQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} backing track`;
-      }
-
+      const backingQuery = getYouTubeQuery(verifiedArtist, verifiedTitle, role, "backing", instrumentName);
       const backingResults = await searchYouTube(backingQuery);
       if (backingResults.length > 0) {
         backingLink = backingResults[0].url;
@@ -325,22 +312,7 @@ export async function lazyLoadTrackMedia(roleGroupId: string) {
 
     // Fetch tab video link if missing
     if (!tabVideoLink) {
-      let tabVideoQuery = "";
-      if (role === "Vocals") {
-        // Singers listen to original song
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle}`;
-      } else if (role === "Piano/Keyboard") {
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} piano keyboard tab`;
-      } else if (role === "Guitar") {
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} guitar tab`;
-      } else if (role === "Bass") {
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} bass tab`;
-      } else if (role === "Drums") {
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} drums tab`;
-      } else {
-        tabVideoQuery = `${verifiedArtist} ${verifiedTitle} ${instrumentName} tab`;
-      }
-
+      const tabVideoQuery = getYouTubeQuery(verifiedArtist, verifiedTitle, role, "tab", instrumentName);
       const tabVideoResults = await searchYouTube(tabVideoQuery);
       if (tabVideoResults.length > 0) {
         tabVideoLink = tabVideoResults[0].url;

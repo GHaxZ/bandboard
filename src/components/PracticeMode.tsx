@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, getAlternativeLinks } from "@/lib/utils";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PrivateIndicator } from "./PrivateIndicator";
 import {
@@ -368,12 +369,28 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   };
 
   // User keyboard listeners
+  const markersRef = useRef(markers);
+  const activeVideoRef = useRef(activeVideo);
+  const handleToggleVideoRef = useRef(handleToggleVideo);
+
+  useEffect(() => {
+    markersRef.current = markers;
+  }, [markers]);
+
+  useEffect(() => {
+    activeVideoRef.current = activeVideo;
+  }, [activeVideo]);
+
+  useEffect(() => {
+    handleToggleVideoRef.current = handleToggleVideo;
+  }, [handleToggleVideo]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Intercept TAB key
       if (e.key === "Tab") {
         e.preventDefault();
-        handleToggleVideo();
+        handleToggleVideoRef.current();
         return;
       }
 
@@ -388,9 +405,9 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
       // Keys 1-9
       if (e.key >= "1" && e.key <= "9") {
         const index = parseInt(e.key) - 1;
-        if (index < markers.length) {
-          const targetTime = markers[index];
-          const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        if (index < markersRef.current.length) {
+          const targetTime = markersRef.current[index];
+          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
           if (activePlayer) {
             try {
               activePlayer.seekTo(targetTime, true);
@@ -404,7 +421,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [markers, activeVideo, hasBothVideos, activeRoleGroup]);
+  }, []);
 
   // Practice Markers Saving/Deleting
   const handleSaveMarker = async (newTime: number) => {
@@ -849,26 +866,22 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-2">
-                {standardRoleGroups.map((rg) => {
-                  const isSelected = activeTrackId === rg.id;
-                  return (
-                    <Button
+              <Tabs value={activeTrackId} onValueChange={(val) => {
+                const rg = standardRoleGroups.find(g => g.id === val);
+                if (rg) handleInstrumentChange(rg.role);
+              }} className="w-full">
+                <TabsList className="bg-[#0c0d0e] border border-[#27282b] p-1 rounded-xl h-auto flex w-full">
+                  {standardRoleGroups.map((rg) => (
+                    <TabsTrigger
                       key={rg.id}
-                      variant={isSelected ? "default" : "outline"}
-                      onClick={() => handleInstrumentChange(rg.role)}
-                      className={cn(
-                        "rounded-xl text-xs font-bold h-10 px-2",
-                        isSelected
-                          ? "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
-                          : "border-[#27282b] bg-[#0c0d0e]/40 text-[#888d96] hover:bg-[#27282b] hover:text-[#f1f2f4]"
-                      )}
+                      value={rg.id}
+                      className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-[#27282b] data-[state=active]:text-[#f1f2f4] text-[#888d96] border border-transparent data-[state=active]:border-[#3b3e45] hover:text-[#f1f2f4] transition-all cursor-pointer flex-1 text-center"
                     >
                       {rg.role}
-                    </Button>
-                  );
-                })}
-              </div>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </CardContent>
           </Card>
 
@@ -884,11 +897,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
               <CardContent className="space-y-3">
                 {activeRoleGroup.tracks.map((track) => {
                   const hasSongsterr = track.tabLink && track.tabLink.includes("-tab-s");
-                  const links = {
-                    tab: track.tabLink,
-                    sheet: hasSongsterr ? track.tabLink.replace("-tab-s", "-sheet-s") : track.tabLink,
-                    chords: hasSongsterr ? track.tabLink.replace(/-tab-s(\d+)(t\d+)?/, "-chords-s$1") : track.tabLink,
-                  };
+                  const links = getAlternativeLinks(track.tabLink);
 
                   return (
                     <div key={track.id} className="space-y-2 border-b border-[#27282b]/60 pb-3 last:border-0 last:pb-0">

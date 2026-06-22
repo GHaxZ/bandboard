@@ -107,9 +107,9 @@ export async function getAllSongProgress() {
     const missingSongs = allSongs.filter((song) => !existingMap.has(song.id));
 
     if (missingSongs.length > 0) {
-      for (const song of missingSongs) {
+      const inserts = missingSongs.map((song) => {
         const id = `${uuid}_${song.id}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        await db.insert(userSongProgress).values({
+        return {
           id,
           userUuid: uuid,
           songId: song.id,
@@ -120,8 +120,9 @@ export async function getAllSongProgress() {
           backingStartOffset: null,
           tabStartOffset: null,
           updatedAt: Date.now(),
-        });
-      }
+        };
+      });
+      await db.insert(userSongProgress).values(inserts);
       
       // Re-query to return full list
       return await db.select().from(userSongProgress).where(eq(userSongProgress.userUuid, uuid));

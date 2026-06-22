@@ -283,15 +283,6 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
     }
   }, [selectedRehearsalId]);
 
-  // Keep instrument state in sync with local storage whenever views change
-  useEffect(() => {
-    const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
-    if (savedInstrument.toLowerCase() === "keyboard" || savedInstrument.toLowerCase() === "piano") {
-      setInstrument("Piano/Keyboard");
-    } else {
-      setInstrument(savedInstrument);
-    }
-  }, [selectedSongId, selectedRehearsalId, selectedRehearsalSongId]);
 
   // Handle instrument setting change
   async function handleInstrumentChange(val: string) {
@@ -801,7 +792,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
                 {/* Search query */}
                 <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#888d96]" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888d96]" />
                   <Input
                     placeholder="Search library by title or artist..."
                     value={songSearchQuery}
@@ -1148,7 +1139,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
             activeTab === "rehearsals" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
           }`}
         >
-          <CalendarIcon className="w-5.5 h-5.5" />
+          <CalendarIcon className="w-5 h-5" />
           Rehearsals
         </button>
         <button
@@ -1161,7 +1152,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
             activeTab === "songs" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
           }`}
         >
-          <MusicIcon className="w-5.5 h-5.5" />
+          <MusicIcon className="w-5 h-5" />
           Library
         </button>
         <button
@@ -1174,7 +1165,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
             activeTab === "settings" ? "text-[#f1f2f4] scale-105" : "text-[#888d96] hover:text-[#f1f2f4]"
           }`}
         >
-          <SettingsIcon className="w-5.5 h-5.5" />
+          <SettingsIcon className="w-5 h-5" />
           Settings
         </button>
       </footer>
