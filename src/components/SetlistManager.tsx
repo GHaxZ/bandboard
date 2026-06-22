@@ -10,6 +10,7 @@ import { getSongTunings } from "@/lib/tunings";
 import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehearsalSongs } from "@/app/actions/rehearsals";
 import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic, Play } from "lucide-react";
+import { SearchInput } from "./SearchInput";
 
 interface Track {
   id: string;
@@ -197,7 +198,7 @@ export function SetlistManager({
                                 ? "bg-purple-950/40 text-purple-400"
                                 : progStatus === "learning"
                                 ? "bg-sky-950/40 text-sky-400"
-                                : "bg-zinc-800/40 text-zinc-400"
+                                : "bg-red-950/40 text-red-400"
                             )}
                           >
                             {progStatus === "ready_to_play"
@@ -303,15 +304,12 @@ export function SetlistManager({
           </DialogHeader>
 
           {/* Search bar */}
-          <div className="relative my-2">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888d96]" />
-            <Input
-              placeholder="Search by title or artist..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] pl-10 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search by title or artist..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            className="my-2"
+          />
 
           {/* Scrollable song list */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-2 min-h-[250px] max-h-[40vh]">

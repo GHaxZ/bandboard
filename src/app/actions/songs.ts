@@ -101,6 +101,17 @@ export async function ingestSongData(title: string, artist: string) {
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
 
+    // ponytail: case-insensitive duplicate check to avoid inserting existing song
+    const existingSongs = await db.select({ title: songs.title, artist: songs.artist }).from(songs);
+    const isDuplicate = existingSongs.some(
+      (s) =>
+        s.title.trim().toLowerCase() === formattedTitle.toLowerCase() &&
+        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase()
+    );
+    if (isDuplicate) {
+      return { success: false, error: "This song is already in your library." };
+    }
+
     // Query Songsterr API with a timeout
     let response;
     try {

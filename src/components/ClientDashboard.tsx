@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useTransition } from "react";
+import { toast } from "sonner";
 import { getSongs, deleteSong } from "@/app/actions/songs";
 import { getRehearsals, deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
 import { checkSecret, isSecretRequired } from "@/app/actions/auth";
@@ -21,6 +22,7 @@ import { AddSongModal } from "./AddSongModal";
 import { AddRehearsalModal } from "./AddRehearsalModal";
 import { EditRehearsalModal } from "./EditRehearsalModal";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { SearchInput } from "./SearchInput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -323,8 +325,9 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
+      toast.success("Profile exported successfully!");
     } else {
-      alert("Export failed: " + (result.error || "Unknown error"));
+      toast.error("Export failed: " + (result.error || "Unknown error"));
     }
   };
 
@@ -336,7 +339,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (!parsed.band_orchestrator_uid) {
-            alert("Invalid file: No Device ID found.");
+            toast.error("Invalid file: No Device ID found.");
             return;
           }
 
@@ -344,13 +347,13 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
           if (res.success && res.userUuid) {
             localStorage.setItem("band_orchestrator_uid", res.userUuid);
             document.cookie = `band_orchestrator_uid=${res.userUuid}; path=/; max-age=${60 * 60 * 24 * 365 * 10}; SameSite=Lax`;
-            alert("Profile imported successfully!");
+            toast.success("Profile imported successfully!");
             window.location.reload();
           } else {
-            alert("Import failed: " + (res.error || "Database error"));
+            toast.error("Import failed: " + (res.error || "Database error"));
           }
         } catch (err) {
-          alert("Failed to parse file as JSON.");
+          toast.error("Failed to parse file as JSON.");
         }
       };
     }
@@ -447,6 +450,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
           onExit={() => setPracticeSongId(null)}
           onRefresh={refreshData}
           progressMap={progressMap}
+          preferredInstrument={instrument}
         />
       );
     }
@@ -516,7 +520,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
       {/* Main Content Area - Full width on large displays, padding handles spacing */}
       <main className={cn(
         "flex-1 w-full max-w-none px-4 md:px-8 py-6 space-y-6",
-        activeTab === "rehearsals" && selectedRehearsalId && rehearsalViewMode === "kanban" && "pb-4 md:pb-0 pt-4 space-y-4"
+        activeTab === "rehearsals" && selectedRehearsalId && rehearsalViewMode === "kanban" && "pb-4 md:pb-0"
       )}>
         {/* REHEARSALS TAB */}
         {activeTab === "rehearsals" && (
@@ -560,7 +564,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         <Card
                           key={reh.id}
                           onClick={() => setSelectedRehearsalId(reh.id)}
-                          className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg"
+                          className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0"
                         >
                           <CardHeader className="p-5 pb-3">
                             <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
@@ -719,6 +723,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                                 song={currentRehSong.song}
                                 onRefresh={refreshData}
                                 onPractice={() => setPracticeSongId(currentRehSong.songId)}
+                                preferredInstrument={instrument}
                               />
                             );
                           })()
@@ -749,7 +754,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         });
                         const res = await saveSongProgress(songId, status, oldProgress.speed, oldProgress.notes);
                         if (!res.success) {
-                          alert("Failed to save progress: " + res.error);
+                          toast.error("Failed to save progress: " + res.error);
                         }
                         refreshData();
                       }}
@@ -791,15 +796,11 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                 </div>
 
                 {/* Search query */}
-                <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888d96]" />
-                  <Input
-                    placeholder="Search library by title or artist..."
-                    value={songSearchQuery}
-                    onChange={(e) => setSongSearchQuery(e.target.value)}
-                    className="bg-[#161719] border-[#27282b] text-[#f1f2f4] pl-11 focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
-                  />
-                </div>
+                <SearchInput
+                  placeholder="Search library by title or artist..."
+                  value={songSearchQuery}
+                  onChange={setSongSearchQuery}
+                />
 
                 {filteredSongs.length === 0 ? (
                   <div className="text-center py-16 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
@@ -819,7 +820,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                       <Card
                         key={song.id}
                         onClick={() => setSelectedSongId(song.id)}
-                        className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg"
+                        className="border-[#27282b] bg-[#161719]/40 hover:bg-[#161719]/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0"
                       >
                         <CardHeader className="p-5 flex flex-row items-center gap-4">
                           {song.albumArt && (
@@ -847,7 +848,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                                         ? "bg-purple-950/40 text-purple-400"
                                         : progStatus === "learning"
                                         ? "bg-sky-950/40 text-sky-400"
-                                        : "bg-zinc-800/40 text-zinc-400"
+                                        : "bg-red-950/40 text-red-400"
                                     )}
                                   >
                                     {progStatus === "ready_to_play"
@@ -896,7 +897,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                             </div>
                           </div>
                         </CardHeader>
-                        <div className="border-t border-[#27282b]/60 px-5 py-3.5 bg-[#161719]/25 flex items-center justify-between gap-2 mt-auto">
+                        <div className="border-t border-[#27282b]/60 px-5 py-3.5 bg-transparent flex items-center justify-between gap-2 mt-auto">
                           <span className="text-[10px] text-[#888d96] font-mono tracking-wider">
                             {(song.roleGroups?.length || 0)} instrument roles
                           </span>
@@ -944,6 +945,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                       onRefresh={refreshData}
                       onDelete={() => handleDeleteSong(currentSong.id)}
                       onPractice={() => setPracticeSongId(currentSong.id)}
+                      preferredInstrument={instrument}
                     />
                   );
                 })()}
@@ -1112,7 +1114,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                         <Button
                           onClick={() => document.getElementById("profile-import-file")?.click()}
                           variant="outline"
-                          className="border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] py-2 h-10 px-4 rounded-xl flex items-center gap-1.5"
+                          className="border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-xs font-bold text-[#acd1f8] hover:text-[#f1f2f4] py-2 h-10 px-4 rounded-xl flex items-center gap-1.5"
                         >
                           <Upload className="w-3.5 h-3.5" />
                           Import Profile

@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Music, Play, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { getSongTunings } from "@/lib/tunings";
+import { SearchInput } from "./SearchInput";
 
 interface Track {
   id: string;
@@ -53,7 +54,7 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS = [
-  { id: "not_started", label: "Not learned", colorClass: "bg-zinc-500", borderClass: "border-zinc-800/40", textClass: "text-zinc-400" },
+  { id: "not_started", label: "Not learned", colorClass: "bg-red-500", borderClass: "border-red-800/40", textClass: "text-red-400" },
   { id: "learning", label: "Learning", colorClass: "bg-sky-500", borderClass: "border-sky-800/40", textClass: "text-sky-400" },
   { id: "ready_to_play", label: "Ready to Play", colorClass: "bg-purple-500", borderClass: "border-purple-800/40", textClass: "text-purple-400" },
   { id: "mastered", label: "Mastered", colorClass: "bg-emerald-500", borderClass: "border-emerald-800/40", textClass: "text-emerald-400" }
@@ -120,18 +121,11 @@ export function KanbanBoard({
   return (
     <div className="space-y-4 flex flex-col h-full">
       {/* Search Input Bar */}
-      <div className="flex justify-end flex-shrink-0">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#888d96]" />
-          <input
-            type="text"
-            placeholder="Search setlist songs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#0c0d0e] border border-[#27282b] text-xs text-[#f1f2f4] pl-9 pr-3 py-2 rounded-xl focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-[#5b80a5] placeholder:text-[#4e525a]"
-          />
-        </div>
-      </div>
+      <SearchInput
+        placeholder="Search setlist songs..."
+        value={searchQuery}
+        onChange={setSearchQuery}
+      />
 
       {isMounted ? (
         <DragDropContext onDragEnd={handleDragEnd}>

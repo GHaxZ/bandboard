@@ -7,6 +7,7 @@ import { saveSongProgress } from "@/app/actions/user";
 import { Loader2, FileText, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { toast } from "sonner";
 
 interface PracticeLogCardProps {
   songId: string;
@@ -48,11 +49,12 @@ export function PracticeLogCard({
     try {
       const res = await saveSongProgress(songId, progressStatus, progressSpeed, progressNotes);
       if (res.success) {
+        toast.success("Progress saved successfully!");
         if (onSaveSuccess) {
           onSaveSuccess();
         }
       } else {
-        alert("Failed to save progress: " + res.error);
+        toast.error("Failed to save progress: " + res.error);
       }
     } catch (err) {
       console.error(err);
@@ -105,7 +107,7 @@ export function PracticeLogCard({
                         ? "bg-purple-950/40 border border-purple-800 text-purple-400 hover:bg-purple-950/50"
                         : status === "learning"
                         ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
-                        : "bg-zinc-800/40 border border-zinc-700 text-zinc-300 hover:bg-zinc-800/50"
+                        : "bg-red-950/40 border border-red-900 text-red-400 hover:bg-red-950/50"
                       : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4]"
                   )}
                   title={label}

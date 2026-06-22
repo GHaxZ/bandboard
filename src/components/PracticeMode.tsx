@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, getAlternativeLinks } from "@/lib/utils";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { toast } from "sonner";
 import {
   Music,
   Video,
@@ -33,6 +34,7 @@ import {
   savePracticeMarkers,
   saveStartOffsets
 } from "@/app/actions/user";
+import { lazyLoadTrackMedia } from "@/app/actions/songs";
 
 interface Track {
   id: string;
@@ -75,6 +77,7 @@ interface PracticeModeProps {
     backingStartOffset?: number | null;
     tabStartOffset?: number | null;
   }>;
+  preferredInstrument?: string;
 }
 
 function getYouTubeId(url: string | null): string | null {
@@ -125,12 +128,25 @@ function useYoutubeApi() {
   return loaded;
 }
 
-export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeModeProps) {
+export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredInstrument }: PracticeModeProps) {
   const apiLoaded = useYoutubeApi();
 
   // Track selection
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
+
+  // States to manage lazy loading of YouTube links on demand in practice mode
+  const [isLazyLoading, setIsLazyLoading] = useState(false);
+  const [lazyLoadedTrackId, setLazyLoadedTrackId] = useState<string | null>(null);
+  const loadingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Video playback
   const [activeVideo, setActiveVideo] = useState<"backing" | "tab">("backing");
@@ -162,12 +178,13 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   const tabVideoId = activeRoleGroup ? getYouTubeId(activeRoleGroup.tabVideoLink) : null;
   const hasBothVideos = !!(backingVideoId && tabVideoId);
 
-  // 1. Smart default instrument initialization
-  useEffect(() => {
-    const isStandardValid = standardRoleGroups.some((rg) => rg.id === activeTrackId);
+  const lastPreferredRef = useRef(preferredInstrument);
 
-    if (!isStandardValid || song.id !== initializedSongId) {
-      const preferredRole = localStorage.getItem("bandboard_instrument") || "Guitar";
+  // Smart initialization: select the roleGroup that matches the user's preferred instrument/role
+  // ponytail: Auto-select based on preferredInstrument only when the song or the preference itself changes
+  useEffect(() => {
+    if (song.id !== initializedSongId || lastPreferredRef.current !== preferredInstrument) {
+      const preferredRole = preferredInstrument || localStorage.getItem("bandboard_instrument") || "Guitar";
       const matchingRoleGroup = standardRoleGroups.find(
         (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
       );
@@ -180,8 +197,41 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
         setActiveTrackId("other-tab");
       }
       setInitializedSongId(song.id);
+      lastPreferredRef.current = preferredInstrument;
     }
-  }, [song, activeTrackId, initializedSongId]);
+  }, [song, initializedSongId, preferredInstrument]);
+
+  // ponytail: Trigger YouTube media lazy-load in practice mode if missing media links
+  useEffect(() => {
+    if (!activeRoleGroup || activeRoleGroup.role === "Other") return;
+
+    const needsBacking = activeRoleGroup.backingTrackLink === null;
+    const needsTabVideo = activeRoleGroup.tabVideoLink === null;
+
+    if ((needsBacking || needsTabVideo) && activeRoleGroup.id !== lazyLoadedTrackId && !isLazyLoading && !loadingRef.current) {
+      loadingRef.current = true;
+      setIsLazyLoading(true);
+
+      lazyLoadTrackMedia(activeRoleGroup.id)
+        .then((res) => {
+          loadingRef.current = false;
+          if (!isMountedRef.current) return;
+          setIsLazyLoading(false);
+          setLazyLoadedTrackId(activeRoleGroup.id);
+          if (res.success) {
+            onRefresh();
+          }
+        })
+        .catch((err) => {
+          loadingRef.current = false;
+          console.error("Lazy loading track media failed inside practice mode:", err);
+          if (isMountedRef.current) {
+            setIsLazyLoading(false);
+            setLazyLoadedTrackId(activeRoleGroup.id);
+          }
+        });
+    }
+  }, [song.roleGroups, activeTrackId, lazyLoadedTrackId, isLazyLoading, onRefresh, activeRoleGroup]);
 
   // Load user-specific practice markers
   useEffect(() => {
@@ -426,7 +476,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
   // Practice Markers Saving/Deleting
   const handleSaveMarker = async (newTime: number) => {
     if (markers.length >= 9) {
-      alert("You can only save up to 9 practice markers. Please delete an existing one to add a new marker.");
+      toast.error("You can only save up to 9 practice markers. Please delete an existing one to add a new marker.");
       return;
     }
     // Unique list, sorted ascending
@@ -434,9 +484,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
     setMarkers(updated);
     try {
       await savePracticeMarkers(song.id, updated);
+      toast.success("Marker saved successfully!");
       onRefresh();
     } catch (err) {
       console.error(err);
+      toast.error("Failed to save marker: " + String(err));
     }
   };
 
@@ -474,12 +526,14 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
       const tOffset = parseFloat(tabOffset) || 0;
       const res = await saveStartOffsets(song.id, bOffset, tOffset);
       if (res.success) {
+        toast.success("Offsets saved successfully!");
         onRefresh();
       } else {
-        alert("Failed to save offsets: " + res.error);
+        toast.error("Failed to save offsets: " + res.error);
       }
     } catch (err) {
       console.error(err);
+      toast.error("Failed to save offsets: " + String(err));
     } finally {
       setIsSavingOffsets(false);
     }
@@ -669,7 +723,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
                   </Button>
 
                   <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
-                    💡 Press keyboard keys <span className="text-[#acd1f8] font-bold">1-9</span> to instantly skip to the respective marker.
+                    Press keyboard keys <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">1</kbd> - <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">9</kbd> to instantly skip to the respective marker.
                   </p>
 
                   <div className="space-y-1.5">
@@ -862,7 +916,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap }: PracticeM
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-[#888d96]" />
-                Select Instrument Tab
+                Select Instrument
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AnonymousUserProvider } from "@/components/AnonymousUserProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#0c0d0e] text-[#f1f2f4]">
         <AnonymousUserProvider>
           {children}
+          <Toaster />
         </AnonymousUserProvider>
       </body>
     </html>

@@ -49,6 +49,7 @@ interface SongDashboardProps {
   onRefresh: () => void;
   onDelete?: () => void;
   onPractice?: () => void;
+  preferredInstrument?: string;
 }
 
 function getYouTubeId(url: string | null): string | null {
@@ -59,7 +60,7 @@ function getYouTubeId(url: string | null): string | null {
   return match ? match[1] : null;
 }
 
-export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDashboardProps) {
+export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferredInstrument }: SongDashboardProps) {
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
@@ -107,19 +108,19 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDas
   // Track expanded state of additional notation tracks inside role groups
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
 
+  const lastPreferredRef = useRef(preferredInstrument);
+
   // Smart initialization: select the roleGroup that matches the user's preferred instrument/role
+  // ponytail: Auto-select based on preferredInstrument only when the song or the preference itself changes
   useEffect(() => {
     const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
     const otherRoleGroup = song.roleGroups.find((rg) => rg.role === "Other");
     const otherTracks = otherRoleGroup?.tracks || [];
     
-    const isStandardValid = standardRoleGroups.some((rg) => rg.id === activeTrackId);
-    const isOtherTabActive = activeTrackId === "other-tab" && otherTracks.length > 0;
-    
-    if ((!isStandardValid && !isOtherTabActive) || song.id !== initializedSongId) {
-      const preferredRole = localStorage.getItem("bandboard_instrument") || "Guitar";
+    if (song.id !== initializedSongId || lastPreferredRef.current !== preferredInstrument) {
+      const preferredRole = preferredInstrument || localStorage.getItem("bandboard_instrument") || "Guitar";
       
-      // Try to find a roleGroup matching the preferred role
+      // Find matching role group for preferred role
       const matchingRoleGroup = standardRoleGroups.find(
         (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
       );
@@ -137,10 +138,11 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDas
       }
       setInitializedSongId(song.id);
       setLazyLoadedTrackId(null); // Reset lazy loaded indicator for the new song context
+      lastPreferredRef.current = preferredInstrument;
     } else if (activeTrackId === "other-tab" && !selectedOtherTrackId && otherTracks.length > 0) {
       setSelectedOtherTrackId(otherTracks[0].id);
     }
-  }, [song, activeTrackId, selectedOtherTrackId, initializedSongId]);
+  }, [song, activeTrackId, selectedOtherTrackId, initializedSongId, preferredInstrument]);
 
   // Trigger YouTube media lazy-load when active role group is standard and missing media links
   useEffect(() => {
