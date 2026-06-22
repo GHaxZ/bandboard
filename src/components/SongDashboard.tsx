@@ -9,6 +9,7 @@ import { cn, getAlternativeLinks } from "@/lib/utils";
 import { updateTrackVideoLink, lazyLoadTrackMedia, getGeniusLyricsLinkAction } from "@/app/actions/songs";
 import { VideoSelector } from "./VideoSelector";
 import { PracticeLogCard } from "./PracticeLogCard";
+import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import {
   getSongProgress
@@ -243,14 +244,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
           {onPractice && (
-            <Button
-              onClick={onPractice}
-              className="bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] hover:text-[#f1f2f4] rounded-xl h-10 px-4 transition-all duration-200 flex items-center gap-2 cursor-pointer font-bold text-xs"
-              title="Start Practice Mode"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Practice
-            </Button>
+            <PracticeButton onClick={onPractice} />
           )}
           {onDelete && (
             <Button

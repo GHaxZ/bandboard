@@ -11,6 +11,7 @@ import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehea
 import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic, Play } from "lucide-react";
 import { SearchInput } from "./SearchInput";
+import { PracticeButton } from "./PracticeButton";
 
 interface Track {
   id: string;
@@ -141,12 +142,7 @@ export function SetlistManager({
         </h3>
         <div className="flex items-center gap-2">
           {rehearsalSongs.length > 0 && onStartAutoplay && (
-            <Button
-              onClick={onStartAutoplay}
-              className="bg-[#acd1f8] hover:bg-[#bce0ff] text-[#0c0d0e] rounded-xl text-xs font-black py-1 h-9 flex items-center"
-            >
-              <Play className="w-3.5 h-3.5 mr-1 fill-current text-[#0c0d0e]" /> Practice
-            </Button>
+            <PracticeButton onClick={onStartAutoplay} size="h-9" />
           )}
           <Button
             onClick={() => {
