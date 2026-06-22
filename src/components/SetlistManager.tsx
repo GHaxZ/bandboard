@@ -56,6 +56,7 @@ interface SetlistManagerProps {
   onRefresh: () => void;
   progressMap?: Record<string, { status: string; speed: number; notes: string | null }>;
   onPracticeSong?: (songId: string) => void;
+  onStartAutoplay?: () => void;
 }
 
 export function SetlistManager({
@@ -67,6 +68,7 @@ export function SetlistManager({
   onRefresh,
   progressMap,
   onPracticeSong,
+  onStartAutoplay,
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,15 +139,25 @@ export function SetlistManager({
           <ListMusic className="w-5 h-5 text-[#888d96]" />
           Setlist ({rehearsalSongs.length} songs)
         </h3>
-        <Button
-          onClick={() => {
-            setSearchQuery("");
-            setIsAddOpen(true);
-          }}
-          className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold py-1 h-9"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" /> Add Songs
-        </Button>
+        <div className="flex items-center gap-2">
+          {rehearsalSongs.length > 0 && onStartAutoplay && (
+            <Button
+              onClick={onStartAutoplay}
+              className="bg-[#acd1f8] hover:bg-[#bce0ff] text-[#0c0d0e] rounded-xl text-xs font-black py-1 h-9 flex items-center"
+            >
+              <Play className="w-3.5 h-3.5 mr-1 fill-current text-[#0c0d0e]" /> Practice
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              setSearchQuery("");
+              setIsAddOpen(true);
+            }}
+            className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold py-1 h-9"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add Songs
+          </Button>
+        </div>
       </div>
 
       {rehearsalSongs.length === 0 ? (

@@ -18,6 +18,7 @@ import { SongDashboard } from "./SongDashboard";
 import { KanbanBoard } from "./KanbanBoard";
 import { SetlistManager } from "./SetlistManager";
 import { PracticeMode } from "./PracticeMode";
+import { RehearsalAutoplay } from "./RehearsalAutoplay";
 import { AddSongModal } from "./AddSongModal";
 import { AddRehearsalModal } from "./AddRehearsalModal";
 import { EditRehearsalModal } from "./EditRehearsalModal";
@@ -153,6 +154,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
   const [practiceSongId, setPracticeSongId] = useState<string | null>(null);
+  const [autoplayRehearsalId, setAutoplayRehearsalId] = useState<string | null>(null);
   const [rehearsalViewMode, setRehearsalViewMode] = useState<"setlist" | "kanban">("setlist");
 
   const [, startTransition] = useTransition();
@@ -456,6 +458,17 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
     }
   }
 
+  if (autoplayRehearsalId && selectedRehearsalDetails && selectedRehearsalDetails.id === autoplayRehearsalId) {
+    return (
+      <RehearsalAutoplay
+        rehearsal={selectedRehearsalDetails}
+        onExit={() => setAutoplayRehearsalId(null)}
+        preferredInstrument={instrument}
+        progressMap={progressMap}
+      />
+    );
+  }
+
   // Main UI
   return (
     <div className={cn(
@@ -706,6 +719,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                             onRefresh={refreshData}
                             progressMap={progressMap}
                             onPracticeSong={(songId) => setPracticeSongId(songId)}
+                            onStartAutoplay={() => setAutoplayRehearsalId(selectedRehearsalDetails.id)}
                           />
                         )}
                       </div>
