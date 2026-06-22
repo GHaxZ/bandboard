@@ -640,6 +640,12 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {rehearsalViewMode === "setlist" && (
+                      <PrivateIndicator
+                        text="Only synced for you"
+                        tooltip="Your practice progress and notes are kept private to your user session."
+                      />
+                    )}
                     <Button
                       onClick={() => setIsEditRehearsalOpen(true)}
                       className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold px-3.5 h-9"

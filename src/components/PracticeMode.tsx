@@ -554,23 +554,25 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
     <div className="flex flex-col min-h-screen bg-[#0c0d0e] text-[#f1f2f4] p-4 md:p-6 pb-24">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-[#27282b] pb-4 mb-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             onClick={onExit}
-            className="text-[#888d96] hover:text-[#f1f2f4] rounded-xl border border-[#27282b] bg-[#161719]/40 h-10 px-3 flex items-center gap-1.5"
+            className="text-[#888d96] hover:text-[#f1f2f4] rounded-xl border border-[#27282b] bg-[#161719]/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
+            <p className="text-xs text-[#888d96] truncate">{song.artist}</p>
+          </div>
+        </div>
+        <div className="flex items-center flex-shrink-0">
           <PrivateIndicator
             text="Settings synced only for you"
             tooltip="All settings, offsets, and markers in Practice Mode are private to your device."
           />
-        </div>
-        <div className="text-right">
-          <h1 className="text-base font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
-          <p className="text-xs text-[#888d96] truncate">{song.artist}</p>
         </div>
       </header>
 

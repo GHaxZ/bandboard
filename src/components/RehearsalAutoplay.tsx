@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSongTunings } from "@/lib/tunings";
+import { PrivateIndicator } from "./PrivateIndicator";
 import { toast } from "sonner";
 
 interface Track {
@@ -447,9 +448,9 @@ export function RehearsalAutoplay({
   const nextSong = queue[currentSongIndex + 1]?.song;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0c0d0e] text-[#f1f2f4] flex flex-col h-screen overflow-hidden p-4 md:p-6 pb-24">
+    <div className="fixed inset-0 z-50 bg-[#0c0d0e] text-[#f1f2f4] flex flex-col h-screen overflow-hidden pb-24">
       {/* Autoplay Header styled like single song practice mode */}
-      <header className="flex items-center justify-between border-b border-[#27282b] pb-4 mb-6 flex-shrink-0">
+      <header className="flex items-center justify-between border-b border-[#27282b] bg-[#161719]/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -469,10 +470,16 @@ export function RehearsalAutoplay({
             </div>
           </div>
         </div>
+        <div className="flex items-center flex-shrink-0">
+          <PrivateIndicator
+            text="Settings synced only for you"
+            tooltip="All settings, offsets, markers, and autoplay preferences are private to your device."
+          />
+        </div>
       </header>
 
       {/* Main Body */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0 gap-6">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         {/* Left Column: Player (70%) */}
         <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-[#0c0d0e]/60">
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
