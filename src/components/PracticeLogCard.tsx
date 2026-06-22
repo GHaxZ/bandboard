@@ -20,7 +20,7 @@ interface PracticeLogCardProps {
 
 export function PracticeLogCard({
   songId,
-  initialStatus = "learning",
+  initialStatus = "not_started",
   initialNotes = "",
   initialSpeed = 100,
   onSaveSuccess,
@@ -34,13 +34,13 @@ export function PracticeLogCard({
 
   // Sync state with props when they change
   useEffect(() => {
-    setProgressStatus(initialStatus || "learning");
+    setProgressStatus(initialStatus || "not_started");
     setProgressNotes(initialNotes || "");
     setProgressSpeed(initialSpeed || 100);
   }, [initialStatus, initialNotes, initialSpeed, songId]);
 
   const hasUnsavedProgress =
-    progressStatus !== (initialStatus || "learning") ||
+    progressStatus !== (initialStatus || "not_started") ||
     progressNotes !== (initialNotes || "");
 
   const handleSaveProgress = async () => {
@@ -84,7 +84,7 @@ export function PracticeLogCard({
               const isSelected = progressStatus === status;
               const label = 
                 status === "not_started" 
-                  ? "Not Started" 
+                  ? "Not learned" 
                   : status === "learning" 
                   ? "Learning" 
                   : status === "ready_to_play"

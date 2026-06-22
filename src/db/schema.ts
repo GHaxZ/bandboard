@@ -94,7 +94,7 @@ export const userSongProgress = sqliteTable('user_song_progress', {
   id: text('id').primaryKey(),
   userUuid: text('user_uuid').notNull(),
   songId: text('song_id').notNull().references(() => songs.id, { onDelete: 'cascade' }),
-  status: text('status').notNull().default('learning'), // 'learning' | 'mastered' | 'not_started'
+  status: text('status').notNull().default('not_started'), // 'learning' | 'mastered' | 'not_started'
   speed: integer('speed').notNull().default(100),
   notes: text('notes'),
   practiceMarkers: text('practice_markers'),

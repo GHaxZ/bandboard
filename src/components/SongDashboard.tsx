@@ -99,7 +99,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice }: SongDas
       if (prog) {
         setInitialProgress({ status: prog.status, speed: prog.speed, notes: prog.notes || "" });
       } else {
-        setInitialProgress({ status: "learning", speed: 100, notes: "" });
+        setInitialProgress({ status: "not_started", speed: 100, notes: "" });
       }
     }
     

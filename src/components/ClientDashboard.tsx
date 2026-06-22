@@ -11,13 +11,16 @@ import {
   exportUserData,
   importUserData,
   getAllSongProgress,
+  saveSongProgress,
 } from "@/app/actions/user";
 import { SongDashboard } from "./SongDashboard";
+import { KanbanBoard } from "./KanbanBoard";
 import { SetlistManager } from "./SetlistManager";
 import { PracticeMode } from "./PracticeMode";
 import { AddSongModal } from "./AddSongModal";
 import { AddRehearsalModal } from "./AddRehearsalModal";
 import { EditRehearsalModal } from "./EditRehearsalModal";
+import { PrivateIndicator } from "./PrivateIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,6 +48,7 @@ import {
   RefreshCw,
   Check,
   Play,
+  ListMusic,
 } from "lucide-react";
 
 interface Track {
@@ -147,6 +151,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
   const [practiceSongId, setPracticeSongId] = useState<string | null>(null);
+  const [rehearsalViewMode, setRehearsalViewMode] = useState<"setlist" | "kanban">("setlist");
 
   const [, startTransition] = useTransition();
 
@@ -458,7 +463,10 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
   // Main UI
   return (
-    <div className="flex-1 flex flex-col bg-[#0c0d0e] text-[#f1f2f4] pb-20 md:pb-6">
+    <div className={cn(
+      "flex-1 flex flex-col bg-[#0c0d0e] text-[#f1f2f4] pb-20 md:pb-6",
+      activeTab === "rehearsals" && selectedRehearsalId && rehearsalViewMode === "kanban" && "pb-20 md:pb-0"
+    )}>
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#0c0d0e]/80 backdrop-blur-lg border-b border-[#27282b] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -515,7 +523,10 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
       </header>
 
       {/* Main Content Area - Full width on large displays, padding handles spacing */}
-      <main className="flex-1 w-full max-w-none px-4 md:px-8 py-6 space-y-6">
+      <main className={cn(
+        "flex-1 w-full max-w-none px-4 md:px-8 py-6 space-y-6",
+        activeTab === "rehearsals" && selectedRehearsalId && rehearsalViewMode === "kanban" && "pb-4 md:pb-0 pt-4 space-y-4"
+      )}>
         {/* REHEARSALS TAB */}
         {activeTab === "rehearsals" && (
           <div className="space-y-6">
@@ -637,61 +648,130 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                   </div>
                 </div>
 
-                {selectedRehearsalDetails?.notes && (
-                  <div className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex gap-3 text-xs leading-relaxed text-[#888d96]">
-                    <FileText className="w-4 h-4 text-[#888d96] flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold text-[#f1f2f4] block mb-0.5 uppercase tracking-wide text-[10px]">
-                        Session Notes
-                      </span>
-                      {selectedRehearsalDetails.notes}
-                    </div>
-                  </div>
-                )}
-
-                {/* Grid layout: Setlist Column (Left) & Dynamic Active Track Details Dashboard (Right) */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Setlist Column (Left) - Expanded layout width handles spacing */}
-                  <div className="lg:col-span-4 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 shadow-lg h-fit">
-                    {selectedRehearsalDetails && (
-                      <SetlistManager
-                        rehearsalId={selectedRehearsalDetails.id}
-                        rehearsalSongs={selectedRehearsalDetails.rehearsalSongs}
-                        allSongs={songsList}
-                        activeSongId={selectedRehearsalSongId}
-                        onSelectSong={setSelectedRehearsalSongId}
-                        onRefresh={refreshData}
-                        progressMap={progressMap}
-                        onPracticeSong={(songId) => setPracticeSongId(songId)}
-                      />
-                    )}
+                {/* Rehearsal Tabs / View Mode Switcher */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-[#161719] border border-[#27282b] p-1 rounded-xl w-fit">
+                    <button
+                      onClick={() => setRehearsalViewMode("setlist")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        rehearsalViewMode === "setlist"
+                          ? "bg-[#27282b] text-[#f1f2f4]"
+                          : "text-[#888d96] hover:text-[#f1f2f4]"
+                      }`}
+                    >
+                      <ListMusic className="w-4 h-4" />
+                      Setlist & Practice
+                    </button>
+                    <button
+                      onClick={() => setRehearsalViewMode("kanban")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        rehearsalViewMode === "kanban"
+                          ? "bg-[#27282b] text-[#f1f2f4]"
+                          : "text-[#888d96] hover:text-[#f1f2f4]"
+                      }`}
+                    >
+                      <Sliders className="w-4 h-4" />
+                      Kanban Board
+                    </button>
                   </div>
 
-                  {/* Player Dashboard Column (Right) */}
-                  <div className="lg:col-span-8">
-                    {selectedRehearsalSongId ? (
-                      (() => {
-                        const currentRehSong = selectedRehearsalDetails?.rehearsalSongs.find(
-                          (rs) => rs.songId === selectedRehearsalSongId
-                        );
-                        if (!currentRehSong) return null;
-                        return (
-                          <SongDashboard
-                            song={currentRehSong.song}
-                            onRefresh={refreshData}
-                            onPractice={() => setPracticeSongId(currentRehSong.songId)}
-                          />
-                        );
-                      })()
-                    ) : (
-                      <div className="text-center py-20 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
-                        <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
-                        <h3 className="font-semibold text-[#888d96]">No Song Selected</h3>
-                        <p className="text-xs mt-1">Select a song from the setlist on the left to load its notations and backing players.</p>
+                  {rehearsalViewMode === "kanban" && (
+                    <PrivateIndicator
+                      text="Only synced for you"
+                      tooltip="Your practice progress and notes are kept private to your user session."
+                    />
+                  )}
+                </div>
+
+                {rehearsalViewMode === "setlist" ? (
+                  <div className="space-y-6">
+                    {selectedRehearsalDetails?.notes && (
+                      <div className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex gap-3 text-xs leading-relaxed text-[#888d96]">
+                        <FileText className="w-4 h-4 text-[#888d96] flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-[#f1f2f4] block mb-0.5 uppercase tracking-wide text-[10px]">
+                            Session Notes
+                          </span>
+                          {selectedRehearsalDetails.notes}
+                        </div>
                       </div>
                     )}
+
+                    {/* Grid layout: Setlist Column (Left) & Dynamic Active Track Details Dashboard (Right) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      {/* Setlist Column (Left) - Expanded layout width handles spacing */}
+                      <div className="lg:col-span-4 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 shadow-lg h-fit">
+                        {selectedRehearsalDetails && (
+                          <SetlistManager
+                            rehearsalId={selectedRehearsalDetails.id}
+                            rehearsalSongs={selectedRehearsalDetails.rehearsalSongs}
+                            allSongs={songsList}
+                            activeSongId={selectedRehearsalSongId}
+                            onSelectSong={setSelectedRehearsalSongId}
+                            onRefresh={refreshData}
+                            progressMap={progressMap}
+                            onPracticeSong={(songId) => setPracticeSongId(songId)}
+                          />
+                        )}
+                      </div>
+
+                      {/* Player Dashboard Column (Right) */}
+                      <div className="lg:col-span-8">
+                        {selectedRehearsalSongId ? (
+                          (() => {
+                            const currentRehSong = selectedRehearsalDetails?.rehearsalSongs.find(
+                              (rs) => rs.songId === selectedRehearsalSongId
+                            );
+                            if (!currentRehSong) return null;
+                            return (
+                              <SongDashboard
+                                song={currentRehSong.song}
+                                onRefresh={refreshData}
+                                onPractice={() => setPracticeSongId(currentRehSong.songId)}
+                              />
+                            );
+                          })()
+                        ) : (
+                          <div className="text-center py-20 bg-[#161719]/40 border border-[#27282b] rounded-2xl p-6 text-[#888d96]">
+                            <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
+                            <h3 className="font-semibold text-[#888d96]">No Song Selected</h3>
+                            <p className="text-xs mt-1">Select a song from the setlist on the left to load its notations and backing players.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  selectedRehearsalDetails && (
+                    <KanbanBoard
+                      rehearsalId={selectedRehearsalDetails.id}
+                      rehearsalSongs={selectedRehearsalDetails.rehearsalSongs}
+                      progressMap={progressMap}
+                      onSaveProgress={async (songId, status) => {
+                        const oldProgress = progressMap[songId] || { speed: 100, notes: null };
+                        setProgressMap({
+                          ...progressMap,
+                          [songId]: {
+                            ...oldProgress,
+                            status,
+                          },
+                        });
+                        const res = await saveSongProgress(songId, status, oldProgress.speed, oldProgress.notes);
+                        if (!res.success) {
+                          alert("Failed to save progress: " + res.error);
+                        }
+                        refreshData();
+                      }}
+                      onSelectSong={(songId) => {
+                        setSelectedRehearsalSongId(songId);
+                        setRehearsalViewMode("setlist");
+                      }}
+                      onPracticeSong={(songId) => {
+                        setPracticeSongId(songId);
+                      }}
+                    />
+                  )
+                )}
               </div>
             )}
           </div>
@@ -764,26 +844,31 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                               <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
                                 {(song.roleGroups?.reduce((acc, rg) => acc + (rg.tracks?.length || 0), 0) || 0)} notation tracks
                               </span>
-                              {progressMap[song.id] && (
-                                <Badge
-                                  className={cn(
-                                    "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
-                                    progressMap[song.id].status === "mastered"
-                                      ? "bg-emerald-950/40 text-emerald-400"
-                                      : progressMap[song.id].status === "ready_to_play"
-                                      ? "bg-purple-950/40 text-purple-400"
-                                      : progressMap[song.id].status === "learning"
-                                      ? "bg-sky-950/40 text-sky-400"
-                                      : "bg-zinc-800/40 text-zinc-400"
-                                  )}
-                                >
-                                  {progressMap[song.id].status === "ready_to_play"
-                                    ? "Ready to Play"
-                                    : progressMap[song.id].status === "not_started"
-                                    ? "Not Started"
-                                    : progressMap[song.id].status}
-                                </Badge>
-                              )}
+                              {(() => {
+                                const progStatus = progressMap[song.id]?.status || "not_started";
+                                return (
+                                  <Badge
+                                    className={cn(
+                                      "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
+                                      progStatus === "mastered"
+                                        ? "bg-emerald-950/40 text-emerald-400"
+                                        : progStatus === "ready_to_play"
+                                        ? "bg-purple-950/40 text-purple-400"
+                                        : progStatus === "learning"
+                                        ? "bg-sky-950/40 text-sky-400"
+                                        : "bg-zinc-800/40 text-zinc-400"
+                                    )}
+                                  >
+                                    {progStatus === "ready_to_play"
+                                      ? "Ready to Play"
+                                      : progStatus === "not_started"
+                                      ? "Not learned"
+                                      : progStatus === "learning"
+                                      ? "Learning"
+                                      : progStatus}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                             <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-[#f1f2f4]">
                               {song.title}

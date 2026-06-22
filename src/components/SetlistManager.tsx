@@ -185,26 +185,31 @@ export function SetlistManager({
                       <p className={`text-sm font-bold truncate ${isSelected ? "text-[#f1f2f4]" : "text-[#d1d1d6]"}`}>
                         {rs.song.title}
                       </p>
-                      {progressMap && progressMap[rs.songId] && (
-                        <Badge
-                          className={cn(
-                            "text-[8px] font-extrabold uppercase px-1 py-0 rounded-md border-0 shrink-0",
-                            progressMap[rs.songId].status === "mastered"
-                              ? "bg-emerald-950/40 text-emerald-400"
-                              : progressMap[rs.songId].status === "ready_to_play"
-                              ? "bg-purple-950/40 text-purple-400"
-                              : progressMap[rs.songId].status === "learning"
-                              ? "bg-sky-950/40 text-sky-400"
-                              : "bg-zinc-800/40 text-zinc-400"
-                          )}
-                        >
-                          {progressMap[rs.songId].status === "ready_to_play"
-                            ? "Ready to Play"
-                            : progressMap[rs.songId].status === "not_started"
-                            ? "Not Started"
-                            : progressMap[rs.songId].status}
-                        </Badge>
-                      )}
+                      {(() => {
+                        const progStatus = (progressMap && progressMap[rs.songId]?.status) || "not_started";
+                        return (
+                          <Badge
+                            className={cn(
+                              "text-[8px] font-extrabold uppercase px-1 py-0 rounded-md border-0 shrink-0",
+                              progStatus === "mastered"
+                                ? "bg-emerald-950/40 text-emerald-400"
+                                : progStatus === "ready_to_play"
+                                ? "bg-purple-950/40 text-purple-400"
+                                : progStatus === "learning"
+                                ? "bg-sky-950/40 text-sky-400"
+                                : "bg-zinc-800/40 text-zinc-400"
+                            )}
+                          >
+                            {progStatus === "ready_to_play"
+                              ? "Ready to Play"
+                              : progStatus === "not_started"
+                              ? "Not learned"
+                              : progStatus === "learning"
+                              ? "Learning"
+                              : progStatus}
+                          </Badge>
+                        );
+                      })()}
                       {/* Tuning Badges */}
                       {(() => {
                         const songTunings = getSongTunings(rs.song);

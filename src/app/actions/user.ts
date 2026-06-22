@@ -57,12 +57,38 @@ export async function saveUserSettings(instrument: string, theme: string = "dark
 
 export async function getSongProgress(songId: string) {
   const uuid = await getUserUuid();
+  if (uuid === "anonymous") return null;
+
   try {
     const result = await db.select()
       .from(userSongProgress)
       .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
       .limit(1);
-    return result[0] || null;
+
+    if (result.length > 0) {
+      return result[0];
+    }
+
+    // Verify song actually exists before inserting default
+    const songExists = await db.select().from(songs).where(eq(songs.id, songId)).limit(1);
+    if (songExists.length === 0) return null;
+
+    const id = `${uuid}_${songId}_${Date.now()}`;
+    const newProgress = {
+      id,
+      userUuid: uuid,
+      songId,
+      status: "not_started",
+      speed: 100,
+      notes: null,
+      practiceMarkers: null,
+      backingStartOffset: null,
+      tabStartOffset: null,
+      updatedAt: Date.now(),
+    };
+
+    await db.insert(userSongProgress).values(newProgress);
+    return newProgress;
   } catch (error) {
     console.error("Failed to get song progress:", error);
     return null;
@@ -71,8 +97,37 @@ export async function getSongProgress(songId: string) {
 
 export async function getAllSongProgress() {
   const uuid = await getUserUuid();
+  if (uuid === "anonymous") return [];
+
   try {
-    return await db.select().from(userSongProgress).where(eq(userSongProgress.userUuid, uuid));
+    const allSongs = await db.select().from(songs);
+    const existing = await db.select().from(userSongProgress).where(eq(userSongProgress.userUuid, uuid));
+    
+    const existingMap = new Set(existing.map((e) => e.songId));
+    const missingSongs = allSongs.filter((song) => !existingMap.has(song.id));
+
+    if (missingSongs.length > 0) {
+      for (const song of missingSongs) {
+        const id = `${uuid}_${song.id}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await db.insert(userSongProgress).values({
+          id,
+          userUuid: uuid,
+          songId: song.id,
+          status: "not_started",
+          speed: 100,
+          notes: null,
+          practiceMarkers: null,
+          backingStartOffset: null,
+          tabStartOffset: null,
+          updatedAt: Date.now(),
+        });
+      }
+      
+      // Re-query to return full list
+      return await db.select().from(userSongProgress).where(eq(userSongProgress.userUuid, uuid));
+    }
+
+    return existing;
   } catch (error) {
     console.error("Failed to get all song progress:", error);
     return [];
@@ -144,7 +199,7 @@ export async function savePracticeMarkers(songId: string, markers: number[]) {
           id,
           userUuid: uuid,
           songId,
-          status: "learning",
+          status: "not_started",
           speed: 100,
           notes: null,
           practiceMarkers: serialized,
@@ -187,7 +242,7 @@ export async function saveStartOffsets(
           id,
           userUuid: uuid,
           songId,
-          status: "learning",
+          status: "not_started",
           speed: 100,
           notes: null,
           backingStartOffset,
