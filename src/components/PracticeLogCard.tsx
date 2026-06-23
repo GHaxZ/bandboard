@@ -102,9 +102,9 @@ export function PracticeLogCard({
                     "rounded-lg text-[9px] font-bold h-8 px-1 transition-all truncate",
                     isSelected
                       ? status === "mastered"
-                        ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
-                        : status === "ready_to_play"
                         ? "bg-purple-950/40 border border-purple-800 text-purple-400 hover:bg-purple-950/50"
+                        : status === "ready_to_play"
+                        ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
                         : status === "learning"
                         ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
                         : "bg-red-950/40 border border-red-900 text-red-400 hover:bg-red-950/50"

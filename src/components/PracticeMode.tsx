@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import {
   saveSongProgress,
-  saveUserSettings,
   savePracticeMarkers,
   saveStartOffsets
 } from "@/app/actions/user";
@@ -821,9 +820,9 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0c0d0e] text-[#f1f2f4] p-4 md:p-6 pb-24">
+    <div className="flex flex-col min-h-screen bg-[#0c0d0e] text-[#f1f2f4] pb-24">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-[#27282b] pb-4 mb-6">
+      <header className="flex items-center justify-between border-b border-[#27282b] px-4 md:px-6 py-4 mb-6 bg-[#161719]/10">
         <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
@@ -847,7 +846,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       </header>
 
       {/* Main Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 px-4 md:px-6">
         {/* Left Side: Large Player Panel (8 columns) */}
         <div className="lg:col-span-8 flex flex-col space-y-4">
           <div

@@ -190,15 +190,15 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
 
       // 4. Load instrument preferences from DB or fallback
       const dbSettings = await getUserSettings();
-      const savedInstrument = localStorage.getItem("bandboard_instrument") || "Guitar";
+      const legacyInstrument = localStorage.getItem("bandboard_instrument");
       
       let finalInst = "Guitar";
       if (dbSettings && dbSettings.preferredInstrument) {
         finalInst = dbSettings.preferredInstrument;
-        localStorage.setItem("bandboard_instrument", dbSettings.preferredInstrument);
-      } else if (savedInstrument) {
-        finalInst = savedInstrument;
-        await saveUserSettings(savedInstrument);
+      } else if (legacyInstrument) {
+        finalInst = legacyInstrument;
+        await saveUserSettings(legacyInstrument);
+        localStorage.removeItem("bandboard_instrument");
       }
 
       if (finalInst.toLowerCase() === "keyboard" || finalInst.toLowerCase() === "piano") {
@@ -291,7 +291,6 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
   // Handle instrument setting change
   async function handleInstrumentChange(val: string) {
     setInstrument(val);
-    localStorage.setItem("bandboard_instrument", val);
     await saveUserSettings(val);
   }
 
@@ -857,9 +856,9 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                                     className={cn(
                                       "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
                                       progStatus === "mastered"
-                                        ? "bg-emerald-950/40 text-emerald-400"
-                                        : progStatus === "ready_to_play"
                                         ? "bg-purple-950/40 text-purple-400"
+                                        : progStatus === "ready_to_play"
+                                        ? "bg-emerald-950/40 text-emerald-400"
                                         : progStatus === "learning"
                                         ? "bg-sky-950/40 text-sky-400"
                                         : "bg-red-950/40 text-red-400"

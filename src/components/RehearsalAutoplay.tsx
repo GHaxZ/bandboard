@@ -24,6 +24,7 @@ import { Slider } from "@/components/ui/slider";
 import { getSongTunings } from "@/lib/tunings";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { toast } from "sonner";
+import { getUserSettings, saveUserSettings } from "@/app/actions/user";
 
 interface Track {
   id: string;
@@ -220,24 +221,49 @@ export function RehearsalAutoplay({
 
   const [instrumentPreference, setInstrumentPreference] = useState<string>(preferredInstrument || "Guitar");
 
-  // Load autoplay configurations from localStorage on mount
-  // ponytail: Load configurations from localStorage
+  // Load autoplay configurations from database or fallback to legacy localStorage
   useEffect(() => {
-    const savedAutoplay = localStorage.getItem("bandboard_autoplay_enabled");
-    if (savedAutoplay !== null) {
-      setAutoplayEnabled(savedAutoplay === "true");
+    async function loadSettings() {
+      try {
+        const dbSettings = await getUserSettings();
+        let enabled = true;
+        let timeout = 5;
+
+        if (dbSettings && dbSettings.autoplayTimeout !== undefined) {
+          enabled = dbSettings.autoplayEnabled;
+          timeout = dbSettings.autoplayTimeout;
+        } else {
+          // Fallback to legacy localStorage if available
+          const legacyAutoplay = localStorage.getItem("bandboard_autoplay_enabled");
+          const legacyTimeout = localStorage.getItem("bandboard_autoplay_timeout");
+
+          if (legacyAutoplay !== null) {
+            enabled = legacyAutoplay === "true";
+            localStorage.removeItem("bandboard_autoplay_enabled");
+          }
+          if (legacyTimeout !== null) {
+            const val = parseInt(legacyTimeout);
+            timeout = isNaN(val) ? 5 : val;
+            localStorage.removeItem("bandboard_autoplay_timeout");
+          }
+
+          // Save migrated values to DB
+          await saveUserSettings(undefined, undefined, enabled, timeout);
+        }
+
+        setAutoplayEnabled(enabled);
+        setTransitionTimeout(timeout);
+        setCountdown(timeout);
+      } catch (err) {
+        console.error("Failed to load autoplay settings:", err);
+      }
     }
-    const savedTimeout = localStorage.getItem("bandboard_autoplay_timeout");
-    if (savedTimeout !== null) {
-      const val = parseInt(savedTimeout);
-      const timeoutVal = isNaN(val) ? 5 : val;
-      setTransitionTimeout(timeoutVal);
-      setCountdown(timeoutVal);
-    }
+    loadSettings();
   }, []);
 
   const currentSong = queue[currentSongIndex]?.song;
   const currentVideoId = currentSong ? getBackingVideoId(currentSong, instrumentPreference) : null;
+  const upcomingSong = !hasStartedSession ? currentSong : queue[currentSongIndex + 1]?.song;
 
   // Sync refs to avoid stale closures in YouTube callbacks
   const autoplayEnabledRef = useRef(autoplayEnabled);
@@ -456,17 +482,17 @@ export function RehearsalAutoplay({
     toast.success(`Prioritizing ${role} backing tracks`);
   };
 
-  // ponytail: Save autoplay settings to localStorage for persistence
-  const handleAutoplayEnabledChange = (val: boolean) => {
+  // Save autoplay settings to database for persistence
+  const handleAutoplayEnabledChange = async (val: boolean) => {
     setAutoplayEnabled(val);
-    localStorage.setItem("bandboard_autoplay_enabled", String(val));
+    await saveUserSettings(undefined, undefined, val, undefined);
     toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
   };
 
-  const handleTimeoutChange = (val: number) => {
+  const handleTimeoutChange = async (val: number) => {
     // If countdown is active, we don't hot-reload countdown directly to prevent timer jump. It updates for next song.
     setTransitionTimeout(val);
-    localStorage.setItem("bandboard_autoplay_timeout", String(val));
+    await saveUserSettings(undefined, undefined, autoplayEnabled, val);
   };
 
   // Keyboard event listener for hotkeys in Autoplay Mode
@@ -650,7 +676,7 @@ export function RehearsalAutoplay({
   const nextSong = queue[currentSongIndex + 1]?.song;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0c0d0e] text-[#f1f2f4] flex flex-col h-screen overflow-hidden pb-24">
+    <div className="fixed inset-0 z-50 bg-[#0c0d0e] text-[#f1f2f4] flex flex-col h-screen overflow-hidden">
       {/* Autoplay Header styled like single song practice mode */}
       <header className="flex items-center justify-between border-b border-[#27282b] bg-[#161719]/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
@@ -716,13 +742,13 @@ export function RehearsalAutoplay({
 
 
               {/* HUD: Countdown overlay */}
-              {isCountdownActive && currentSong && (
+              {isCountdownActive && upcomingSong && (
                 <div className="absolute inset-0 z-30 bg-[#0c0d0e]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
                     <p className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest">
                       {!hasStartedSession ? "Starting Rehearsal In" : "Up Next In"}
                     </p>
-
+                    
                     {/* Circular Countdown Progress */}
                     <div className="relative w-24 h-24 flex items-center justify-center">
                       <svg className="w-24 h-24 transform -rotate-90">
@@ -752,10 +778,10 @@ export function RehearsalAutoplay({
 
                     <div className="space-y-1.5">
                       <h3 className="text-base font-black text-[#f1f2f4] leading-snug line-clamp-1">
-                        {currentSong.title}
+                        {upcomingSong.title}
                       </h3>
                       <p className="text-xs text-[#888d96] line-clamp-1">
-                        by {currentSong.artist}
+                        by {upcomingSong.artist}
                       </p>
                     </div>
 

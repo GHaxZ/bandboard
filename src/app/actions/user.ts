@@ -14,7 +14,7 @@ export async function getUserUuid(): Promise<string> {
 export async function getUserSettings() {
   const uuid = await getUserUuid();
   if (uuid === "anonymous") {
-    return { preferredInstrument: "Guitar", theme: "dark" };
+    return { preferredInstrument: "Guitar", theme: "dark", autoplayEnabled: true, autoplayTimeout: 5 };
   }
   
   try {
@@ -22,29 +22,43 @@ export async function getUserSettings() {
     if (result.length > 0) {
       return result[0];
     }
-    return { preferredInstrument: "Guitar", theme: "dark" };
+    return { preferredInstrument: "Guitar", theme: "dark", autoplayEnabled: true, autoplayTimeout: 5 };
   } catch (error) {
     console.error("Failed to get user settings:", error);
-    return { preferredInstrument: "Guitar", theme: "dark" };
+    return { preferredInstrument: "Guitar", theme: "dark", autoplayEnabled: true, autoplayTimeout: 5 };
   }
 }
 
-export async function saveUserSettings(instrument: string, theme: string = "dark") {
+export async function saveUserSettings(
+  instrument?: string,
+  theme?: string,
+  autoplayEnabled?: boolean,
+  autoplayTimeout?: number
+) {
   const uuid = await getUserUuid();
   if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
 
   try {
     const existing = await db.select().from(userSettings).where(eq(userSettings.userUuid, uuid)).limit(1);
     if (existing.length > 0) {
+      const current = existing[0];
       await db.update(userSettings)
-        .set({ preferredInstrument: instrument, theme, updatedAt: Date.now() })
+        .set({
+          preferredInstrument: instrument !== undefined ? instrument : current.preferredInstrument,
+          theme: theme !== undefined ? theme : current.theme,
+          autoplayEnabled: autoplayEnabled !== undefined ? autoplayEnabled : current.autoplayEnabled,
+          autoplayTimeout: autoplayTimeout !== undefined ? autoplayTimeout : current.autoplayTimeout,
+          updatedAt: Date.now()
+        })
         .where(eq(userSettings.userUuid, uuid));
     } else {
       await db.insert(userSettings)
         .values({
           userUuid: uuid,
-          preferredInstrument: instrument,
-          theme,
+          preferredInstrument: instrument ?? "Guitar",
+          theme: theme ?? "dark",
+          autoplayEnabled: autoplayEnabled ?? true,
+          autoplayTimeout: autoplayTimeout ?? 5,
           updatedAt: Date.now(),
         });
     }
@@ -306,6 +320,8 @@ export async function importUserData(payload: any) {
           .set({
             preferredInstrument: payload.settings.preferredInstrument || "Guitar",
             theme: payload.settings.theme || "dark",
+            autoplayEnabled: payload.settings.autoplayEnabled !== undefined ? payload.settings.autoplayEnabled : true,
+            autoplayTimeout: payload.settings.autoplayTimeout !== undefined ? payload.settings.autoplayTimeout : 5,
             updatedAt: Date.now(),
           })
           .where(eq(userSettings.userUuid, importUuid));
@@ -315,6 +331,8 @@ export async function importUserData(payload: any) {
             userUuid: importUuid,
             preferredInstrument: payload.settings.preferredInstrument || "Guitar",
             theme: payload.settings.theme || "dark",
+            autoplayEnabled: payload.settings.autoplayEnabled !== undefined ? payload.settings.autoplayEnabled : true,
+            autoplayTimeout: payload.settings.autoplayTimeout !== undefined ? payload.settings.autoplayTimeout : 5,
             updatedAt: Date.now(),
           });
       }

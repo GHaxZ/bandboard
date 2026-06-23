@@ -12,7 +12,8 @@ import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import {
-  getSongProgress
+  getSongProgress,
+  saveUserSettings
 } from "@/app/actions/user";
 
 interface Track {
@@ -269,7 +270,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                 <TabsTrigger
                   key={rg.id}
                   value={rg.id}
-                  onClick={() => localStorage.setItem("bandboard_instrument", rg.role)}
+                  onClick={() => { saveUserSettings(rg.role); }}
                   className="px-4 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-[#27282b] data-[state=active]:text-[#f1f2f4] text-[#888d96] border border-transparent data-[state=active]:border-[#3b3e45] hover:text-[#f1f2f4] transition-all cursor-pointer"
                 >
                   {rg.role}

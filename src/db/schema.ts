@@ -87,6 +87,8 @@ export const userSettings = sqliteTable('user_settings', {
   userUuid: text('user_uuid').primaryKey(),
   preferredInstrument: text('preferred_instrument').notNull().default('Guitar'),
   theme: text('theme').notNull().default('dark'),
+  autoplayEnabled: integer('autoplay_enabled', { mode: 'boolean' }).notNull().default(true),
+  autoplayTimeout: integer('autoplay_timeout').notNull().default(5),
   updatedAt: integer('updated_at').notNull(),
 });
 

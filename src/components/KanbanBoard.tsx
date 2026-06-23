@@ -56,8 +56,8 @@ interface KanbanBoardProps {
 const COLUMNS = [
   { id: "not_started", label: "Not learned", colorClass: "bg-red-500", borderClass: "border-red-800/40", textClass: "text-red-400" },
   { id: "learning", label: "Learning", colorClass: "bg-sky-500", borderClass: "border-sky-800/40", textClass: "text-sky-400" },
-  { id: "ready_to_play", label: "Ready to Play", colorClass: "bg-purple-500", borderClass: "border-purple-800/40", textClass: "text-purple-400" },
-  { id: "mastered", label: "Mastered", colorClass: "bg-emerald-500", borderClass: "border-emerald-800/40", textClass: "text-emerald-400" }
+  { id: "ready_to_play", label: "Ready to Play", colorClass: "bg-emerald-500", borderClass: "border-emerald-800/40", textClass: "text-emerald-400" },
+  { id: "mastered", label: "Mastered", colorClass: "bg-purple-500", borderClass: "border-purple-800/40", textClass: "text-purple-400" }
 ];
 
 export function KanbanBoard({

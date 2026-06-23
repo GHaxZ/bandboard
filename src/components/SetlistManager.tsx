@@ -201,9 +201,9 @@ export function SetlistManager({
                             className={cn(
                               "text-[8px] font-extrabold uppercase px-1 py-0 rounded-md border-0 shrink-0",
                               progStatus === "mastered"
-                                ? "bg-emerald-950/40 text-emerald-400"
-                                : progStatus === "ready_to_play"
                                 ? "bg-purple-950/40 text-purple-400"
+                                : progStatus === "ready_to_play"
+                                ? "bg-emerald-950/40 text-emerald-400"
                                 : progStatus === "learning"
                                 ? "bg-sky-950/40 text-sky-400"
                                 : "bg-red-950/40 text-red-400"
