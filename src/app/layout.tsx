@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AnonymousUserProvider } from "@/components/AnonymousUserProvider";
+import { AccessGuard } from "@/components/AccessGuard";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -26,7 +27,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AnonymousUserProvider>
-          {children}
+          <AccessGuard>
+            {children}
+          </AccessGuard>
           <Toaster />
         </AnonymousUserProvider>
       </body>

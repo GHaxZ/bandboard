@@ -182,8 +182,7 @@ export function KanbanBoard({
                                         <div className="flex flex-wrap gap-1 mt-1">
                                           {songTunings.map((ind) => {
                                             const isHighlighted =
-                                              (preferredInstrument === "Guitar" && ind.role === "Guitar") ||
-                                              (preferredInstrument === "Bass" && ind.role === "Bass");
+                                              ind.role.toLowerCase() === preferredInstrument.toLowerCase();
                                             return (
                                               <Badge
                                                 key={`${ind.role}-${ind.tuning}`}

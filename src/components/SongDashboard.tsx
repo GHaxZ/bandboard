@@ -12,8 +12,7 @@ import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import {
-  getSongProgress,
-  saveUserSettings
+  getSongProgress
 } from "@/app/actions/user";
 
 import { Track, RoleGroup, Song } from "@/types/models";
@@ -25,9 +24,11 @@ interface SongDashboardProps {
   onDelete?: () => void;
   onPractice?: () => void;
   preferredInstrument?: string;
+  activeRole?: string;
+  onRoleChange?: (role: string) => void;
 }
 
-export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferredInstrument }: SongDashboardProps) {
+export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferredInstrument, activeRole, onRoleChange }: SongDashboardProps) {
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
@@ -77,6 +78,20 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
 
   const lastPreferredRef = useRef(preferredInstrument);
 
+  // Sync activeTrackId when activeRole prop changes
+  useEffect(() => {
+    if (activeRole) {
+      const matching = song.roleGroups.find(
+        (rg) => rg.role.toLowerCase() === activeRole.toLowerCase()
+      );
+      if (matching) {
+        setActiveTrackId(matching.id);
+      } else if (activeRole.toLowerCase() === "other" && song.roleGroups.some(rg => rg.role === "Other")) {
+        setActiveTrackId("other-tab");
+      }
+    }
+  }, [activeRole, song.roleGroups]);
+
   // Smart initialization: select the roleGroup that matches the user's preferred instrument/role
   // ponytail: Auto-select based on preferredInstrument only when the song or the preference itself changes
   useEffect(() => {
@@ -87,6 +102,25 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
     if (song.id !== initializedSongId || lastPreferredRef.current !== preferredInstrument) {
       const preferredRole = preferredInstrument || localStorage.getItem("bandboard_instrument") || "Guitar";
       
+      // If activeRole prop is present, prioritize it
+      if (activeRole) {
+        const matching = song.roleGroups.find(
+          (rg) => rg.role.toLowerCase() === activeRole.toLowerCase()
+        );
+        if (matching) {
+          setActiveTrackId(matching.id);
+          setInitializedSongId(song.id);
+          lastPreferredRef.current = preferredInstrument;
+          return;
+        } else if (activeRole.toLowerCase() === "other" && otherTracks.length > 0) {
+          setActiveTrackId("other-tab");
+          setSelectedOtherTrackId(otherTracks[0].id);
+          setInitializedSongId(song.id);
+          lastPreferredRef.current = preferredInstrument;
+          return;
+        }
+      }
+
       // Find matching role group for preferred role
       const matchingRoleGroup = standardRoleGroups.find(
         (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
@@ -109,7 +143,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
     } else if (activeTrackId === "other-tab" && !selectedOtherTrackId && otherTracks.length > 0) {
       setSelectedOtherTrackId(otherTracks[0].id);
     }
-  }, [song, activeTrackId, selectedOtherTrackId, initializedSongId, preferredInstrument]);
+  }, [song, activeTrackId, selectedOtherTrackId, initializedSongId, preferredInstrument, activeRole]);
 
   // Trigger YouTube media lazy-load when active role group is standard and missing media links
   useEffect(() => {
@@ -184,6 +218,20 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
     }
   }
 
+  const handleTabChange = (val: string) => {
+    setActiveTrackId(val);
+    const rg = song.roleGroups.find(g => g.id === val);
+    if (rg) {
+      if (onRoleChange) {
+        onRoleChange(rg.role);
+      }
+    } else if (val === "other-tab") {
+      if (onRoleChange) {
+        onRoleChange("Other");
+      }
+    }
+  };
+
   return (
     <Card className="border-border bg-card overflow-hidden rounded-2xl shadow-xl">
       <CardHeader className="border-b border-border pb-5 pt-6 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -227,7 +275,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
       </CardHeader>
 
       <CardContent className="p-6">
-        <Tabs value={activeTrackId} onValueChange={setActiveTrackId} className="w-full">
+        <Tabs value={activeTrackId} onValueChange={handleTabChange} className="w-full">
           {/* Scrollable tabs list for mobile */}
           <div className="overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
             <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-max min-w-full">
@@ -235,7 +283,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                 <TabsTrigger
                   key={rg.id}
                   value={rg.id}
-                  onClick={() => { saveUserSettings(rg.role); }}
                   className="px-4 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer"
                 >
                   {rg.role}

@@ -184,7 +184,7 @@ export function SetlistManager({
                         return (
                           <div className="flex flex-wrap gap-1">
                             {songTunings.map((ind) => {
-                              const isHighlighted = (preferredInstrument === "Guitar" && ind.role === "Guitar") || (preferredInstrument === "Bass" && ind.role === "Bass");
+                              const isHighlighted = ind.role.toLowerCase() === preferredInstrument.toLowerCase();
                               return (
                                 <Badge
                                   key={`${ind.role}-${ind.tuning}`}
@@ -301,7 +301,7 @@ export function SetlistManager({
                         return (
                           <div className="flex flex-wrap gap-1">
                             {songTunings.map((ind) => {
-                              const isHighlighted = (preferredInstrument === "Guitar" && ind.role === "Guitar") || (preferredInstrument === "Bass" && ind.role === "Bass");
+                              const isHighlighted = ind.role.toLowerCase() === preferredInstrument.toLowerCase();
                               return (
                                 <Badge
                                   key={`${ind.role}-${ind.tuning}`}

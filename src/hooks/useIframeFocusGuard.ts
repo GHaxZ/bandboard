@@ -11,7 +11,6 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
     let iframeFocused = false;
     let lastTime = -1;
     let lastState = -1;
-    let focusTimeout: NodeJS.Timeout | null = null;
 
     const restoreFocus = () => {
       if (document.activeElement && document.activeElement.tagName === "IFRAME") {
@@ -19,19 +18,12 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
         window.focus();
       }
       iframeFocused = false;
-      if (focusTimeout) {
-        clearTimeout(focusTimeout);
-        focusTimeout = null;
-      }
     };
 
     const handleBlur = () => {
       setTimeout(() => {
         if (document.activeElement && document.activeElement.tagName === "IFRAME") {
           iframeFocused = true;
-
-          if (focusTimeout) clearTimeout(focusTimeout);
-          focusTimeout = setTimeout(restoreFocus, 50);
 
           const activePlayer = getActivePlayerRef.current();
           if (activePlayer) {
@@ -44,12 +36,31 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
       }, 50);
     };
 
+    const handleFocusIn = (e: FocusEvent) => {
+      if (iframeFocused) {
+        iframeFocused = false;
+        if (e.target && e.target !== window && e.target !== document) {
+          try {
+            (e.target as HTMLElement).blur();
+          } catch (err) {}
+        }
+        window.focus();
+        
+        // Dispatch simulated Tab keydown event to window to toggle views/video
+        const tabEvent = new KeyboardEvent("keydown", {
+          key: "Tab",
+          code: "Tab",
+          bubbles: true,
+          cancelable: true,
+        });
+        window.dispatchEvent(tabEvent);
+      }
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       if (e.buttons > 0) return;
-
-      if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
-        restoreFocus();
-      }
+      // Do not auto-restore focus on mouse move if mouse is within the player container.
+      // PracticeMode and RehearsalAutoplay handle MouseLeave to restore focus.
     };
 
     const interval = setInterval(() => {
@@ -76,9 +87,6 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
           if (stateChanged || userSeeked) {
             lastTime = currentTime;
             lastState = currentState;
-
-            if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(restoreFocus, 50);
           } else {
             lastTime = currentTime;
           }
@@ -87,12 +95,14 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
     }, 100);
 
     window.addEventListener("blur", handleBlur);
+    document.addEventListener("focusin", handleFocusIn);
     window.addEventListener("mousemove", handleMouseMove);
     return () => {
       window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("focusin", handleFocusIn);
       window.removeEventListener("mousemove", handleMouseMove);
       clearInterval(interval);
-      if (focusTimeout) clearTimeout(focusTimeout);
     };
   }, []);
 }
+
