@@ -182,6 +182,8 @@ export function RehearsalAutoplay({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
 
+
+
   // Autoplay Configurations
   const [autoplayEnabled, setAutoplayEnabled] = useState<boolean>(true);
   const [transitionTimeout, setTransitionTimeout] = useState<number>(5);
@@ -440,6 +442,159 @@ export function RehearsalAutoplay({
     localStorage.setItem("bandboard_autoplay_timeout", String(val));
   };
 
+  // Keyboard event listener for hotkeys in Autoplay Mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip inputs and textareas
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      // Spacebar to toggle play/pause
+      if (e.key === " ") {
+        e.preventDefault();
+        if (playerRef.current) {
+          try {
+            const state = playerRef.current.getPlayerState();
+            if (state === 1) { // playing
+              playerRef.current.pauseVideo();
+              setIsPlaying(false);
+            } else {
+              playerRef.current.playVideo();
+              setIsPlaying(true);
+            }
+          } catch (err) {
+            console.error("Error toggling play via Space in autoplay:", err);
+          }
+        }
+        return;
+      }
+
+      // Left Arrow to skip backward 5s
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (playerRef.current) {
+          try {
+            const time = playerRef.current.getCurrentTime();
+            playerRef.current.seekTo(Math.max(0, time - 5), true);
+          } catch (err) {
+            console.error("Error seeking back in autoplay:", err);
+          }
+        }
+        return;
+      }
+
+      // Right Arrow to skip forward 5s
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (playerRef.current) {
+          try {
+            const time = playerRef.current.getCurrentTime();
+            playerRef.current.seekTo(time + 5, true);
+          } catch (err) {
+            console.error("Error seeking forward in autoplay:", err);
+          }
+        }
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Monitor when focus shifts to iframe and redirect it back to parent window when mouse returns to parent page
+  useEffect(() => {
+    let iframeFocused = false;
+    let lastVolume = -1;
+    let lastTime = -1;
+    let focusTimeout: any = null;
+
+    const handleBlur = () => {
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+          iframeFocused = true;
+          
+          if (focusTimeout) clearTimeout(focusTimeout);
+          // Initial fallback: restore focus after 300ms if no interaction (like volume or seek dragging)
+          focusTimeout = setTimeout(restoreFocus, 300);
+
+          if (playerRef.current && typeof playerRef.current.getVolume === "function") {
+            try {
+              lastVolume = playerRef.current.getVolume();
+              lastTime = playerRef.current.getCurrentTime();
+            } catch (e) {}
+          }
+        }
+      }, 50);
+    };
+
+    const restoreFocus = () => {
+      if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+        (document.activeElement as HTMLElement).blur();
+        window.focus();
+      }
+      iframeFocused = false;
+      if (focusTimeout) {
+        clearTimeout(focusTimeout);
+        focusTimeout = null;
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Do not steal focus if a mouse button is held down (e.g. dragging the volume slider or seek bar)
+      if (e.buttons > 0) return;
+
+      if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
+        restoreFocus();
+      }
+    };
+
+    const interval = setInterval(() => {
+      if (!iframeFocused || !document.activeElement || document.activeElement.tagName !== "IFRAME") {
+        return;
+      }
+
+      if (playerRef.current && typeof playerRef.current.getVolume === "function") {
+        try {
+          const currentVolume = playerRef.current.getVolume();
+          const currentTime = playerRef.current.getCurrentTime();
+          let isPlaying = false;
+          try {
+            isPlaying = playerRef.current.getPlayerState() === 1;
+          } catch (stateErr) {}
+
+          const timeDiff = currentTime - lastTime;
+          // Natural playback advances by ~0.1s every 100ms
+          const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
+
+          // If volume changed, or user manually seeked/skipped
+          if (currentVolume !== lastVolume || (!isNaturalPlayback && Math.abs(timeDiff) > 0.2)) {
+            lastVolume = currentVolume;
+            lastTime = currentTime;
+
+            if (focusTimeout) clearTimeout(focusTimeout);
+            focusTimeout = setTimeout(restoreFocus, 350);
+          } else {
+            lastTime = currentTime;
+          }
+        } catch (e) {}
+      }
+    }, 100);
+
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("mousemove", handleMouseMove);
+      clearInterval(interval);
+      if (focusTimeout) clearTimeout(focusTimeout);
+    };
+  }, []);
+
   // Circular progress countdown SVG calculations
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
@@ -490,6 +645,8 @@ export function RehearsalAutoplay({
                 id="autoplay-player-div"
                 className={cn("w-full h-full aspect-video", (!currentVideoId || !hasStartedSession) ? "hidden" : "")}
               />
+
+
 
               {/* HUD: Countdown overlay */}
               {isCountdownActive && currentSong && (

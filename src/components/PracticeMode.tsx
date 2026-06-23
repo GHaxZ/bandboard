@@ -26,7 +26,9 @@ import {
   Info,
   Users,
   Lock,
-  Clock
+  Clock,
+  SkipBack,
+  SkipForward
 } from "lucide-react";
 import {
   saveSongProgress,
@@ -155,6 +157,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
   // Practice markers (user-specific timestamps)
   const [markers, setMarkers] = useState<number[]>([]);
+
+
 
   // Start Sync Offsets (private)
   const [backingOffset, setBackingOffset] = useState<string>("0");
@@ -337,7 +341,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
     };
   }, [apiLoaded, backingVideoId, tabVideoId]);
 
-  // Sync loop checking drift every 500ms
+  // Sync loop checking drift and volume every 500ms
   useEffect(() => {
     let interval: any;
     if (backingPlayerRef.current && tabPlayerRef.current && hasBothVideos) {
@@ -351,6 +355,31 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
             typeof tabPlayer.getPlayerState !== "function"
           ) {
             return;
+          }
+
+          // Sync volume between players
+          if (
+            typeof backingPlayer.getVolume === "function" &&
+            typeof tabPlayer.getVolume === "function"
+          ) {
+            const activePlayer = activeVideo === "backing" ? backingPlayer : tabPlayer;
+            const inactivePlayer = activeVideo === "backing" ? tabPlayer : backingPlayer;
+
+            try {
+              const activeVolume = activePlayer.getVolume();
+              const inactiveVolume = inactivePlayer.getVolume();
+
+              if (activeVolume !== inactiveVolume) {
+                inactivePlayer.setVolume(activeVolume);
+              }
+
+              // Ensure the inactive player remains muted
+              if (typeof inactivePlayer.isMuted === "function" && !inactivePlayer.isMuted()) {
+                inactivePlayer.mute();
+              }
+            } catch (volErr) {
+              // ignore transient volume errors
+            }
           }
 
           const isBackingPlaying = backingPlayer.getPlayerState() === 1;
@@ -437,6 +466,14 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip inputs and textareas
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
       // Intercept TAB key
       if (e.key === "Tab") {
         e.preventDefault();
@@ -444,11 +481,52 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
         return;
       }
 
-      // Skip inputs and textareas for number keys
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      ) {
+      // Spacebar to toggle play/pause
+      if (e.key === " ") {
+        e.preventDefault();
+        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        if (activePlayer) {
+          try {
+            const state = activePlayer.getPlayerState();
+            if (state === 1) { // playing
+              activePlayer.pauseVideo();
+            } else {
+              activePlayer.playVideo();
+            }
+          } catch (err) {
+            console.error("Error toggling play via Space:", err);
+          }
+        }
+        return;
+      }
+
+      // Left Arrow to skip backward 5s
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        if (activePlayer) {
+          try {
+            const time = activePlayer.getCurrentTime();
+            activePlayer.seekTo(Math.max(0, time - 5), true);
+          } catch (err) {
+            console.error("Error seeking back:", err);
+          }
+        }
+        return;
+      }
+
+      // Right Arrow to skip forward 5s
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        if (activePlayer) {
+          try {
+            const time = activePlayer.getCurrentTime();
+            activePlayer.seekTo(time + 5, true);
+          } catch (err) {
+            console.error("Error seeking forward:", err);
+          }
+        }
         return;
       }
 
@@ -471,6 +549,103 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Monitor when focus shifts to iframe and redirect it back to parent window
+  useEffect(() => {
+    let iframeFocused = false;
+    let lastVolume = -1;
+    let lastTime = -1;
+    let focusTimeout: any = null;
+
+    const handleBlur = () => {
+      // Small timeout to let activeElement update
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+          iframeFocused = true;
+          
+          // Clear any existing timeout
+          if (focusTimeout) clearTimeout(focusTimeout);
+          
+          // Initial fallback: restore focus after 300ms if no interaction (like volume or seek dragging)
+          focusTimeout = setTimeout(restoreFocus, 300);
+
+          // Get initial volume and time of the active player to track changes
+          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+          if (activePlayer && typeof activePlayer.getVolume === "function") {
+            try {
+              lastVolume = activePlayer.getVolume();
+              lastTime = activePlayer.getCurrentTime();
+            } catch (e) {}
+          }
+        }
+      }, 50);
+    };
+
+    const restoreFocus = () => {
+      if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+        (document.activeElement as HTMLElement).blur();
+        window.focus();
+      }
+      iframeFocused = false;
+      if (focusTimeout) {
+        clearTimeout(focusTimeout);
+        focusTimeout = null;
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Do not steal focus if a mouse button is held down (e.g. dragging the volume slider or seek bar)
+      if (e.buttons > 0) return;
+
+      if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
+        restoreFocus();
+      }
+    };
+
+    // Fast check loop when iframe is focused to detect volume or seek changes
+    const interval = setInterval(() => {
+      if (!iframeFocused || !document.activeElement || document.activeElement.tagName !== "IFRAME") {
+        return;
+      }
+
+      const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+      if (activePlayer && typeof activePlayer.getVolume === "function") {
+        try {
+          const currentVolume = activePlayer.getVolume();
+          const currentTime = activePlayer.getCurrentTime();
+          let isPlaying = false;
+          try {
+            isPlaying = activePlayer.getPlayerState() === 1;
+          } catch (stateErr) {}
+
+          const timeDiff = currentTime - lastTime;
+          // Natural playback advances by ~0.1s every 100ms
+          const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
+
+          // If volume changed, or user manually seeked/skipped
+          if (currentVolume !== lastVolume || (!isNaturalPlayback && Math.abs(timeDiff) > 0.2)) {
+            lastVolume = currentVolume;
+            lastTime = currentTime;
+
+            // Reset the restoreFocus timer: wait 350ms after the last interaction
+            if (focusTimeout) clearTimeout(focusTimeout);
+            focusTimeout = setTimeout(restoreFocus, 350);
+          } else {
+            lastTime = currentTime;
+          }
+        } catch (e) {}
+      }
+    }, 100);
+
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("mousemove", handleMouseMove);
+      clearInterval(interval);
+      if (focusTimeout) clearTimeout(focusTimeout);
+    };
   }, []);
 
   // Practice Markers Saving/Deleting
@@ -648,6 +823,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 <p className="text-xs text-[#888d96]">Loading YouTube Player API...</p>
               </div>
             )}
+
+
           </div>
 
           {/* Unified Practice Controls & Video Sync Settings */}
