@@ -173,6 +173,9 @@ export function RehearsalAutoplay({
 }: RehearsalAutoplayProps) {
   const apiLoaded = useYoutubeApi();
   const playerRef = useRef<any>(null);
+  const isMouseOverPlayerRef = useRef(false);
+  const seekTargetRef = useRef<number | null>(null);
+  const lastSeekTimeRef = useRef<number>(0);
 
   // Rehearsal songs queue, sorted by sortOrder
   const queue = [...rehearsal.rehearsalSongs].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -478,8 +481,16 @@ export function RehearsalAutoplay({
         e.preventDefault();
         if (playerRef.current) {
           try {
-            const time = playerRef.current.getCurrentTime();
-            playerRef.current.seekTo(Math.max(0, time - 5), true);
+            const now = Date.now();
+            let baseTime = playerRef.current.getCurrentTime();
+            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+              baseTime = seekTargetRef.current;
+            }
+            let targetTime = Math.max(0, baseTime - 5);
+            seekTargetRef.current = targetTime;
+            lastSeekTimeRef.current = now;
+
+            playerRef.current.seekTo(targetTime, true);
           } catch (err) {
             console.error("Error seeking back in autoplay:", err);
           }
@@ -492,8 +503,20 @@ export function RehearsalAutoplay({
         e.preventDefault();
         if (playerRef.current) {
           try {
-            const time = playerRef.current.getCurrentTime();
-            playerRef.current.seekTo(time + 5, true);
+            const now = Date.now();
+            let baseTime = playerRef.current.getCurrentTime();
+            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+              baseTime = seekTargetRef.current;
+            }
+            let targetTime = baseTime + 5;
+            const duration = playerRef.current.getDuration();
+            if (duration && targetTime > duration) {
+              targetTime = duration;
+            }
+            seekTargetRef.current = targetTime;
+            lastSeekTimeRef.current = now;
+
+            playerRef.current.seekTo(targetTime, true);
           } catch (err) {
             console.error("Error seeking forward in autoplay:", err);
           }
@@ -510,27 +533,10 @@ export function RehearsalAutoplay({
   useEffect(() => {
     let iframeFocused = false;
     let lastVolume = -1;
+    let lastMute = false;
     let lastTime = -1;
+    let lastState = -1;
     let focusTimeout: any = null;
-
-    const handleBlur = () => {
-      setTimeout(() => {
-        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-          iframeFocused = true;
-          
-          if (focusTimeout) clearTimeout(focusTimeout);
-          // Initial fallback: restore focus after 300ms if no interaction (like volume or seek dragging)
-          focusTimeout = setTimeout(restoreFocus, 300);
-
-          if (playerRef.current && typeof playerRef.current.getVolume === "function") {
-            try {
-              lastVolume = playerRef.current.getVolume();
-              lastTime = playerRef.current.getCurrentTime();
-            } catch (e) {}
-          }
-        }
-      }, 50);
-    };
 
     const restoreFocus = () => {
       if (document.activeElement && document.activeElement.tagName === "IFRAME") {
@@ -542,6 +548,27 @@ export function RehearsalAutoplay({
         clearTimeout(focusTimeout);
         focusTimeout = null;
       }
+    };
+
+    const handleBlur = () => {
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+          iframeFocused = true;
+          
+          if (focusTimeout) clearTimeout(focusTimeout);
+          // Initial timeout: restore focus in 50ms
+          focusTimeout = setTimeout(restoreFocus, 50);
+
+          if (playerRef.current) {
+            try {
+              if (typeof playerRef.current.getVolume === "function") lastVolume = playerRef.current.getVolume();
+              if (typeof playerRef.current.isMuted === "function") lastMute = playerRef.current.isMuted();
+              if (typeof playerRef.current.getCurrentTime === "function") lastTime = playerRef.current.getCurrentTime();
+              if (typeof playerRef.current.getPlayerState === "function") lastState = playerRef.current.getPlayerState();
+            } catch (e) {}
+          }
+        }
+      }, 50);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -558,26 +585,37 @@ export function RehearsalAutoplay({
         return;
       }
 
-      if (playerRef.current && typeof playerRef.current.getVolume === "function") {
+      if (playerRef.current) {
         try {
-          const currentVolume = playerRef.current.getVolume();
-          const currentTime = playerRef.current.getCurrentTime();
-          let isPlaying = false;
-          try {
-            isPlaying = playerRef.current.getPlayerState() === 1;
-          } catch (stateErr) {}
+          let currentVolume = lastVolume;
+          let currentMute = lastMute;
+          let currentTime = lastTime;
+          let currentState = lastState;
+
+          if (typeof playerRef.current.getVolume === "function") currentVolume = playerRef.current.getVolume();
+          if (typeof playerRef.current.isMuted === "function") currentMute = playerRef.current.isMuted();
+          if (typeof playerRef.current.getCurrentTime === "function") currentTime = playerRef.current.getCurrentTime();
+          if (typeof playerRef.current.getPlayerState === "function") currentState = playerRef.current.getPlayerState();
 
           const timeDiff = currentTime - lastTime;
+          const isPlaying = currentState === 1;
           // Natural playback advances by ~0.1s every 100ms
           const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
 
-          // If volume changed, or user manually seeked/skipped
-          if (currentVolume !== lastVolume || (!isNaturalPlayback && Math.abs(timeDiff) > 0.2)) {
+          const volumeChanged = currentVolume !== lastVolume;
+          const muteChanged = currentMute !== lastMute;
+          const stateChanged = currentState !== lastState;
+          const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
+
+          // If volume changed, mute changed, state changed, or user manually seeked
+          if (volumeChanged || muteChanged || stateChanged || userSeeked) {
             lastVolume = currentVolume;
+            lastMute = currentMute;
             lastTime = currentTime;
+            lastState = currentState;
 
             if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(restoreFocus, 350);
+            focusTimeout = setTimeout(restoreFocus, 50);
           } else {
             lastTime = currentTime;
           }
@@ -639,7 +677,19 @@ export function RehearsalAutoplay({
         <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-[#0c0d0e]/60">
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
             {/* Player aspect wrapper */}
-            <div className="w-full aspect-video bg-black border border-[#27282b] rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0">
+            <div
+              className="w-full aspect-video bg-black border border-[#27282b] rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
+              onMouseEnter={() => {
+                isMouseOverPlayerRef.current = true;
+              }}
+              onMouseLeave={() => {
+                isMouseOverPlayerRef.current = false;
+                if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+                  (document.activeElement as HTMLElement).blur();
+                  window.focus();
+                }
+              }}
+            >
               {/* YouTube Iframe element */}
               <div
                 id="autoplay-player-div"

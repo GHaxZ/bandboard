@@ -155,6 +155,20 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   const backingPlayerRef = useRef<any>(null);
   const tabPlayerRef = useRef<any>(null);
 
+  const progressMapRef = useRef(progressMap);
+  const songRef = useRef(song);
+  const isMouseOverPlayerRef = useRef(false);
+  const seekTargetRef = useRef<number | null>(null);
+  const lastSeekTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    progressMapRef.current = progressMap;
+  }, [progressMap]);
+
+  useEffect(() => {
+    songRef.current = song;
+  }, [song]);
+
   // Practice markers (user-specific timestamps)
   const [markers, setMarkers] = useState<number[]>([]);
 
@@ -504,10 +518,28 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
         if (activePlayer) {
           try {
-            const time = activePlayer.getCurrentTime();
-            activePlayer.seekTo(Math.max(0, time - 5), true);
+            const now = Date.now();
+            let baseTime = activePlayer.getCurrentTime();
+            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+              baseTime = seekTargetRef.current;
+            }
+            let targetTime = Math.max(0, baseTime - 5);
+            seekTargetRef.current = targetTime;
+            lastSeekTimeRef.current = now;
+
+            activePlayer.seekTo(targetTime, true);
+
+            if (inactivePlayer) {
+              const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
+              const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
+              const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+              if (expectedInactiveTime >= 0) {
+                inactivePlayer.seekTo(expectedInactiveTime, true);
+              }
+            }
           } catch (err) {
             console.error("Error seeking back:", err);
           }
@@ -519,10 +551,32 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       if (e.key === "ArrowRight") {
         e.preventDefault();
         const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
         if (activePlayer) {
           try {
-            const time = activePlayer.getCurrentTime();
-            activePlayer.seekTo(time + 5, true);
+            const now = Date.now();
+            let baseTime = activePlayer.getCurrentTime();
+            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+              baseTime = seekTargetRef.current;
+            }
+            let targetTime = baseTime + 5;
+            const duration = activePlayer.getDuration();
+            if (duration && targetTime > duration) {
+              targetTime = duration;
+            }
+            seekTargetRef.current = targetTime;
+            lastSeekTimeRef.current = now;
+
+            activePlayer.seekTo(targetTime, true);
+
+            if (inactivePlayer) {
+              const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
+              const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
+              const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+              if (expectedInactiveTime >= 0) {
+                inactivePlayer.seekTo(expectedInactiveTime, true);
+              }
+            }
           } catch (err) {
             console.error("Error seeking forward:", err);
           }
@@ -536,9 +590,23 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
         if (index < markersRef.current.length) {
           const targetTime = markersRef.current[index];
           const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+          const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
           if (activePlayer) {
             try {
+              const now = Date.now();
+              seekTargetRef.current = targetTime;
+              lastSeekTimeRef.current = now;
+
               activePlayer.seekTo(targetTime, true);
+
+              if (inactivePlayer) {
+                const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
+                const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
+                const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+                if (expectedInactiveTime >= 0) {
+                  inactivePlayer.seekTo(expectedInactiveTime, true);
+                }
+              }
             } catch (err) {
               console.error("Error seeking via hotkey:", err);
             }
@@ -555,32 +623,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   useEffect(() => {
     let iframeFocused = false;
     let lastVolume = -1;
+    let lastMute = false;
     let lastTime = -1;
+    let lastState = -1;
     let focusTimeout: any = null;
-
-    const handleBlur = () => {
-      // Small timeout to let activeElement update
-      setTimeout(() => {
-        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-          iframeFocused = true;
-          
-          // Clear any existing timeout
-          if (focusTimeout) clearTimeout(focusTimeout);
-          
-          // Initial fallback: restore focus after 300ms if no interaction (like volume or seek dragging)
-          focusTimeout = setTimeout(restoreFocus, 300);
-
-          // Get initial volume and time of the active player to track changes
-          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-          if (activePlayer && typeof activePlayer.getVolume === "function") {
-            try {
-              lastVolume = activePlayer.getVolume();
-              lastTime = activePlayer.getCurrentTime();
-            } catch (e) {}
-          }
-        }
-      }, 50);
-    };
 
     const restoreFocus = () => {
       if (document.activeElement && document.activeElement.tagName === "IFRAME") {
@@ -592,6 +638,32 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
         clearTimeout(focusTimeout);
         focusTimeout = null;
       }
+    };
+
+    const handleBlur = () => {
+      // Small timeout to let activeElement update
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+          iframeFocused = true;
+          
+          // Clear any existing timeout
+          if (focusTimeout) clearTimeout(focusTimeout);
+          
+          // Initial timeout: restore focus in 50ms
+          focusTimeout = setTimeout(restoreFocus, 50);
+
+          // Get initial volume and time of the active player to track changes
+          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+          if (activePlayer) {
+            try {
+              if (typeof activePlayer.getVolume === "function") lastVolume = activePlayer.getVolume();
+              if (typeof activePlayer.isMuted === "function") lastMute = activePlayer.isMuted();
+              if (typeof activePlayer.getCurrentTime === "function") lastTime = activePlayer.getCurrentTime();
+              if (typeof activePlayer.getPlayerState === "function") lastState = activePlayer.getPlayerState();
+            } catch (e) {}
+          }
+        }
+      }, 50);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -610,27 +682,46 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       }
 
       const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-      if (activePlayer && typeof activePlayer.getVolume === "function") {
+      const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
+      if (activePlayer) {
         try {
-          const currentVolume = activePlayer.getVolume();
-          const currentTime = activePlayer.getCurrentTime();
-          let isPlaying = false;
-          try {
-            isPlaying = activePlayer.getPlayerState() === 1;
-          } catch (stateErr) {}
+          let currentVolume = lastVolume;
+          let currentMute = lastMute;
+          let currentTime = lastTime;
+          let currentState = lastState;
+
+          if (typeof activePlayer.getVolume === "function") currentVolume = activePlayer.getVolume();
+          if (typeof activePlayer.isMuted === "function") currentMute = activePlayer.isMuted();
+          if (typeof activePlayer.getCurrentTime === "function") currentTime = activePlayer.getCurrentTime();
+          if (typeof activePlayer.getPlayerState === "function") currentState = activePlayer.getPlayerState();
 
           const timeDiff = currentTime - lastTime;
+          const isPlaying = currentState === 1;
           // Natural playback advances by ~0.1s every 100ms
           const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
 
-          // If volume changed, or user manually seeked/skipped
-          if (currentVolume !== lastVolume || (!isNaturalPlayback && Math.abs(timeDiff) > 0.2)) {
-            lastVolume = currentVolume;
-            lastTime = currentTime;
+          const volumeChanged = currentVolume !== lastVolume;
+          const muteChanged = currentMute !== lastMute;
+          const stateChanged = currentState !== lastState;
+          const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
 
-            // Reset the restoreFocus timer: wait 350ms after the last interaction
+          // Sync volume immediately to inactive player if volume changed
+          if (volumeChanged && inactivePlayer && typeof inactivePlayer.setVolume === "function") {
+            try {
+              inactivePlayer.setVolume(currentVolume);
+            } catch (e) {}
+          }
+
+          // If volume changed, mute changed, state changed, or user manually seeked
+          if (volumeChanged || muteChanged || stateChanged || userSeeked) {
+            lastVolume = currentVolume;
+            lastMute = currentMute;
+            lastTime = currentTime;
+            lastState = currentState;
+
+            // Reset the restoreFocus timer: wait 50ms after the last interaction
             if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(restoreFocus, 350);
+            focusTimeout = setTimeout(restoreFocus, 50);
           } else {
             lastTime = currentTime;
           }
@@ -755,7 +846,19 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
         {/* Left Side: Large Player Panel (8 columns) */}
         <div className="lg:col-span-8 flex flex-col space-y-4">
-          <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-[#27282b] bg-black shadow-2xl flex flex-col items-center justify-center">
+          <div
+            className="relative aspect-video w-full rounded-2xl overflow-hidden border border-[#27282b] bg-black shadow-2xl flex flex-col items-center justify-center"
+            onMouseEnter={() => {
+              isMouseOverPlayerRef.current = true;
+            }}
+            onMouseLeave={() => {
+              isMouseOverPlayerRef.current = false;
+              if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+                (document.activeElement as HTMLElement).blur();
+                window.focus();
+              }
+            }}
+          >
             {/* Backing Track Player Frame Wrapper */}
             {backingVideoId && (
               <div
