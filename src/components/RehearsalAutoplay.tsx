@@ -133,6 +133,17 @@ export function RehearsalAutoplay({
   const [isCountdownPaused, setIsCountdownPaused] = useState(false);
   const [hasStartedSession, setHasStartedSession] = useState(false);
 
+  const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
+  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerSkipOverlay = (type: "back" | "forward") => {
+    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
+    setSkipOverlay({ type, key: Date.now() });
+    overlayTimeoutRef.current = setTimeout(() => {
+      setSkipOverlay(null);
+    }, 600);
+  };
+
   const [instrumentPreference, setInstrumentPreference] = useState<string>(preferredInstrument || "Guitar");
 
   // Load autoplay configurations from database or fallback to legacy localStorage
@@ -440,6 +451,7 @@ export function RehearsalAutoplay({
           lastSeekTimeRef.current = now;
 
           playerRef.current.seekTo(targetTime, true);
+          triggerSkipOverlay("back");
         } catch (err) {
           console.error("Error seeking back in autoplay:", err);
         }
@@ -462,6 +474,7 @@ export function RehearsalAutoplay({
           lastSeekTimeRef.current = now;
 
           playerRef.current.seekTo(targetTime, true);
+          triggerSkipOverlay("forward");
         } catch (err) {
           console.error("Error seeking forward in autoplay:", err);
         }
@@ -541,6 +554,19 @@ export function RehearsalAutoplay({
                   className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
                   title="Volume controlled via sidebar settings"
                 />
+              )}
+
+              {/* Skip Overlay Visual Animation */}
+              {skipOverlay && (
+                <div
+                  key={skipOverlay.key}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 bg-transparent"
+                >
+                  <div className="bg-black/80 text-foreground rounded-full w-24 h-24 flex flex-col items-center justify-center backdrop-blur-md border border-white/10 animate-skip-alert shadow-2xl">
+                    <span className="text-2xl font-bold">{skipOverlay.type === "back" ? "◀◀" : "▶▶"}</span>
+                    <span className="text-xs font-bold font-mono mt-0.5">{skipOverlay.type === "back" ? "-5s" : "+5s"}</span>
+                  </div>
+                </div>
               )}
 
 

@@ -666,6 +666,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                             progressMap={progressMap}
                             onPracticeSong={(songId) => setPracticeSongId(songId)}
                             onStartAutoplay={() => setAutoplayRehearsalId(selectedRehearsalDetails.id)}
+                            preferredInstrument={instrument}
                           />
                         )}
                       </div>
@@ -725,6 +726,7 @@ export function ClientDashboard({ initialSongs, initialRehearsals }: ClientDashb
                       onPracticeSong={(songId) => {
                         setPracticeSongId(songId);
                       }}
+                      preferredInstrument={instrument}
                     />
                   )
                 )}

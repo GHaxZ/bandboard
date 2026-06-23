@@ -25,6 +25,7 @@ interface SetlistManagerProps {
   progressMap?: ProgressMap;
   onPracticeSong?: (songId: string) => void;
   onStartAutoplay?: () => void;
+  preferredInstrument?: string;
 }
 
 export function SetlistManager({
@@ -37,20 +38,10 @@ export function SetlistManager({
   progressMap,
   onPracticeSong,
   onStartAutoplay,
+  preferredInstrument = "Guitar",
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [preferredInstrument, setPreferredInstrument] = useState<string>("Guitar");
-
-  // Keep preferredInstrument in sync with local storage
-  useEffect(() => {
-    const saved = localStorage.getItem("bandboard_instrument") || "Guitar";
-    if (saved.toLowerCase() === "keyboard" || saved.toLowerCase() === "piano") {
-      setPreferredInstrument("Piano/Keyboard");
-    } else {
-      setPreferredInstrument(saved);
-    }
-  }, [activeSongId, isAddOpen]);
 
   const currentSongIds = new Set(rehearsalSongs.map((rs) => rs.songId));
   

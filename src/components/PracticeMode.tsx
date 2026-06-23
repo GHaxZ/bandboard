@@ -121,7 +121,16 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   // Practice markers (user-specific timestamps)
   const [markers, setMarkers] = useState<number[]>([]);
 
+  const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
+  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const triggerSkipOverlay = (type: "back" | "forward") => {
+    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
+    setSkipOverlay({ type, key: Date.now() });
+    overlayTimeoutRef.current = setTimeout(() => {
+      setSkipOverlay(null);
+    }, 600);
+  };
 
   // Start Sync Offsets (private)
   const [backingOffset, setBackingOffset] = useState<string>("0");
@@ -446,6 +455,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           lastSeekTimeRef.current = now;
 
           activePlayer.seekTo(targetTime, true);
+          triggerSkipOverlay("back");
 
           if (inactivePlayer) {
             const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
@@ -479,6 +489,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           lastSeekTimeRef.current = now;
 
           activePlayer.seekTo(targetTime, true);
+          triggerSkipOverlay("forward");
 
           if (inactivePlayer) {
             const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
@@ -717,6 +728,19 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
                 title="Volume controlled via Feed Selector settings below"
               />
+            )}
+
+            {/* Skip Overlay Visual Animation */}
+            {skipOverlay && (
+              <div
+                key={skipOverlay.key}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 bg-transparent"
+              >
+                <div className="bg-black/80 text-foreground rounded-full w-24 h-24 flex flex-col items-center justify-center backdrop-blur-md border border-white/10 animate-skip-alert shadow-2xl">
+                  <span className="text-2xl font-bold">{skipOverlay.type === "back" ? "◀◀" : "▶▶"}</span>
+                  <span className="text-xs font-bold font-mono mt-0.5">{skipOverlay.type === "back" ? "-5s" : "+5s"}</span>
+                </div>
+              </div>
             )}
           </div>
 

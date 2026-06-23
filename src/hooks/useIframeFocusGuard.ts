@@ -1,6 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function useIframeFocusGuard(getActivePlayer: () => any) {
+  const getActivePlayerRef = useRef(getActivePlayer);
+
+  useEffect(() => {
+    getActivePlayerRef.current = getActivePlayer;
+  }, [getActivePlayer]);
+
   useEffect(() => {
     let iframeFocused = false;
     let lastTime = -1;
@@ -27,7 +33,7 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
           if (focusTimeout) clearTimeout(focusTimeout);
           focusTimeout = setTimeout(restoreFocus, 50);
 
-          const activePlayer = getActivePlayer();
+          const activePlayer = getActivePlayerRef.current();
           if (activePlayer) {
             try {
               if (typeof activePlayer.getCurrentTime === "function") lastTime = activePlayer.getCurrentTime();
@@ -51,7 +57,7 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
         return;
       }
 
-      const activePlayer = getActivePlayer();
+      const activePlayer = getActivePlayerRef.current();
       if (activePlayer) {
         try {
           let currentTime = lastTime;
@@ -88,5 +94,5 @@ export function useIframeFocusGuard(getActivePlayer: () => any) {
       clearInterval(interval);
       if (focusTimeout) clearTimeout(focusTimeout);
     };
-  }, [getActivePlayer]);
+  }, []);
 }

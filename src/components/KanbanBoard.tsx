@@ -17,6 +17,7 @@ interface KanbanBoardProps {
   onSaveProgress: (songId: string, status: string) => Promise<void>;
   onSelectSong?: (songId: string) => void;
   onPracticeSong?: (songId: string) => void;
+  preferredInstrument?: string;
 }
 
 const COLUMNS = [
@@ -33,19 +34,13 @@ export function KanbanBoard({
   onSaveProgress,
   onSelectSong,
   onPracticeSong,
+  preferredInstrument = "Guitar",
 }: KanbanBoardProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [preferredInstrument, setPreferredInstrument] = useState<string>("Guitar");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    const saved = localStorage.getItem("bandboard_instrument") || "Guitar";
-    if (saved.toLowerCase() === "keyboard" || saved.toLowerCase() === "piano") {
-      setPreferredInstrument("Piano/Keyboard");
-    } else {
-      setPreferredInstrument(saved);
-    }
   }, []);
 
   // Filter songs based on search query
