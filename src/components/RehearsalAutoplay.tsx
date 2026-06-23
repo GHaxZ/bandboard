@@ -189,27 +189,14 @@ export function RehearsalAutoplay({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
 
-  const [volume, setVolume] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("bandboard_player_volume");
-      return saved ? Number(saved) : 100;
-    }
-    return 100;
-  });
-  const [speed, setSpeed] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("bandboard_player_speed");
-      return saved ? Number(saved) : 1.0;
-    }
-    return 1.0;
-  });
+  const [volume, setVolume] = useState<number>(100);
+  const [speed, setSpeed] = useState<number>(1.0);
 
   // Sync volume change to player
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.setVolume === "function") {
       try { playerRef.current.setVolume(volume); } catch (e) {}
     }
-    localStorage.setItem("bandboard_player_volume", String(volume));
   }, [volume]);
 
   // Sync speed change to player
@@ -217,7 +204,6 @@ export function RehearsalAutoplay({
     if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
       try { playerRef.current.setPlaybackRate(speed); } catch (e) {}
     }
-    localStorage.setItem("bandboard_player_speed", String(speed));
   }, [speed]);
 
 
@@ -467,7 +453,6 @@ export function RehearsalAutoplay({
 
   const handleInstrumentChange = (role: string) => {
     setInstrumentPreference(role);
-    localStorage.setItem("bandboard_instrument", role);
     toast.success(`Prioritizing ${role} backing tracks`);
   };
 

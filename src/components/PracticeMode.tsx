@@ -167,20 +167,8 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   const lastSeekTimeRef = useRef<number>(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("bandboard_player_volume");
-      return saved ? Number(saved) : 100;
-    }
-    return 100;
-  });
-  const [speed, setSpeed] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("bandboard_player_speed");
-      return saved ? Number(saved) : 1.0;
-    }
-    return 1.0;
-  });
+  const [volume, setVolume] = useState<number>(100);
+  const [speed, setSpeed] = useState<number>(1.0);
 
   useEffect(() => {
     progressMapRef.current = progressMap;
@@ -198,7 +186,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
     if (tabPlayerRef.current && typeof tabPlayerRef.current.setVolume === "function") {
       try { tabPlayerRef.current.setVolume(volume); } catch (e) { }
     }
-    localStorage.setItem("bandboard_player_volume", String(volume));
   }, [volume]);
 
   // Sync playback speed change to players
@@ -209,7 +196,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
     if (tabPlayerRef.current && typeof tabPlayerRef.current.setPlaybackRate === "function") {
       try { tabPlayerRef.current.setPlaybackRate(speed); } catch (e) { }
     }
-    localStorage.setItem("bandboard_player_speed", String(speed));
   }, [speed]);
 
   // Practice markers (user-specific timestamps)
@@ -827,12 +813,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
 
 
-  const handleInstrumentChange = async (role: string) => {
+  const handleInstrumentChange = (role: string) => {
     const matching = standardRoleGroups.find((rg) => rg.role === role);
     if (matching) {
       setActiveTrackId(matching.id);
-      localStorage.setItem("bandboard_instrument", role);
-      await saveUserSettings(role);
     }
   };
 
