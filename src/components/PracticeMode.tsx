@@ -41,97 +41,18 @@ import {
   saveStartOffsets
 } from "@/app/actions/user";
 import { lazyLoadTrackMedia } from "@/app/actions/songs";
-
-interface Track {
-  id: string;
-  roleGroupId: string;
-  instrumentName: string;
-  role: string;
-  details: string | null;
-  tuning: string;
-  tabLink: string;
-}
-
-interface RoleGroup {
-  id: string;
-  songId: string;
-  role: string;
-  backingTrackLink: string | null;
-  tabVideoLink: string | null;
-  tracks: Track[];
-}
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  songsterrId: number | null;
-  albumArt: string | null;
-  createdAt: number;
-  roleGroups: RoleGroup[];
-}
+import { Track, RoleGroup, Song, ProgressMap } from "@/types/models";
+import { getYouTubeId } from "@/lib/youtube";
+import { useYoutubeApi } from "@/hooks/useYoutubeApi";
+import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
+import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 
 interface PracticeModeProps {
   song: Song;
   onExit: () => void;
   onRefresh: () => void;
-  progressMap: Record<string, {
-    status: string;
-    speed: number;
-    notes: string | null;
-    practiceMarkers?: string | null;
-    backingStartOffset?: number | null;
-    tabStartOffset?: number | null;
-  }>;
+  progressMap: ProgressMap;
   preferredInstrument?: string;
-}
-
-function getYouTubeId(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i
-  );
-  return match ? match[1] : null;
-}
-
-function useYoutubeApi() {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if ((window as any).YT && (window as any).YT.Player) {
-      setLoaded(true);
-      return;
-    }
-
-    let script = document.getElementById("youtube-iframe-api") as HTMLScriptElement;
-    if (!script) {
-      script = document.createElement("script");
-      script.id = "youtube-iframe-api";
-      script.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode?.insertBefore(script, firstScriptTag);
-    }
-
-    const previousReady = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (previousReady) previousReady();
-      setLoaded(true);
-    };
-
-    const interval = setInterval(() => {
-      if ((window as any).YT && (window as any).YT.Player) {
-        setLoaded(true);
-        clearInterval(interval);
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
-
-  return loaded;
 }
 
 export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredInstrument }: PracticeModeProps) {
@@ -491,258 +412,118 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   };
 
   // User keyboard listeners
-  const markersRef = useRef(markers);
-  const activeVideoRef = useRef(activeVideo);
-  const handleToggleVideoRef = useRef(handleToggleVideo);
-
-  useEffect(() => {
-    markersRef.current = markers;
-  }, [markers]);
-
-  useEffect(() => {
-    activeVideoRef.current = activeVideo;
-  }, [activeVideo]);
-
-  useEffect(() => {
-    handleToggleVideoRef.current = handleToggleVideo;
-  }, [handleToggleVideo]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip inputs and textareas
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      ) {
-        return;
-      }
-
-      // Intercept TAB key
-      if (e.key === "Tab") {
-        e.preventDefault();
-        handleToggleVideoRef.current();
-        return;
-      }
-
-      // Spacebar to toggle play/pause
-      if (e.key === " ") {
-        e.preventDefault();
-        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-        if (activePlayer) {
-          try {
-            const state = activePlayer.getPlayerState();
-            if (state === 1) { // playing
-              activePlayer.pauseVideo();
-            } else {
-              activePlayer.playVideo();
-            }
-          } catch (err) {
-            console.error("Error toggling play via Space:", err);
-          }
-        }
-        return;
-      }
-
-      // Left Arrow to skip backward 5s
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-        const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
-        if (activePlayer) {
-          try {
-            const now = Date.now();
-            let baseTime = activePlayer.getCurrentTime();
-            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-              baseTime = seekTargetRef.current;
-            }
-            let targetTime = Math.max(0, baseTime - 5);
-            seekTargetRef.current = targetTime;
-            lastSeekTimeRef.current = now;
-
-            activePlayer.seekTo(targetTime, true);
-
-            if (inactivePlayer) {
-              const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
-              const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
-              const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
-              if (expectedInactiveTime >= 0) {
-                inactivePlayer.seekTo(expectedInactiveTime, true);
-              }
-            }
-          } catch (err) {
-            console.error("Error seeking back:", err);
-          }
-        }
-        return;
-      }
-
-      // Right Arrow to skip forward 5s
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-        const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
-        if (activePlayer) {
-          try {
-            const now = Date.now();
-            let baseTime = activePlayer.getCurrentTime();
-            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-              baseTime = seekTargetRef.current;
-            }
-            let targetTime = baseTime + 5;
-            const duration = activePlayer.getDuration();
-            if (duration && targetTime > duration) {
-              targetTime = duration;
-            }
-            seekTargetRef.current = targetTime;
-            lastSeekTimeRef.current = now;
-
-            activePlayer.seekTo(targetTime, true);
-
-            if (inactivePlayer) {
-              const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
-              const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
-              const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
-              if (expectedInactiveTime >= 0) {
-                inactivePlayer.seekTo(expectedInactiveTime, true);
-              }
-            }
-          } catch (err) {
-            console.error("Error seeking forward:", err);
-          }
-        }
-        return;
-      }
-
-      // Keys 1-9
-      if (e.key >= "1" && e.key <= "9") {
-        const index = parseInt(e.key) - 1;
-        if (index < markersRef.current.length) {
-          const targetTime = markersRef.current[index];
-          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-          const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
-          if (activePlayer) {
-            try {
-              const now = Date.now();
-              seekTargetRef.current = targetTime;
-              lastSeekTimeRef.current = now;
-
-              activePlayer.seekTo(targetTime, true);
-
-              if (inactivePlayer) {
-                const activeOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0);
-                const inactiveOffset = activeVideoRef.current === "backing" ? (progressMapRef.current[songRef.current.id]?.tabStartOffset ?? 0) : (progressMapRef.current[songRef.current.id]?.backingStartOffset ?? 0);
-                const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
-                if (expectedInactiveTime >= 0) {
-                  inactivePlayer.seekTo(expectedInactiveTime, true);
-                }
-              }
-            } catch (err) {
-              console.error("Error seeking via hotkey:", err);
-            }
-          }
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Monitor when focus shifts to iframe and redirect it back to parent window
-  useEffect(() => {
-    let iframeFocused = false;
-    let lastTime = -1;
-    let lastState = -1;
-    let focusTimeout: any = null;
-
-    const restoreFocus = () => {
-      if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-        (document.activeElement as HTMLElement).blur();
-        window.focus();
-      }
-      iframeFocused = false;
-      if (focusTimeout) {
-        clearTimeout(focusTimeout);
-        focusTimeout = null;
-      }
-    };
-
-    const handleBlur = () => {
-      // Small timeout to let activeElement update
-      setTimeout(() => {
-        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-          iframeFocused = true;
-
-          if (focusTimeout) clearTimeout(focusTimeout);
-
-          // Initial timeout: restore focus in 50ms
-          focusTimeout = setTimeout(restoreFocus, 50);
-
-          const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-          if (activePlayer) {
-            try {
-              if (typeof activePlayer.getCurrentTime === "function") lastTime = activePlayer.getCurrentTime();
-              if (typeof activePlayer.getPlayerState === "function") lastState = activePlayer.getPlayerState();
-            } catch (e) { }
-          }
-        }
-      }, 50);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (e.buttons > 0) return;
-
-      if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
-        restoreFocus();
-      }
-    };
-
-    // Fast check loop when iframe is focused to detect manual seek or state changes
-    const interval = setInterval(() => {
-      if (!iframeFocused || !document.activeElement || document.activeElement.tagName !== "IFRAME") {
-        return;
-      }
-
-      const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+  usePracticeKeyboard({
+    onToggleVideo: () => {
+      handleToggleVideo();
+    },
+    onPlayPause: () => {
+      const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
       if (activePlayer) {
         try {
-          let currentTime = lastTime;
-          let currentState = lastState;
-
-          if (typeof activePlayer.getCurrentTime === "function") currentTime = activePlayer.getCurrentTime();
-          if (typeof activePlayer.getPlayerState === "function") currentState = activePlayer.getPlayerState();
-
-          const timeDiff = currentTime - lastTime;
-          const isPlaying = currentState === 1;
-          // Natural playback advances by ~0.1s every 100ms
-          const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
-
-          const stateChanged = currentState !== lastState;
-          const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
-
-          // If play state changed, or user manually seeked
-          if (stateChanged || userSeeked) {
-            lastTime = currentTime;
-            lastState = currentState;
-
-            if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(restoreFocus, 50);
+          const state = activePlayer.getPlayerState();
+          if (state === 1) {
+            activePlayer.pauseVideo();
           } else {
-            lastTime = currentTime;
+            activePlayer.playVideo();
           }
-        } catch (e) { }
+        } catch (err) {
+          console.error("Error toggling play via Space:", err);
+        }
       }
-    }, 100);
+    },
+    onSeekBackward: () => {
+      const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+      const inactivePlayer = activeVideo === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
+      if (activePlayer) {
+        try {
+          const now = Date.now();
+          let baseTime = activePlayer.getCurrentTime();
+          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+            baseTime = seekTargetRef.current;
+          }
+          let targetTime = Math.max(0, baseTime - 5);
+          seekTargetRef.current = targetTime;
+          lastSeekTimeRef.current = now;
 
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("mousemove", handleMouseMove);
-      clearInterval(interval);
-      if (focusTimeout) clearTimeout(focusTimeout);
-    };
-  }, []);
+          activePlayer.seekTo(targetTime, true);
+
+          if (inactivePlayer) {
+            const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
+            const inactiveOffset = activeVideo === "backing" ? (progressMap[song.id]?.tabStartOffset ?? 0) : (progressMap[song.id]?.backingStartOffset ?? 0);
+            const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+            if (expectedInactiveTime >= 0) {
+              inactivePlayer.seekTo(expectedInactiveTime, true);
+            }
+          }
+        } catch (err) {
+          console.error("Error seeking back:", err);
+        }
+      }
+    },
+    onSeekForward: () => {
+      const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+      const inactivePlayer = activeVideo === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
+      if (activePlayer) {
+        try {
+          const now = Date.now();
+          let baseTime = activePlayer.getCurrentTime();
+          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+            baseTime = seekTargetRef.current;
+          }
+          let targetTime = baseTime + 5;
+          const duration = activePlayer.getDuration();
+          if (duration && targetTime > duration) {
+            targetTime = duration;
+          }
+          seekTargetRef.current = targetTime;
+          lastSeekTimeRef.current = now;
+
+          activePlayer.seekTo(targetTime, true);
+
+          if (inactivePlayer) {
+            const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
+            const inactiveOffset = activeVideo === "backing" ? (progressMap[song.id]?.tabStartOffset ?? 0) : (progressMap[song.id]?.backingStartOffset ?? 0);
+            const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+            if (expectedInactiveTime >= 0) {
+              inactivePlayer.seekTo(expectedInactiveTime, true);
+            }
+          }
+        } catch (err) {
+          console.error("Error seeking forward:", err);
+        }
+      }
+    },
+    onMarkerJump: (index: number) => {
+      if (index < markers.length) {
+        const targetTime = markers[index];
+        const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
+        const inactivePlayer = activeVideo === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
+        if (activePlayer) {
+          try {
+            const now = Date.now();
+            seekTargetRef.current = targetTime;
+            lastSeekTimeRef.current = now;
+
+            activePlayer.seekTo(targetTime, true);
+
+            if (inactivePlayer) {
+              const activeOffset = activeVideo === "backing" ? (progressMap[song.id]?.backingStartOffset ?? 0) : (progressMap[song.id]?.tabStartOffset ?? 0);
+              const inactiveOffset = activeVideo === "backing" ? (progressMap[song.id]?.tabStartOffset ?? 0) : (progressMap[song.id]?.backingStartOffset ?? 0);
+              const expectedInactiveTime = targetTime - activeOffset + inactiveOffset;
+              if (expectedInactiveTime >= 0) {
+                inactivePlayer.seekTo(expectedInactiveTime, true);
+              }
+            }
+          } catch (err) {
+            console.error("Error seeking via hotkey:", err);
+          }
+        }
+      }
+    }
+  });
+
+  // Monitor when focus shifts to iframe and redirect it back to parent window
+  useIframeFocusGuard(() => activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current);
 
   // Practice Markers Saving/Deleting
   const handleSaveMarker = async (newTime: number) => {
@@ -820,21 +601,21 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0c0d0e] text-[#f1f2f4] pb-24">
+    <div className="flex flex-col min-h-screen bg-background text-foreground pb-24">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-[#27282b] px-4 md:px-6 py-4 mb-6 bg-[#161719]/10">
+      <header className="flex items-center justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10">
         <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             onClick={onExit}
-            className="text-[#888d96] hover:text-[#f1f2f4] rounded-xl border border-[#27282b] bg-[#161719]/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
+            className="text-muted-foreground hover:text-foreground rounded-xl border border-border bg-card/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
           <div className="min-w-0">
-            <h1 className="text-sm font-bold text-[#f1f2f4] truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
-            <p className="text-xs text-[#888d96] truncate">{song.artist}</p>
+            <h1 className="text-sm font-bold text-foreground truncate max-w-[200px] sm:max-w-xs">{song.title}</h1>
+            <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
           </div>
         </div>
         <div className="flex items-center flex-shrink-0">
@@ -850,7 +631,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
         {/* Left Side: Large Player Panel (8 columns) */}
         <div className="lg:col-span-8 flex flex-col space-y-4">
           <div
-            className="relative aspect-video w-full rounded-2xl overflow-hidden border border-[#27282b] bg-black shadow-2xl flex flex-col items-center justify-center"
+            className="relative aspect-video w-full rounded-2xl overflow-hidden border border-border bg-black shadow-2xl flex flex-col items-center justify-center"
             onMouseEnter={() => {
               isMouseOverPlayerRef.current = true;
             }}
@@ -910,23 +691,23 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
             {/* Loading/Error Indicators */}
             {activeVideo === "backing" && !backingVideoId && (
-              <div className="text-center p-6 text-[#888d96]">
+              <div className="text-center p-6 text-muted-foreground">
                 <Music className="w-12 h-12 mx-auto mb-2 text-[#27282b] animate-pulse" />
-                <p className="text-sm font-semibold text-[#f1f2f4]">No backing track configured for this instrument.</p>
+                <p className="text-sm font-semibold text-foreground">No backing track configured for this instrument.</p>
               </div>
             )}
 
             {activeVideo === "tab" && !tabVideoId && (
-              <div className="text-center p-6 text-[#888d96]">
+              <div className="text-center p-6 text-muted-foreground">
                 <Video className="w-12 h-12 mx-auto mb-2 text-[#27282b] animate-pulse" />
-                <p className="text-sm font-semibold text-[#f1f2f4]">No tab/lesson video configured for this instrument.</p>
+                <p className="text-sm font-semibold text-foreground">No tab/lesson video configured for this instrument.</p>
               </div>
             )}
 
             {!apiLoaded && (
-              <div className="absolute inset-0 bg-[#0c0d0e]/95 flex flex-col items-center justify-center">
+              <div className="absolute inset-0 bg-background/95 flex flex-col items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                <p className="text-xs text-[#888d96]">Loading YouTube Player API...</p>
+                <p className="text-xs text-muted-foreground">Loading YouTube Player API...</p>
               </div>
             )}
 
@@ -940,13 +721,13 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           </div>
 
           {/* Unified Practice Controls & Video Sync Settings */}
-          <Card className="border-[#27282b] bg-[#161719]/40 rounded-xl shadow-lg overflow-hidden">
+          <Card className="border-border bg-card/40 rounded-xl shadow-lg overflow-hidden">
             <div className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-[#27282b]">
                 {/* Col 1: Switcher Controls */}
                 <div className="space-y-2.5 pb-3 md:pb-0 md:pr-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider block">
+                    <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider block">
                       Playback settings
                     </span>
                     <span className="text-[10px] text-[#acd1f8] flex items-center gap-1 font-semibold bg-[#2e4057]/20 border border-[#2e4057]/50 px-2 py-0.5 rounded">
@@ -961,14 +742,14 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                       const backingLabel = isVocals ? "Instrumental" : "Backing Track";
                       const tabLabel = isVocals ? "Vocal reference" : "Tab";
                       return (
-                        <div className="flex bg-[#0c0d0e]/60 p-1 border border-[#27282b] rounded-xl gap-1 w-full justify-between">
+                        <div className="flex bg-background/60 p-1 border border-border rounded-xl gap-1 w-full justify-between">
                           <Button
                             onClick={() => { if (activeVideo !== "backing") handleToggleVideo(); }}
                             className={cn(
                               "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
                               activeVideo === "backing"
                                 ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                                : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                             )}
                           >
                             {backingLabel}
@@ -979,7 +760,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                               "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
                               activeVideo === "tab"
                                 ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                                : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                             )}
                           >
                             {tabLabel}
@@ -988,11 +769,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                       );
                     })()
                   ) : (
-                    <p className="text-[11px] text-[#888d96]">Dual feeds not configured for this instrument.</p>
+                    <p className="text-[11px] text-muted-foreground">Dual feeds not configured for this instrument.</p>
                   )}
 
                   {/* Volume Control */}
-                  <div className="flex items-center gap-3 bg-[#0c0d0e]/40 border border-[#27282b] px-3.5 py-2 rounded-xl">
+                  <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl">
                     <button
                       onClick={() => setVolume(v => v === 0 ? 100 : 0)}
                       className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
@@ -1000,7 +781,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                       {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                     </button>
                     <div className="flex flex-col flex-1">
-                      <div className="flex items-center justify-between text-[9px] text-[#888d96] font-bold uppercase tracking-wider mb-1.5">
+                      <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
                         <span>Volume</span>
                         <span className="text-[#acd1f8] font-mono">{volume}%</span>
                       </div>
@@ -1016,10 +797,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                   </div>
 
                   {/* Playback Speed Control */}
-                  <div className="flex items-center gap-3 bg-[#0c0d0e]/40 border border-[#27282b] px-3.5 py-2 rounded-xl">
+                  <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl">
                     <span className="text-[#acd1f8] flex items-center"><Gauge className="w-3.5 h-3.5" /></span>
                     <div className="flex flex-col flex-1">
-                      <div className="flex items-center justify-between text-[9px] text-[#888d96] font-bold uppercase tracking-wider mb-1.5">
+                      <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
                         <span>Speed</span>
                         <span className="text-[#acd1f8] font-mono">{speed.toFixed(2)}x</span>
                       </div>
@@ -1038,7 +819,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 {/* Col 2: Practice Markers (Private) */}
                 <div className="space-y-2.5 pt-3 md:pt-0 md:px-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider flex items-center gap-1">
+                    <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
                       Practice Markers
                     </span>
@@ -1058,21 +839,21 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                         {markers.map((time, idx) => {
                           const displayLabel = `${time.toFixed(1)}s`;
                           return (
-                            <div key={idx} className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7">
+                            <div key={idx} className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7">
                               <button
                                 onClick={() => {
                                   const activePlayer = activeVideo === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
                                   if (activePlayer) activePlayer.seekTo(time, true);
                                 }}
-                                className="text-[10px] font-bold text-[#acd1f8] hover:text-[#f1f2f4] px-2 h-full hover:bg-[#2e4057]/30 transition-all cursor-pointer border-0 flex items-center"
+                                className="text-[10px] font-bold text-[#acd1f8] hover:text-foreground px-2 h-full hover:bg-[#2e4057]/30 transition-all cursor-pointer border-0 flex items-center"
                                 title={`Jump to marker ${idx + 1}`}
                               >
-                                <kbd className="bg-[#161719] px-1 py-0.2 rounded border border-[#27282b] font-mono text-[8px] text-[#acd1f8] mr-1.5">{idx + 1}</kbd>
+                                <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-[#acd1f8] mr-1.5">{idx + 1}</kbd>
                                 {displayLabel}
                               </button>
                               <button
                                 onClick={() => handleDeleteMarker(idx)}
-                                className="text-[#888d96] hover:text-red-400 px-1.5 h-full hover:bg-red-950/20 border-l border-[#27282b] transition-all cursor-pointer flex items-center"
+                                className="text-muted-foreground hover:text-red-400 px-1.5 h-full hover:bg-red-950/20 border-l border-border transition-all cursor-pointer flex items-center"
                                 title="Delete marker"
                               >
                                 <Trash2 className="w-2.5 h-2.5" />
@@ -1088,7 +869,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 {/* Col 3: Start Sync Offsets (Private) */}
                 <div className="space-y-2.5 pt-3 md:pt-0 md:pl-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider flex items-center gap-1">
+                    <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <Settings className="w-3.5 h-3.5 text-[#acd1f8]" />
                       Start Sync Offsets
                     </span>
@@ -1101,7 +882,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                         {/* Backing Track Start Offset Row */}
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">
+                            <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                               {isVocals ? "Instrumental" : "Backing Track"} (s)
                             </label>
                             <button
@@ -1112,21 +893,21 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                                   setBackingOffset(time.toFixed(1));
                                 }
                               }}
-                              className="text-[9px] text-[#acd1f8] hover:text-[#f1f2f4] px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                              className="text-[9px] text-[#acd1f8] hover:text-foreground px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
                               title="Capture current playback time"
                             >
                               <Clock className="w-2.5 h-2.5" /> Capture
                             </button>
                           </div>
 
-                          <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7 w-full justify-between">
+                          <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
                             <button
                               type="button"
                               onClick={() => {
                                 const val = Math.max(0, (parseFloat(backingOffset) || 0) - 0.1);
                                 setBackingOffset(val.toFixed(1));
                               }}
-                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-r border-[#27282b] cursor-pointer flex items-center justify-center"
+                              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
                             >
                               -
                             </button>
@@ -1136,7 +917,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                               min="0"
                               value={backingOffset}
                               onChange={(e) => setBackingOffset(e.target.value)}
-                              className="bg-transparent text-[11px] text-[#f1f2f4] text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="bg-transparent text-[11px] text-foreground text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button
                               type="button"
@@ -1144,7 +925,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                                 const val = (parseFloat(backingOffset) || 0) + 0.1;
                                 setBackingOffset(val.toFixed(1));
                               }}
-                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-l border-[#27282b] cursor-pointer flex items-center justify-center"
+                              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
                             >
                               +
                             </button>
@@ -1154,7 +935,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                         {/* Tab Video Start Offset Row */}
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <label className="text-[9px] font-bold text-[#888d96] uppercase tracking-wider block">
+                            <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                               {isVocals ? "Vocal ref" : "Tab Video"} (s)
                             </label>
                             <button
@@ -1165,21 +946,21 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                                   setTabOffset(time.toFixed(1));
                                 }
                               }}
-                              className="text-[9px] text-[#acd1f8] hover:text-[#f1f2f4] px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                              className="text-[9px] text-[#acd1f8] hover:text-foreground px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
                               title="Capture current playback time"
                             >
                               <Clock className="w-2.5 h-2.5" /> Capture
                             </button>
                           </div>
 
-                          <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7 w-full justify-between">
+                          <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
                             <button
                               type="button"
                               onClick={() => {
                                 const val = Math.max(0, (parseFloat(tabOffset) || 0) - 0.1);
                                 setTabOffset(val.toFixed(1));
                               }}
-                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-r border-[#27282b] cursor-pointer flex items-center justify-center"
+                              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
                             >
                               -
                             </button>
@@ -1189,7 +970,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                               min="0"
                               value={tabOffset}
                               onChange={(e) => setTabOffset(e.target.value)}
-                              className="bg-transparent text-[11px] text-[#f1f2f4] text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="bg-transparent text-[11px] text-foreground text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button
                               type="button"
@@ -1197,7 +978,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                                 const val = (parseFloat(tabOffset) || 0) + 0.1;
                                 setTabOffset(val.toFixed(1));
                               }}
-                              className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-2.5 h-full hover:bg-[#27282b]/50 border-l border-[#27282b] cursor-pointer flex items-center justify-center"
+                              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
                             >
                               +
                             </button>
@@ -1214,7 +995,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                       "w-full text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-300",
                       hasUnsavedOffsets && !isSavingOffsets
                         ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
-                        : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+                        : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
                     )}
                   >
                     {isSavingOffsets ? (
@@ -1238,10 +1019,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
         {/* Right Side: Log & Settings Panel (4 columns) */}
         <div className="lg:col-span-4 flex flex-col space-y-6">
           {/* Instrument Settings */}
-          <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg">
+          <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-[#888d96]" />
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-muted-foreground" />
                 Select Instrument
               </CardTitle>
             </CardHeader>
@@ -1250,12 +1031,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 const rg = standardRoleGroups.find(g => g.id === val);
                 if (rg) handleInstrumentChange(rg.role);
               }} className="w-full">
-                <TabsList className="bg-[#0c0d0e] border border-[#27282b] p-1 rounded-xl h-auto flex w-full">
+                <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-full">
                   {standardRoleGroups.map((rg) => (
                     <TabsTrigger
                       key={rg.id}
                       value={rg.id}
-                      className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-[#27282b] data-[state=active]:text-[#f1f2f4] text-[#888d96] border border-transparent data-[state=active]:border-[#3b3e45] hover:text-[#f1f2f4] transition-all cursor-pointer flex-1 text-center"
+                      className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer flex-1 text-center"
                     >
                       {rg.role}
                     </TabsTrigger>
@@ -1267,10 +1048,10 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
 
           {/* Notation Links */}
           {activeRoleGroup && activeRoleGroup.tracks.length > 0 && (
-            <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg">
+            <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2">
-                  <Music className="w-4 h-4 text-[#888d96]" />
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Music className="w-4 h-4 text-muted-foreground" />
                   Notation Links ({activeRoleGroup.role})
                 </CardTitle>
               </CardHeader>
@@ -1280,11 +1061,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                   const links = getAlternativeLinks(track.tabLink);
 
                   return (
-                    <div key={track.id} className="space-y-2 border-b border-[#27282b]/60 pb-3 last:border-0 last:pb-0">
+                    <div key={track.id} className="space-y-2 border-b border-border/60 pb-3 last:border-0 last:pb-0">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-[#d1d1d6]">{track.instrumentName}</span>
                         {track.tuning && (
-                          <Badge className="bg-[#0c0d0e]/60 border border-[#27282b] text-[9px] font-mono text-[#888d96]">
+                          <Badge className="bg-background/60 border border-border text-[9px] font-mono text-muted-foreground">
                             {track.tuning}
                           </Badge>
                         )}
@@ -1297,11 +1078,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                           rel="noopener noreferrer"
                           className={cn(
                             buttonVariants({ variant: "default", size: "sm" }),
-                            "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                            "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                           )}
                         >
                           Interactive Tab
-                          <ExternalLink className="w-3 h-3 text-[#888d96]" />
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
                         </a>
 
                         {hasSongsterr && (
@@ -1312,11 +1093,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                               rel="noopener noreferrer"
                               className={cn(
                                 buttonVariants({ variant: "default", size: "sm" }),
-                                "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#f1f2f4] rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                                "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                               )}
                             >
                               Sheets
-                              <ExternalLink className="w-3 h-3 text-[#888d96]" />
+                              <ExternalLink className="w-3 h-3 text-muted-foreground" />
                             </a>
                             <a
                               href={links.chords}
@@ -1324,11 +1105,11 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                               rel="noopener noreferrer"
                               className={cn(
                                 buttonVariants({ variant: "default", size: "sm" }),
-                                "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-[#f1f2f4] rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                                "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                               )}
                             >
                               Chords
-                              <ExternalLink className="w-3 h-3 text-[#888d96]" />
+                              <ExternalLink className="w-3 h-3 text-muted-foreground" />
                             </a>
                           </>
                         )}

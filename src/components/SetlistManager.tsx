@@ -13,40 +13,7 @@ import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic, Play } from
 import { SearchInput } from "./SearchInput";
 import { PracticeButton } from "./PracticeButton";
 
-interface Track {
-  id: string;
-  roleGroupId: string;
-  instrumentName: string;
-  role: string;
-  details: string | null;
-  tuning: string;
-  tabLink: string;
-}
-
-interface RoleGroup {
-  id: string;
-  songId: string;
-  role: string;
-  backingTrackLink: string | null;
-  tabVideoLink: string | null;
-  tracks: Track[];
-}
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  songsterrId: number | null;
-  createdAt: number;
-  roleGroups: RoleGroup[];
-}
-
-interface RehearsalSong {
-  rehearsalId: string;
-  songId: string;
-  sortOrder: number;
-  song: Song;
-}
+import { Track, RoleGroup, Song, RehearsalSong, ProgressMap } from "@/types/models";
 
 interface SetlistManagerProps {
   rehearsalId: string;
@@ -55,7 +22,7 @@ interface SetlistManagerProps {
   activeSongId: string | null;
   onSelectSong: (songId: string) => void;
   onRefresh: () => void;
-  progressMap?: Record<string, { status: string; speed: number; notes: string | null }>;
+  progressMap?: ProgressMap;
   onPracticeSong?: (songId: string) => void;
   onStartAutoplay?: () => void;
 }
@@ -136,8 +103,8 @@ export function SetlistManager({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2">
-          <ListMusic className="w-5 h-5 text-[#888d96]" />
+        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <ListMusic className="w-5 h-5 text-muted-foreground" />
           Setlist ({rehearsalSongs.length} songs)
         </h3>
         <div className="flex items-center gap-2">
@@ -149,7 +116,7 @@ export function SetlistManager({
               setSearchQuery("");
               setIsAddOpen(true);
             }}
-            className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold py-1 h-9"
+            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold py-1 h-9"
           >
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Songs
           </Button>
@@ -157,7 +124,7 @@ export function SetlistManager({
       </div>
 
       {rehearsalSongs.length === 0 ? (
-        <div className="text-center py-10 bg-[#0c0d0e]/40 border border-[#27282b]/80 rounded-2xl p-6 text-[#888d96]">
+        <div className="text-center py-10 bg-background/40 border border-border/80 rounded-2xl p-6 text-muted-foreground">
           <Music className="w-8 h-8 mx-auto mb-2 text-[#27282b]" />
           <p className="text-xs">Your setlist is empty.</p>
           <Button
@@ -177,8 +144,8 @@ export function SetlistManager({
                 key={rs.songId}
                 className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
-                    ? "bg-[#27282b] border-[#5b80a5]/40 shadow-md shadow-[#0c0d0e]/40"
-                    : "bg-[#0c0d0e]/40 border-[#27282b]/80 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
+                    ? "bg-muted border-[#5b80a5]/40 shadow-md shadow-[#0c0d0e]/40"
+                    : "bg-background/40 border-border/80 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
                 }`}
               >
                 {/* Song info and selection clicker */}
@@ -186,12 +153,12 @@ export function SetlistManager({
                   onClick={() => onSelectSong(rs.songId)}
                   className="flex-1 text-left min-w-0 flex items-center gap-3 pr-2"
                 >
-                  <span className="text-xs font-mono font-bold text-[#888d96] w-5 text-right flex-shrink-0">
+                  <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                     {index + 1}.
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className={`text-sm font-bold truncate ${isSelected ? "text-[#f1f2f4]" : "text-[#d1d1d6]"}`}>
+                      <p className={`text-sm font-bold truncate ${isSelected ? "text-foreground" : "text-[#d1d1d6]"}`}>
                         {rs.song.title}
                       </p>
                       {(() => {
@@ -234,7 +201,7 @@ export function SetlistManager({
                                     "text-[8px] font-mono tracking-wide px-1 py-0 border",
                                     isHighlighted
                                       ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
-                                      : "bg-[#161719]/40 border-[#27282b] text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
+                                      : "bg-card/40 border-border text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
                                   )}
                                 >
                                   {ind.tuning}
@@ -245,7 +212,7 @@ export function SetlistManager({
                         );
                       })()}
                     </div>
-                    <p className="text-xs text-[#888d96] truncate mt-0.5 font-medium">
+                    <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
                       {rs.song.artist}
                     </p>
                   </div>
@@ -267,7 +234,7 @@ export function SetlistManager({
                     size="icon"
                     disabled={index === 0}
                     onClick={() => handleMove(index, "up")}
-                    className="h-8 w-8 text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#27282b] rounded-lg disabled:opacity-30"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Up"
                   >
                     <ArrowUp className="w-4 h-4" />
@@ -277,7 +244,7 @@ export function SetlistManager({
                     size="icon"
                     disabled={index === rehearsalSongs.length - 1}
                     onClick={() => handleMove(index, "down")}
-                    className="h-8 w-8 text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#27282b] rounded-lg disabled:opacity-30"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Down"
                   >
                     <ArrowDown className="w-4 h-4" />
@@ -300,13 +267,13 @@ export function SetlistManager({
 
       {/* Add Songs Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[80vh] flex flex-col p-6 bg-[#161719] border border-[#27282b] text-[#f1f2f4]">
+        <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[80vh] flex flex-col p-6 bg-card border border-border text-foreground">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#f1f2f4]">
-              <Music className="w-5 h-5 text-[#888d96]" />
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+              <Music className="w-5 h-5 text-muted-foreground" />
               Add Songs to Setlist
             </DialogTitle>
-            <DialogDescription className="text-[#888d96] text-xs">
+            <DialogDescription className="text-muted-foreground text-xs">
               Search and tap a song to add it to the rehearsal sequence.
             </DialogDescription>
           </DialogHeader>
@@ -322,7 +289,7 @@ export function SetlistManager({
           {/* Scrollable song list */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-2 min-h-[250px] max-h-[40vh]">
             {availableSongs.length === 0 ? (
-              <div className="text-center py-10 text-xs text-[#888d96]">
+              <div className="text-center py-10 text-xs text-muted-foreground">
                 {allSongs.length === 0
                   ? "Your library is empty. Add songs first!"
                   : "All library songs are already added."}
@@ -331,11 +298,11 @@ export function SetlistManager({
               availableSongs.map((song) => (
                 <div
                   key={song.id}
-                  className="flex items-center justify-between p-3 rounded-xl border border-[#27282b]/60 bg-[#0c0d0e]/40"
+                  className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-background/40"
                 >
                   <div className="min-w-0 pr-3 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-[#f1f2f4] truncate">{song.title}</p>
+                      <p className="text-sm font-bold text-foreground truncate">{song.title}</p>
                       {/* Tuning Badges */}
                       {(() => {
                         const songTunings = getSongTunings(song);
@@ -351,7 +318,7 @@ export function SetlistManager({
                                     "text-[8px] font-mono tracking-wide px-1 py-0 border",
                                     isHighlighted
                                       ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
-                                      : "bg-[#161719]/40 border-[#27282b] text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
+                                      : "bg-card/40 border-border text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
                                   )}
                                 >
                                   {ind.tuning}
@@ -362,12 +329,12 @@ export function SetlistManager({
                         );
                       })()}
                     </div>
-                    <p className="text-xs text-[#888d96] truncate mt-0.5">{song.artist}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{song.artist}</p>
                   </div>
                   <Button
                     size="sm"
                     onClick={() => handleAddSong(song.id)}
-                    className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-lg px-3 py-1 h-8 font-bold text-xs"
+                    className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-lg px-3 py-1 h-8 font-bold text-xs"
                   >
                     Add
                   </Button>
@@ -376,10 +343,10 @@ export function SetlistManager({
             )}
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#27282b]">
+          <DialogFooter className="pt-3 border-t border-border">
             <Button
               onClick={() => setIsAddOpen(false)}
-              className="w-full bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl font-semibold"
+              className="w-full bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-semibold"
             >
               Done
             </Button>

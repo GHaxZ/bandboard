@@ -100,21 +100,21 @@ export function VideoSelector({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[85vh] flex flex-col p-6 bg-[#161719] border border-[#27282b] text-[#f1f2f4]">
+      <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[85vh] flex flex-col p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#f1f2f4]">
-            <Video className="w-5 h-5 text-[#888d96]" />
+          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+            <Video className="w-5 h-5 text-muted-foreground" />
             Select {type === "backing" ? "Backing Track" : "Tab Video"}
           </DialogTitle>
-          <DialogDescription className="text-[#888d96] text-xs">
-            Choose a video for <span className="font-bold text-[#f1f2f4]">{instrumentName}</span> on {songTitle}.
+          <DialogDescription className="text-muted-foreground text-xs">
+            Choose a video for <span className="font-bold text-foreground">{instrumentName}</span> on {songTitle}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 my-2">
           {/* Manual URL Input */}
           <div className="space-y-1.5">
-            <Label htmlFor="manualUrl" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+            <Label htmlFor="manualUrl" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Paste Direct Video URL
             </Label>
             <div className="flex gap-2">
@@ -123,12 +123,12 @@ export function VideoSelector({
                 placeholder="https://youtube.com/watch?v=..."
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
               />
               <Button 
                 onClick={handleSaveManual} 
                 disabled={isSaving}
-                className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl font-semibold"
+                className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-semibold"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
               </Button>
@@ -136,9 +136,9 @@ export function VideoSelector({
           </div>
 
           <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-[#27282b]"></div>
-            <span className="flex-shrink mx-3 text-[10px] text-[#888d96] uppercase tracking-widest">Or Search YouTube</span>
-            <div className="flex-grow border-t border-[#27282b]"></div>
+            <div className="flex-grow border-t border-border"></div>
+            <span className="flex-shrink mx-3 text-[10px] text-muted-foreground uppercase tracking-widest">Or Search YouTube</span>
+            <div className="flex-grow border-t border-border"></div>
           </div>
 
           {/* Search Section */}
@@ -149,12 +149,12 @@ export function VideoSelector({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch(query)}
-                className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
               />
               <Button 
                 onClick={() => handleSearch(query)} 
                 disabled={isLoading}
-                className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl"
+                className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               </Button>
@@ -163,12 +163,12 @@ export function VideoSelector({
             {/* Results */}
             <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-8 text-[#888d96] gap-2">
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
                   <Loader2 className="w-6 h-6 animate-spin text-[#5b80a5]" />
                   <span className="text-xs">Searching YouTube...</span>
                 </div>
               ) : results.length === 0 ? (
-                <div className="text-center py-6 text-xs text-[#888d96]">
+                <div className="text-center py-6 text-xs text-muted-foreground">
                   No videos found. Try a different query.
                 </div>
               ) : (
@@ -181,12 +181,12 @@ export function VideoSelector({
                       disabled={isSaving}
                       className={`w-full text-left flex gap-3 p-2 rounded-xl border transition-all duration-200 ${
                         isCurrent
-                          ? "bg-[#27282b] border-[#5b80a5]/50"
-                          : "bg-[#0c0d0e]/40 border-[#27282b]/60 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
+                          ? "bg-muted border-[#5b80a5]/50"
+                          : "bg-background/40 border-border/60 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
                       }`}
                     >
                       {/* Thumbnail */}
-                      <div className="relative w-24 aspect-video rounded-lg overflow-hidden bg-[#0c0d0e] flex-shrink-0">
+                      <div className="relative w-24 aspect-video rounded-lg overflow-hidden bg-background flex-shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={video.thumbnail}
@@ -201,19 +201,19 @@ export function VideoSelector({
                       {/* Info */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                         <div>
-                          <p className="text-xs font-medium text-[#f1f2f4] line-clamp-2 leading-snug">
+                          <p className="text-xs font-medium text-foreground line-clamp-2 leading-snug">
                             {video.title}
                           </p>
-                          <p className="text-[10px] text-[#888d96] mt-0.5 truncate">
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                             {video.channelName}
                           </p>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] text-[#888d96]">
+                          <p className="text-[10px] text-muted-foreground">
                             {video.viewsText}
                           </p>
                           {isCurrent && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-[#f1f2f4] bg-[#27282b] px-1.5 py-0.5 rounded-full border border-[#3b3e45]">
+                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-foreground bg-muted px-1.5 py-0.5 rounded-full border border-dialog-border">
                               <Check className="w-2.5 h-2.5" /> Current
                             </span>
                           )}
@@ -227,11 +227,11 @@ export function VideoSelector({
           </div>
         </div>
 
-        <DialogFooter className="mt-2 pt-3 border-t border-[#27282b]">
+        <DialogFooter className="mt-2 pt-3 border-t border-border">
           <Button 
             variant="ghost" 
             onClick={onClose}
-            className="text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#27282b] rounded-xl border border-transparent"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
           >
             Cancel
           </Button>

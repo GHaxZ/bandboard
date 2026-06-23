@@ -64,10 +64,10 @@ export function PracticeLogCard({
   };
 
   return (
-    <Card className={cn("border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg", className)}>
+    <Card className={cn("border-border bg-card/40 rounded-2xl shadow-lg", className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-bold text-[#f1f2f4] flex items-center gap-2 flex-wrap">
-          <FileText className="w-4 h-4 text-[#888d96]" />
+        <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
+          <FileText className="w-4 h-4 text-muted-foreground" />
           Practice Log
           {showPrivateIndicator && (
             <PrivateIndicator
@@ -80,7 +80,7 @@ export function PracticeLogCard({
       <CardContent className="space-y-4">
         {/* Learning Status */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Learning Status</label>
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">Learning Status</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {["not_started", "learning", "ready_to_play", "mastered"].map((status) => {
               const isSelected = progressStatus === status;
@@ -108,7 +108,7 @@ export function PracticeLogCard({
                         : status === "learning"
                         ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
                         : "bg-red-950/40 border border-red-900 text-red-400 hover:bg-red-950/50"
-                      : "border-[#27282b] bg-[#0c0d0e]/20 text-[#888d96] hover:bg-[#27282b]/50 hover:text-[#f1f2f4]"
+                      : "border-border bg-background/20 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   )}
                   title={label}
                 >
@@ -121,12 +121,12 @@ export function PracticeLogCard({
 
         {/* Notes */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-[#888d96] uppercase tracking-wider block">Notes</label>
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">Notes</label>
           <textarea
             placeholder="Record highlights, difficult parts, or speed settings..."
             value={progressNotes}
             onChange={(e) => setProgressNotes(e.target.value)}
-            className="w-full bg-[#0c0d0e] border border-[#27282b] rounded-xl text-xs text-[#f1f2f4] p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-[#5b80a5] resize-none h-24 placeholder:text-[#4e525a]"
+            className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-[#4e525a]"
           />
         </div>
 
@@ -138,7 +138,7 @@ export function PracticeLogCard({
             "w-full text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5 transition-all duration-300 rounded-xl",
             hasUnsavedProgress && !isSavingProgress
               ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
-              : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+              : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
           )}
         >
           {isSavingProgress ? (

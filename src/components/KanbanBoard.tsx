@@ -8,46 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { getSongTunings } from "@/lib/tunings";
 import { SearchInput } from "./SearchInput";
 
-interface Track {
-  id: string;
-  roleGroupId: string;
-  instrumentName: string;
-  role: string;
-  details: string | null;
-  tuning: string;
-  tabLink: string;
-}
-
-interface RoleGroup {
-  id: string;
-  songId: string;
-  role: string;
-  backingTrackLink: string | null;
-  tabVideoLink: string | null;
-  tracks: Track[];
-}
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  songsterrId: number | null;
-  createdAt: number;
-  albumArt?: string | null;
-  roleGroups: RoleGroup[];
-}
-
-interface RehearsalSong {
-  rehearsalId: string;
-  songId: string;
-  sortOrder: number;
-  song: Song;
-}
+import { Track, RoleGroup, Song, RehearsalSong, ProgressMap } from "@/types/models";
 
 interface KanbanBoardProps {
   rehearsalId: string;
   rehearsalSongs: RehearsalSong[];
-  progressMap: Record<string, { status: string; speed: number; notes: string | null }>;
+  progressMap: ProgressMap;
   onSaveProgress: (songId: string, status: string) => Promise<void>;
   onSelectSong?: (songId: string) => void;
   onPracticeSong?: (songId: string) => void;
@@ -136,17 +102,17 @@ export function KanbanBoard({
               return (
                 <div
                   key={column.id}
-                  className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
+                  className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
                 >
                   {/* Column Header */}
-                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#27282b]/60 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60 flex-shrink-0">
                     <div className="flex items-center gap-2">
                       <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", column.colorClass)} />
-                      <h4 className="text-xs font-bold text-[#f1f2f4] uppercase tracking-wider">
+                      <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
                         {column.label}
                       </h4>
                     </div>
-                    <span className="text-[10px] font-bold text-[#888d96] bg-[#0c0d0e] border border-[#27282b] px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-bold text-muted-foreground bg-background border border-border px-2 py-0.5 rounded-md">
                       {columnSongs.length}
                     </span>
                   </div>
@@ -159,11 +125,11 @@ export function KanbanBoard({
                         {...provided.droppableProps}
                         className={cn(
                           "flex flex-col gap-3 flex-1 overflow-y-auto pr-1.5 transition-all duration-200 rounded-xl",
-                          snapshot.isDraggingOver ? "bg-[#27282b]/15" : ""
+                          snapshot.isDraggingOver ? "bg-muted/15" : ""
                         )}
                       >
                         {columnSongs.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-[#27282b] rounded-xl text-center p-4 min-h-[150px] flex-grow">
+                          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border rounded-xl text-center p-4 min-h-[150px] flex-grow">
                             <Music className="w-6 h-6 text-[#27282b] mb-1.5" />
                             <p className="text-[10px] text-[#4e525a] font-medium leading-normal">
                               No songs here
@@ -185,7 +151,7 @@ export function KanbanBoard({
                                     {...provided.dragHandleProps}
                                     onClick={() => onSelectSong?.(rs.songId)}
                                     className={cn(
-                                      "bg-[#0c0d0e]/60 border border-[#27282b]/80 hover:border-[#383a3f] hover:bg-[#131416]/90 rounded-xl p-3.5 select-none transition-all duration-200 shadow-sm flex flex-col gap-2 group cursor-pointer flex-shrink-0",
+                                      "bg-background/60 border border-border/80 hover:border-[#383a3f] hover:bg-[#131416]/90 rounded-xl p-3.5 select-none transition-all duration-200 shadow-sm flex flex-col gap-2 group cursor-pointer flex-shrink-0",
                                       snapshot.isDragging ? "shadow-xl border-[#5b80a5] bg-[#1c1d21] scale-[1.03]" : ""
                                     )}
                                   >
@@ -196,18 +162,18 @@ export function KanbanBoard({
                                         <img
                                           src={song.albumArt}
                                           alt=""
-                                          className="w-10 h-10 rounded-lg object-cover border border-[#27282b] flex-shrink-0"
+                                          className="w-10 h-10 rounded-lg object-cover border border-border flex-shrink-0"
                                         />
                                       ) : (
-                                        <div className="w-10 h-10 rounded-lg bg-[#161719] border border-[#27282b] flex items-center justify-center flex-shrink-0">
-                                          <Music className="w-4 h-4 text-[#888d96]" />
+                                        <div className="w-10 h-10 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
+                                          <Music className="w-4 h-4 text-muted-foreground" />
                                         </div>
                                       )}
                                       <div className="min-w-0 flex-1">
-                                        <h5 className="text-xs font-bold text-[#f1f2f4] truncate">
+                                        <h5 className="text-xs font-bold text-foreground truncate">
                                           {song.title}
                                         </h5>
-                                        <p className="text-[10px] text-[#888d96] truncate mt-0.5">
+                                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
                                           {song.artist}
                                         </p>
                                       </div>
@@ -230,7 +196,7 @@ export function KanbanBoard({
                                                   "text-[8px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0",
                                                   isHighlighted
                                                     ? "bg-[#2e4057]/45 border-[#446285]/55 text-[#acd1f8]"
-                                                    : "bg-[#161719]/40 border-[#27282b] text-[#6c727a]"
+                                                    : "bg-card/40 border-border text-[#6c727a]"
                                                 )}
                                               >
                                                 {ind.tuning}
@@ -242,14 +208,14 @@ export function KanbanBoard({
                                     })()}
 
                                     {/* Action Bar (Click-to-Move + Practice Button) */}
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#27282b]/60 flex-shrink-0">
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60 flex-shrink-0">
                                       {leftStatus ? (
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             onSaveProgress(song.id, leftStatus);
                                           }}
-                                          className="text-[#888d96] hover:text-[#f1f2f4] p-1 bg-[#161719]/45 hover:bg-[#27282b] border border-[#27282b]/60 rounded-lg transition-all"
+                                          className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all"
                                           title={`Move to ${getLabel(leftStatus)}`}
                                         >
                                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -276,7 +242,7 @@ export function KanbanBoard({
                                             e.stopPropagation();
                                             onSaveProgress(song.id, rightStatus);
                                           }}
-                                          className="text-[#888d96] hover:text-[#f1f2f4] p-1 bg-[#161719]/45 hover:bg-[#27282b] border border-[#27282b]/60 rounded-lg transition-all"
+                                          className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all"
                                           title={`Move to ${getLabel(rightStatus)}`}
                                         >
                                           <ChevronRight className="w-3.5 h-3.5" />
@@ -306,12 +272,12 @@ export function KanbanBoard({
           {COLUMNS.map((column) => (
             <div
               key={column.id}
-              className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
+              className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100vh-280px)] min-h-[480px]"
             >
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#27282b]/60">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", column.colorClass)} />
-                  <h4 className="text-xs font-bold text-[#f1f2f4] uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
                     {column.label}
                   </h4>
                 </div>

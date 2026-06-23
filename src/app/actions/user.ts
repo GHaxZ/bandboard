@@ -39,29 +39,25 @@ export async function saveUserSettings(
   if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
 
   try {
-    const existing = await db.select().from(userSettings).where(eq(userSettings.userUuid, uuid)).limit(1);
-    if (existing.length > 0) {
-      const current = existing[0];
-      await db.update(userSettings)
-        .set({
-          preferredInstrument: instrument !== undefined ? instrument : current.preferredInstrument,
-          theme: theme !== undefined ? theme : current.theme,
-          autoplayEnabled: autoplayEnabled !== undefined ? autoplayEnabled : current.autoplayEnabled,
-          autoplayTimeout: autoplayTimeout !== undefined ? autoplayTimeout : current.autoplayTimeout,
-          updatedAt: Date.now()
-        })
-        .where(eq(userSettings.userUuid, uuid));
-    } else {
-      await db.insert(userSettings)
-        .values({
-          userUuid: uuid,
-          preferredInstrument: instrument ?? "Guitar",
-          theme: theme ?? "dark",
-          autoplayEnabled: autoplayEnabled ?? true,
-          autoplayTimeout: autoplayTimeout ?? 5,
+    await db.insert(userSettings)
+      .values({
+        userUuid: uuid,
+        preferredInstrument: instrument ?? "Guitar",
+        theme: theme ?? "dark",
+        autoplayEnabled: autoplayEnabled ?? true,
+        autoplayTimeout: autoplayTimeout ?? 5,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: userSettings.userUuid,
+        set: {
+          ...(instrument !== undefined && { preferredInstrument: instrument }),
+          ...(theme !== undefined && { theme: theme }),
+          ...(autoplayEnabled !== undefined && { autoplayEnabled: autoplayEnabled }),
+          ...(autoplayTimeout !== undefined && { autoplayTimeout: autoplayTimeout }),
           updatedAt: Date.now(),
-        });
-    }
+        }
+      });
     return { success: true };
   } catch (error) {
     console.error("Failed to save user settings:", error);
@@ -154,33 +150,26 @@ export async function saveSongProgress(songId: string, status: string, speed: nu
   if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
 
   try {
-    const existing = await db.select()
-      .from(userSongProgress)
-      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db.update(userSongProgress)
-        .set({
+    const id = `${uuid}_${songId}_${Date.now()}`;
+    await db.insert(userSongProgress)
+      .values({
+        id,
+        userUuid: uuid,
+        songId,
+        status,
+        speed,
+        notes: notes || null,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: [userSongProgress.userUuid, userSongProgress.songId],
+        set: {
           status,
           speed,
           notes: notes || null,
           updatedAt: Date.now(),
-        })
-        .where(eq(userSongProgress.id, existing[0].id));
-    } else {
-      const id = `${uuid}_${songId}_${Date.now()}`;
-      await db.insert(userSongProgress)
-        .values({
-          id,
-          userUuid: uuid,
-          songId,
-          status,
-          speed,
-          notes: notes || null,
-          updatedAt: Date.now(),
-        });
-    }
+        }
+      });
     return { success: true };
   } catch (error) {
     console.error("Failed to save song progress:", error);
@@ -193,34 +182,26 @@ export async function savePracticeMarkers(songId: string, markers: number[]) {
   if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
 
   try {
-    const existing = await db.select()
-      .from(userSongProgress)
-      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
-      .limit(1);
-
+    const id = `${uuid}_${songId}_${Date.now()}`;
     const serialized = JSON.stringify(markers);
-
-    if (existing.length > 0) {
-      await db.update(userSongProgress)
-        .set({
+    await db.insert(userSongProgress)
+      .values({
+        id,
+        userUuid: uuid,
+        songId,
+        status: "not_started",
+        speed: 100,
+        notes: null,
+        practiceMarkers: serialized,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: [userSongProgress.userUuid, userSongProgress.songId],
+        set: {
           practiceMarkers: serialized,
           updatedAt: Date.now(),
-        })
-        .where(eq(userSongProgress.id, existing[0].id));
-    } else {
-      const id = `${uuid}_${songId}_${Date.now()}`;
-      await db.insert(userSongProgress)
-        .values({
-          id,
-          userUuid: uuid,
-          songId,
-          status: "not_started",
-          speed: 100,
-          notes: null,
-          practiceMarkers: serialized,
-          updatedAt: Date.now(),
-        });
-    }
+        }
+      });
     return { success: true };
   } catch (error) {
     console.error("Failed to save practice markers:", error);
@@ -237,34 +218,27 @@ export async function saveStartOffsets(
   if (uuid === "anonymous") return { success: false, error: "Anonymous session" };
 
   try {
-    const existing = await db.select()
-      .from(userSongProgress)
-      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db.update(userSongProgress)
-        .set({
+    const id = `${uuid}_${songId}_${Date.now()}`;
+    await db.insert(userSongProgress)
+      .values({
+        id,
+        userUuid: uuid,
+        songId,
+        status: "not_started",
+        speed: 100,
+        notes: null,
+        backingStartOffset,
+        tabStartOffset,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: [userSongProgress.userUuid, userSongProgress.songId],
+        set: {
           backingStartOffset,
           tabStartOffset,
           updatedAt: Date.now(),
-        })
-        .where(eq(userSongProgress.id, existing[0].id));
-    } else {
-      const id = `${uuid}_${songId}_${Date.now()}`;
-      await db.insert(userSongProgress)
-        .values({
-          id,
-          userUuid: uuid,
-          songId,
-          status: "not_started",
-          speed: 100,
-          notes: null,
-          backingStartOffset,
-          tabStartOffset,
-          updatedAt: Date.now(),
-        });
-    }
+        }
+      });
     return { success: true };
   } catch (error) {
     console.error("Failed to save start offsets:", error);
@@ -314,28 +288,25 @@ export async function importUserData(payload: any) {
   try {
     // 1. Import settings
     if (payload.settings) {
-      const existingSettings = await db.select().from(userSettings).where(eq(userSettings.userUuid, importUuid)).limit(1);
-      if (existingSettings.length > 0) {
-        await db.update(userSettings)
-          .set({
+      await db.insert(userSettings)
+        .values({
+          userUuid: importUuid,
+          preferredInstrument: payload.settings.preferredInstrument || "Guitar",
+          theme: payload.settings.theme || "dark",
+          autoplayEnabled: payload.settings.autoplayEnabled !== undefined ? payload.settings.autoplayEnabled : true,
+          autoplayTimeout: payload.settings.autoplayTimeout !== undefined ? payload.settings.autoplayTimeout : 5,
+          updatedAt: Date.now(),
+        })
+        .onConflictDoUpdate({
+          target: userSettings.userUuid,
+          set: {
             preferredInstrument: payload.settings.preferredInstrument || "Guitar",
             theme: payload.settings.theme || "dark",
             autoplayEnabled: payload.settings.autoplayEnabled !== undefined ? payload.settings.autoplayEnabled : true,
             autoplayTimeout: payload.settings.autoplayTimeout !== undefined ? payload.settings.autoplayTimeout : 5,
             updatedAt: Date.now(),
-          })
-          .where(eq(userSettings.userUuid, importUuid));
-      } else {
-        await db.insert(userSettings)
-          .values({
-            userUuid: importUuid,
-            preferredInstrument: payload.settings.preferredInstrument || "Guitar",
-            theme: payload.settings.theme || "dark",
-            autoplayEnabled: payload.settings.autoplayEnabled !== undefined ? payload.settings.autoplayEnabled : true,
-            autoplayTimeout: payload.settings.autoplayTimeout !== undefined ? payload.settings.autoplayTimeout : 5,
-            updatedAt: Date.now(),
-          });
-      }
+          }
+        });
     }
 
     // 2. Import progress
@@ -344,14 +315,23 @@ export async function importUserData(payload: any) {
         const songExists = await db.select().from(songs).where(eq(songs.id, p.songId)).limit(1);
         if (songExists.length === 0) continue;
 
-        const existingProg = await db.select()
-          .from(userSongProgress)
-          .where(and(eq(userSongProgress.userUuid, importUuid), eq(userSongProgress.songId, p.songId)))
-          .limit(1);
-
-        if (existingProg.length > 0) {
-          await db.update(userSongProgress)
-            .set({
+        const id = `${importUuid}_${p.songId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await db.insert(userSongProgress)
+          .values({
+            id,
+            userUuid: importUuid,
+            songId: p.songId,
+            status: p.status || "learning",
+            speed: p.speed || 100,
+            notes: p.notes || null,
+            practiceMarkers: p.practiceMarkers || null,
+            backingStartOffset: p.backingStartOffset || null,
+            tabStartOffset: p.tabStartOffset || null,
+            updatedAt: Date.now(),
+          })
+          .onConflictDoUpdate({
+            target: [userSongProgress.userUuid, userSongProgress.songId],
+            set: {
               status: p.status || "learning",
               speed: p.speed || 100,
               notes: p.notes || null,
@@ -359,24 +339,8 @@ export async function importUserData(payload: any) {
               backingStartOffset: p.backingStartOffset || null,
               tabStartOffset: p.tabStartOffset || null,
               updatedAt: Date.now(),
-            })
-            .where(eq(userSongProgress.id, existingProg[0].id));
-        } else {
-          const id = `${importUuid}_${p.songId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-          await db.insert(userSongProgress)
-            .values({
-              id,
-              userUuid: importUuid,
-              songId: p.songId,
-              status: p.status || "learning",
-              speed: p.speed || 100,
-              notes: p.notes || null,
-              practiceMarkers: p.practiceMarkers || null,
-              backingStartOffset: p.backingStartOffset || null,
-              tabStartOffset: p.tabStartOffset || null,
-              updatedAt: Date.now(),
-            });
-        }
+            }
+          });
       }
     }
 

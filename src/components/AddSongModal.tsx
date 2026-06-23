@@ -47,13 +47,13 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && onClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-[#161719] border border-[#27282b] text-[#f1f2f4]">
+      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#f1f2f4]">
-            <Music className="w-5 h-5 text-[#888d96]" />
+          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+            <Music className="w-5 h-5 text-muted-foreground" />
             Add Song to Library
           </DialogTitle>
-          <DialogDescription className="text-[#888d96] text-xs">
+          <DialogDescription className="text-muted-foreground text-xs">
             Enter details. We will query public sources for notations, tunings, backing tracks, and lesson videos in the background.
           </DialogDescription>
         </DialogHeader>
@@ -61,7 +61,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
           {/* Song Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="songTitle" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+            <Label htmlFor="songTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Song Title
             </Label>
             <Input
@@ -71,13 +71,13 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Plush"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
             />
           </div>
 
           {/* Artist/Band Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="artistName" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+            <Label htmlFor="artistName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Artist / Band Name
             </Label>
             <Input
@@ -87,7 +87,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Stone Temple Pilots"
               value={artist}
               onChange={(e) => setArtist(e.target.value)}
-              className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
             />
           </div>
 
@@ -97,20 +97,20 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             </div>
           )}
 
-          <DialogFooter className="pt-3 border-t border-[#27282b] gap-2 sm:gap-0">
+          <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
               type="button"
               variant="ghost"
               disabled={isLoading}
               onClick={onClose}
-              className="text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#27282b] rounded-xl border border-transparent"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading || !title.trim() || !artist.trim()}
-              className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
+              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
             >
               {isLoading ? (
                 <>

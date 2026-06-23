@@ -26,103 +26,17 @@ import { PrivateIndicator } from "./PrivateIndicator";
 import { toast } from "sonner";
 import { getUserSettings, saveUserSettings } from "@/app/actions/user";
 
-interface Track {
-  id: string;
-  roleGroupId: string;
-  instrumentName: string;
-  role: string;
-  details: string | null;
-  tuning: string;
-  tabLink: string;
-}
-
-interface RoleGroup {
-  id: string;
-  songId: string;
-  role: string;
-  backingTrackLink: string | null;
-  tabVideoLink: string | null;
-  tracks: Track[];
-}
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  songsterrId: number | null;
-  albumArt?: string | null;
-  createdAt: number;
-  roleGroups: RoleGroup[];
-}
-
-interface RehearsalSong {
-  rehearsalId: string;
-  songId: string;
-  sortOrder: number;
-  song: Song;
-}
-
-interface RehearsalDetails {
-  id: string;
-  title: string;
-  date: number;
-  notes: string | null;
-  rehearsalSongs: RehearsalSong[];
-}
+import { Track, RoleGroup, Song, RehearsalSong, RehearsalDetails, ProgressMap } from "@/types/models";
+import { getYouTubeId } from "@/lib/youtube";
+import { useYoutubeApi } from "@/hooks/useYoutubeApi";
+import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
+import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 
 interface RehearsalAutoplayProps {
   rehearsal: RehearsalDetails;
   onExit: () => void;
   preferredInstrument?: string;
-  progressMap: Record<string, { status: string; speed: number; notes: string | null; backingStartOffset?: number | null; tabStartOffset?: number | null; practiceMarkers?: string | null }>;
-}
-
-function getYouTubeId(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i
-  );
-  return match ? match[1] : null;
-}
-
-function useYoutubeApi() {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if ((window as any).YT && (window as any).YT.Player) {
-      setLoaded(true);
-      return;
-    }
-
-    let script = document.getElementById("youtube-iframe-api") as HTMLScriptElement;
-    if (!script) {
-      script = document.createElement("script");
-      script.id = "youtube-iframe-api";
-      script.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode?.insertBefore(script, firstScriptTag);
-    }
-
-    const previousReady = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (previousReady) previousReady();
-      setLoaded(true);
-    };
-
-    const interval = setInterval(() => {
-      if ((window as any).YT && (window as any).YT.Player) {
-        setLoaded(true);
-        clearInterval(interval);
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
-
-  return loaded;
+  progressMap: ProgressMap;
 }
 
 // Helper to extract backing track video ID
@@ -496,177 +410,67 @@ export function RehearsalAutoplay({
   };
 
   // Keyboard event listener for hotkeys in Autoplay Mode
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip inputs and textareas
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      ) {
-        return;
-      }
-
-      // Spacebar to toggle play/pause
-      if (e.key === " ") {
-        e.preventDefault();
-        if (playerRef.current) {
-          try {
-            const state = playerRef.current.getPlayerState();
-            if (state === 1) { // playing
-              playerRef.current.pauseVideo();
-              setIsPlaying(false);
-            } else {
-              playerRef.current.playVideo();
-              setIsPlaying(true);
-            }
-          } catch (err) {
-            console.error("Error toggling play via Space in autoplay:", err);
-          }
-        }
-        return;
-      }
-
-      // Left Arrow to skip backward 5s
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        if (playerRef.current) {
-          try {
-            const now = Date.now();
-            let baseTime = playerRef.current.getCurrentTime();
-            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-              baseTime = seekTargetRef.current;
-            }
-            let targetTime = Math.max(0, baseTime - 5);
-            seekTargetRef.current = targetTime;
-            lastSeekTimeRef.current = now;
-
-            playerRef.current.seekTo(targetTime, true);
-          } catch (err) {
-            console.error("Error seeking back in autoplay:", err);
-          }
-        }
-        return;
-      }
-
-      // Right Arrow to skip forward 5s
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        if (playerRef.current) {
-          try {
-            const now = Date.now();
-            let baseTime = playerRef.current.getCurrentTime();
-            if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-              baseTime = seekTargetRef.current;
-            }
-            let targetTime = baseTime + 5;
-            const duration = playerRef.current.getDuration();
-            if (duration && targetTime > duration) {
-              targetTime = duration;
-            }
-            seekTargetRef.current = targetTime;
-            lastSeekTimeRef.current = now;
-
-            playerRef.current.seekTo(targetTime, true);
-          } catch (err) {
-            console.error("Error seeking forward in autoplay:", err);
-          }
-        }
-        return;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Monitor when focus shifts to iframe and redirect it back to parent window
-  useEffect(() => {
-    let iframeFocused = false;
-    let lastTime = -1;
-    let lastState = -1;
-    let focusTimeout: any = null;
-
-    const restoreFocus = () => {
-      if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-        (document.activeElement as HTMLElement).blur();
-        window.focus();
-      }
-      iframeFocused = false;
-      if (focusTimeout) {
-        clearTimeout(focusTimeout);
-        focusTimeout = null;
-      }
-    };
-
-    const handleBlur = () => {
-      setTimeout(() => {
-        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-          iframeFocused = true;
-          
-          if (focusTimeout) clearTimeout(focusTimeout);
-          // Initial timeout: restore focus in 50ms
-          focusTimeout = setTimeout(restoreFocus, 50);
-
-          if (playerRef.current) {
-            try {
-              if (typeof playerRef.current.getCurrentTime === "function") lastTime = playerRef.current.getCurrentTime();
-              if (typeof playerRef.current.getPlayerState === "function") lastState = playerRef.current.getPlayerState();
-            } catch (e) {}
-          }
-        }
-      }, 50);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (e.buttons > 0) return;
-
-      if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
-        restoreFocus();
-      }
-    };
-
-    const interval = setInterval(() => {
-      if (!iframeFocused || !document.activeElement || document.activeElement.tagName !== "IFRAME") {
-        return;
-      }
-
+  usePracticeKeyboard({
+    onPlayPause: () => {
       if (playerRef.current) {
         try {
-          let currentTime = lastTime;
-          let currentState = lastState;
-
-          if (typeof playerRef.current.getCurrentTime === "function") currentTime = playerRef.current.getCurrentTime();
-          if (typeof playerRef.current.getPlayerState === "function") currentState = playerRef.current.getPlayerState();
-
-          const timeDiff = currentTime - lastTime;
-          const isPlaying = currentState === 1;
-          const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
-
-          const stateChanged = currentState !== lastState;
-          const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
-
-          if (stateChanged || userSeeked) {
-            lastTime = currentTime;
-            lastState = currentState;
-
-            if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(restoreFocus, 50);
+          const state = playerRef.current.getPlayerState();
+          if (state === 1) { // playing
+            playerRef.current.pauseVideo();
+            setIsPlaying(false);
           } else {
-            lastTime = currentTime;
+            playerRef.current.playVideo();
+            setIsPlaying(true);
           }
-        } catch (e) {}
+        } catch (err) {
+          console.error("Error toggling play via Space in autoplay:", err);
+        }
       }
-    }, 100);
+    },
+    onSeekBackward: () => {
+      if (playerRef.current) {
+        try {
+          const now = Date.now();
+          let baseTime = playerRef.current.getCurrentTime();
+          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+            baseTime = seekTargetRef.current;
+          }
+          let targetTime = Math.max(0, baseTime - 5);
+          seekTargetRef.current = targetTime;
+          lastSeekTimeRef.current = now;
 
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("mousemove", handleMouseMove);
-      clearInterval(interval);
-      if (focusTimeout) clearTimeout(focusTimeout);
-    };
-  }, []);
+          playerRef.current.seekTo(targetTime, true);
+        } catch (err) {
+          console.error("Error seeking back in autoplay:", err);
+        }
+      }
+    },
+    onSeekForward: () => {
+      if (playerRef.current) {
+        try {
+          const now = Date.now();
+          let baseTime = playerRef.current.getCurrentTime();
+          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
+            baseTime = seekTargetRef.current;
+          }
+          let targetTime = baseTime + 5;
+          const duration = playerRef.current.getDuration();
+          if (duration && targetTime > duration) {
+            targetTime = duration;
+          }
+          seekTargetRef.current = targetTime;
+          lastSeekTimeRef.current = now;
+
+          playerRef.current.seekTo(targetTime, true);
+        } catch (err) {
+          console.error("Error seeking forward in autoplay:", err);
+        }
+      }
+    }
+  });
+
+  // Monitor when focus shifts to iframe and redirect it back to parent window
+  useIframeFocusGuard(() => playerRef.current);
 
   // Circular progress countdown SVG calculations
   const radius = 36;
@@ -676,23 +480,23 @@ export function RehearsalAutoplay({
   const nextSong = queue[currentSongIndex + 1]?.song;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0c0d0e] text-[#f1f2f4] flex flex-col h-screen overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-background text-foreground flex flex-col h-screen overflow-hidden">
       {/* Autoplay Header styled like single song practice mode */}
-      <header className="flex items-center justify-between border-b border-[#27282b] bg-[#161719]/40 px-6 py-4 flex-shrink-0 w-full">
+      <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             onClick={onExit}
-            className="text-[#888d96] hover:text-[#f1f2f4] rounded-xl border border-[#27282b] bg-[#161719]/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
+            className="text-muted-foreground hover:text-foreground rounded-xl border border-border bg-card/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
           <div>
-            <h2 className="text-sm font-bold text-[#f1f2f4] truncate">
+            <h2 className="text-sm font-bold text-foreground truncate">
               {rehearsal.title}
             </h2>
-            <div className="flex items-center gap-2 text-[10px] text-[#888d96] mt-0.5">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
               <Calendar className="w-3.5 h-3.5" />
               <span>{new Date(rehearsal.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
             </div>
@@ -709,11 +513,11 @@ export function RehearsalAutoplay({
       {/* Main Body */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         {/* Left Column: Player (70%) */}
-        <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-[#0c0d0e]/60">
+        <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-background/60">
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
             {/* Player aspect wrapper */}
             <div
-              className="w-full aspect-video bg-black border border-[#27282b] rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
+              className="w-full aspect-video bg-black border border-border rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
               onMouseEnter={() => {
                 isMouseOverPlayerRef.current = true;
               }}
@@ -743,9 +547,9 @@ export function RehearsalAutoplay({
 
               {/* HUD: Countdown overlay */}
               {isCountdownActive && upcomingSong && (
-                <div className="absolute inset-0 z-30 bg-[#0c0d0e]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                <div className="absolute inset-0 z-30 bg-background/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
-                    <p className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                       {!hasStartedSession ? "Starting Rehearsal In" : "Up Next In"}
                     </p>
                     
@@ -777,10 +581,10 @@ export function RehearsalAutoplay({
                     </div>
 
                     <div className="space-y-1.5">
-                      <h3 className="text-base font-black text-[#f1f2f4] leading-snug line-clamp-1">
+                      <h3 className="text-base font-black text-foreground leading-snug line-clamp-1">
                         {upcomingSong.title}
                       </h3>
-                      <p className="text-xs text-[#888d96] line-clamp-1">
+                      <p className="text-xs text-muted-foreground line-clamp-1">
                         by {upcomingSong.artist}
                       </p>
                     </div>
@@ -790,7 +594,7 @@ export function RehearsalAutoplay({
                       <Button
                         size="sm"
                         onClick={() => setIsCountdownPaused(!isCountdownPaused)}
-                        className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold px-4 h-9 animate-none"
+                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-4 h-9 animate-none"
                       >
                         {isCountdownPaused ? "Resume Autoplay" : "Pause Timer"}
                       </Button>
@@ -808,19 +612,19 @@ export function RehearsalAutoplay({
 
               {/* HUD: Warning overlay when no video exists */}
               {!currentVideoId && !isCountdownActive && !isFinished && currentSong && hasStartedSession && (
-                <div className="absolute inset-0 z-20 bg-[#0c0d0e]/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-3 max-w-md flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-[#3b1c1c] border border-red-900/60 flex items-center justify-center text-red-400 mb-2">
                       <Music className="w-6 h-6" />
                     </div>
                     <h3 className="text-sm font-bold text-red-400">No Backing Track Found</h3>
-                    <p className="text-xs text-[#888d96] max-w-xs leading-relaxed">
-                      Could not find a valid backing track or video link for <span className="font-bold text-[#f1f2f4]">"{currentSong.title}"</span>. Skipping in a few seconds...
+                    <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                      Could not find a valid backing track or video link for <span className="font-bold text-foreground">"{currentSong.title}"</span>. Skipping in a few seconds...
                     </p>
                     <div className="flex gap-2 pt-2">
                       <Button
                         onClick={handleNextSong}
-                        className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-xs font-bold rounded-xl h-8 px-3 animate-none"
+                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-xs font-bold rounded-xl h-8 px-3 animate-none"
                       >
                         Skip Song
                       </Button>
@@ -831,21 +635,21 @@ export function RehearsalAutoplay({
 
               {/* HUD: Rehearsal Session Finished */}
               {isFinished && (
-                <div className="absolute inset-0 z-30 bg-[#0c0d0e]/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                <div className="absolute inset-0 z-30 bg-background/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
                     <div className="w-14 h-14 rounded-full bg-[#1b3b2b] border border-emerald-900/60 flex items-center justify-center text-emerald-400 mb-2">
                       <CheckCircle2 className="w-8 h-8" />
                     </div>
                     <div className="space-y-1.5">
-                      <h3 className="text-lg font-black text-[#f1f2f4]">Rehearsal Prep Complete!</h3>
-                      <p className="text-xs text-[#888d96] leading-relaxed">
+                      <h3 className="text-lg font-black text-foreground">Rehearsal Prep Complete!</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         You played through all the backing tracks in your setlist sequence.
                       </p>
                     </div>
                     <div className="flex items-center gap-3 pt-3">
                       <Button
                         onClick={handleRestartRehearsal}
-                        className="bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4] rounded-xl text-xs font-bold px-4 h-10 animate-none"
+                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-4 h-10 animate-none"
                       >
                         <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Restart Setlist
                       </Button>
@@ -863,15 +667,15 @@ export function RehearsalAutoplay({
 
             {/* Video Player Information Footer */}
             {currentSong && (
-              <div className="bg-[#161719]/40 border border-[#27282b] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0 shadow-lg">
+              <div className="bg-card/40 border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0 shadow-lg">
                 <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-widest block">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
                     Now Playing (Song {currentSongIndex + 1} of {queue.length})
                   </span>
-                  <h3 className="text-lg font-black text-[#f1f2f4] mt-1 truncate">
+                  <h3 className="text-lg font-black text-foreground mt-1 truncate">
                     {currentSong.title}
                   </h3>
-                  <p className="text-xs text-[#888d96] truncate mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
                     by {currentSong.artist}
                   </p>
                 </div>
@@ -890,7 +694,7 @@ export function RehearsalAutoplay({
                               "text-[8px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0",
                               ind.role.toLowerCase() === instrumentPreference.toLowerCase()
                                 ? "bg-[#2e4057]/45 border-[#446285]/55 text-[#acd1f8]"
-                                : "bg-[#161719]/40 border-[#27282b] text-[#6c727a]"
+                                : "bg-card/40 border-border text-[#6c727a]"
                             )}
                           >
                             {ind.tuning}
@@ -901,13 +705,13 @@ export function RehearsalAutoplay({
                   })()}
 
                   {/* Player Queue Control Buttons */}
-                  <div className="flex items-center gap-1.5 border-l border-[#27282b] pl-3.5">
+                  <div className="flex items-center gap-1.5 border-l border-border pl-3.5">
                     <Button
                       variant="outline"
                       size="icon"
                       disabled={currentSongIndex === 0}
                       onClick={handlePrevSong}
-                      className="h-9 w-9 border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-[#888d96] hover:text-[#f1f2f4] rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
+                      className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
                       title="Previous Song"
                     >
                       <SkipBack className="w-4 h-4" />
@@ -917,7 +721,7 @@ export function RehearsalAutoplay({
                       size="icon"
                       onClick={handleTogglePlay}
                       disabled={!currentVideoId || !hasStartedSession}
-                      className="h-9 w-9 border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-[#acd1f8] hover:text-white rounded-lg flex items-center justify-center cursor-pointer"
+                      className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-[#acd1f8] hover:text-white rounded-lg flex items-center justify-center cursor-pointer"
                       title={isPlaying ? "Pause" : "Play"}
                     >
                       {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
@@ -927,7 +731,7 @@ export function RehearsalAutoplay({
                       size="icon"
                       disabled={currentSongIndex === queue.length - 1}
                       onClick={handleNextSong}
-                      className="h-9 w-9 border-[#27282b] bg-[#0c0d0e]/40 hover:bg-[#27282b] text-[#888d96] hover:text-[#f1f2f4] rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
+                      className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
                       title="Next Song"
                     >
                       <SkipForward className="w-4 h-4" />
@@ -940,21 +744,21 @@ export function RehearsalAutoplay({
         </div>
 
         {/* Right Column: Queue Sidebar (30%) */}
-        <div className="w-full lg:w-80 lg:border-l border-[#27282b] bg-[#161719]/10 flex flex-col overflow-hidden flex-shrink-0 min-h-0">
+        <div className="w-full lg:w-80 lg:border-l border-border bg-card/10 flex flex-col overflow-hidden flex-shrink-0 min-h-0">
           {/* Instrument Selection & Autoplay Settings */}
-          <div className="p-4 border-b border-[#27282b] space-y-4 flex-shrink-0 bg-[#161719]/40">
+          <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card/40">
             {/* Instrument selector tabs */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                 Practice Instrument
               </label>
               <Tabs value={instrumentPreference} onValueChange={handleInstrumentChange} className="w-full">
-                <TabsList className="bg-[#0c0d0e] border border-[#27282b] p-0.5 rounded-xl h-auto flex w-full">
+                <TabsList className="bg-background border border-border p-0.5 rounded-xl h-auto flex w-full">
                   {["Guitar", "Bass", "Vocals", "Drums", "Keys"].map((inst) => (
                     <TabsTrigger
                       key={inst}
                       value={inst}
-                      className="px-1 py-1 text-[10px] font-bold rounded-lg data-[state=active]:bg-[#27282b] data-[state=active]:text-[#f1f2f4] text-[#888d96] hover:text-[#f1f2f4] transition-all cursor-pointer flex-1 text-center"
+                      className="px-1 py-1 text-[10px] font-bold rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all cursor-pointer flex-1 text-center"
                     >
                       {inst === "Keys" ? "Piano" : inst}
                     </TabsTrigger>
@@ -966,17 +770,17 @@ export function RehearsalAutoplay({
             {/* Autoplay toggle (styled as dual button) and countdown duration */}
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                   Auto-advance
                 </label>
-                <div className="flex bg-[#0c0d0e]/60 p-1 border border-[#27282b] rounded-xl gap-1 w-full justify-between">
+                <div className="flex bg-background/60 p-1 border border-border rounded-xl gap-1 w-full justify-between">
                   <Button
                     onClick={() => handleAutoplayEnabledChange(true)}
                     className={cn(
                       "text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all border-0 flex-1 cursor-pointer animate-none",
                       autoplayEnabled
                         ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                        : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                        : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                     )}
                   >
                     On
@@ -987,7 +791,7 @@ export function RehearsalAutoplay({
                       "text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all border-0 flex-1 cursor-pointer animate-none",
                       !autoplayEnabled
                         ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
-                        : "bg-transparent text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#161719]/40"
+                        : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                     )}
                   >
                     Off
@@ -996,22 +800,22 @@ export function RehearsalAutoplay({
               </div>
 
               <div className="flex items-center justify-between gap-4 pt-1">
-                <span className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">Transition Timer:</span>
-                <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] rounded-lg overflow-hidden h-7 w-20 justify-between">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Transition Timer:</span>
+                <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-20 justify-between">
                   <button
                     type="button"
                     onClick={() => handleTimeoutChange(Math.max(1, transitionTimeout - 1))}
-                    className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-1.5 h-full hover:bg-[#27282b]/50 border-r border-[#27282b] cursor-pointer flex items-center justify-center"
+                    className="text-xs font-bold text-muted-foreground hover:text-foreground px-1.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
                   >
                     -
                   </button>
-                  <span className="text-[10px] font-mono text-[#f1f2f4] font-bold w-full text-center">
+                  <span className="text-[10px] font-mono text-foreground font-bold w-full text-center">
                     {transitionTimeout}s
                   </span>
                   <button
                     type="button"
                     onClick={() => handleTimeoutChange(Math.min(60, transitionTimeout + 1))}
-                    className="text-xs font-bold text-[#888d96] hover:text-[#f1f2f4] px-1.5 h-full hover:bg-[#27282b]/50 border-l border-[#27282b] cursor-pointer flex items-center justify-center"
+                    className="text-xs font-bold text-muted-foreground hover:text-foreground px-1.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
                   >
                     +
                   </button>
@@ -1021,14 +825,14 @@ export function RehearsalAutoplay({
               {/* Volume Slider Control */}
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Volume
                   </label>
                   <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
                     {volume}%
                   </span>
                 </div>
-                <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] px-3.5 py-2 rounded-xl gap-3">
+                <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
                   <button
                     onClick={() => setVolume(v => v === 0 ? 100 : 0)}
                     className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
@@ -1049,14 +853,14 @@ export function RehearsalAutoplay({
               {/* Playback Speed Control Slider */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Playback Speed
                   </label>
                   <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
                     {speed.toFixed(2)}x
                   </span>
                 </div>
-                <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] px-3.5 py-2 rounded-xl gap-3">
+                <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
                   <span className="text-[#acd1f8] flex items-center"><Gauge className="w-3.5 h-3.5" /></span>
                   <Slider
                     value={[speed]}
@@ -1072,12 +876,12 @@ export function RehearsalAutoplay({
           </div>
 
           {/* Queue Header */}
-          <div className="p-4 border-b border-[#27282b] flex-shrink-0 flex items-center justify-between bg-[#161719]/10">
-            <h3 className="text-xs font-bold text-[#f1f2f4] uppercase tracking-wider flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-[#888d96]" />
+          <div className="p-4 border-b border-border flex-shrink-0 flex items-center justify-between bg-card/10">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-muted-foreground" />
               Setlist Queue
             </h3>
-            <span className="text-[10px] font-bold text-[#888d96] bg-[#0c0d0e] border border-[#27282b] px-2 py-0.5 rounded-md">
+            <span className="text-[10px] font-bold text-muted-foreground bg-background border border-border px-2 py-0.5 rounded-md">
               {queue.length} songs
             </span>
           </div>
@@ -1097,15 +901,15 @@ export function RehearsalAutoplay({
                   className={cn(
                     "flex flex-col p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none gap-2",
                     isSongActive
-                      ? "bg-[#27282b] border-[#5b80a5]/45 shadow-md shadow-[#0c0d0e]/40"
+                      ? "bg-muted border-[#5b80a5]/45 shadow-md shadow-[#0c0d0e]/40"
                       : isSongCompleted
-                      ? "bg-[#0c0d0e]/20 border-[#27282b]/60 opacity-60 hover:opacity-90 hover:border-[#383a3f]"
-                      : "bg-[#0c0d0e]/40 border-[#27282b]/80 hover:bg-[#161719]/40 hover:border-[#383a3f]"
+                      ? "bg-background/20 border-border/60 opacity-60 hover:opacity-90 hover:border-[#383a3f]"
+                      : "bg-background/40 border-border/80 hover:bg-card/40 hover:border-[#383a3f]"
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <span className="text-xs font-mono font-bold text-[#888d96] w-5 text-right flex-shrink-0">
+                      <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                         {index + 1}.
                       </span>
 
@@ -1115,19 +919,19 @@ export function RehearsalAutoplay({
                         <img
                           src={song.albumArt}
                           alt=""
-                          className="w-8 h-8 rounded-lg object-cover border border-[#27282b] flex-shrink-0"
+                          className="w-8 h-8 rounded-lg object-cover border border-border flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-[#161719] border border-[#27282b]/60 flex items-center justify-center flex-shrink-0">
-                          <Music className="w-3.5 h-3.5 text-[#888d96]" />
+                        <div className="w-8 h-8 rounded-lg bg-card border border-border/60 flex items-center justify-center flex-shrink-0">
+                          <Music className="w-3.5 h-3.5 text-muted-foreground" />
                         </div>
                       )}
 
                       <div className="min-w-0 flex-grow">
-                        <h4 className={cn("text-xs font-bold truncate", isSongActive ? "text-[#f1f2f4]" : "text-[#d1d1d6]")}>
+                        <h4 className={cn("text-xs font-bold truncate", isSongActive ? "text-foreground" : "text-[#d1d1d6]")}>
                           {song.title}
                         </h4>
-                        <p className="text-[10px] text-[#888d96] truncate mt-0.5 font-medium">
+                        <p className="text-[10px] text-muted-foreground truncate mt-0.5 font-medium">
                           {song.artist}
                         </p>
                       </div>
@@ -1139,7 +943,7 @@ export function RehearsalAutoplay({
                       ) : isSongActive ? (
                         <span className="w-2.5 h-2.5 rounded-full bg-[#acd1f8] animate-pulse shadow-[0_0_8px_#acd1f8]" />
                       ) : isSongNext ? (
-                        <Clock className="w-4 h-4 text-[#888d96]" />
+                        <Clock className="w-4 h-4 text-muted-foreground" />
                       ) : null}
                     </div>
                   </div>
@@ -1159,7 +963,7 @@ export function RehearsalAutoplay({
                                 "text-[7.5px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0 bg-transparent leading-none",
                                 isMatch
                                   ? "border-[#446285] text-[#acd1f8] font-bold"
-                                  : "border-[#27282b] text-[#6c727a]"
+                                  : "border-border text-[#6c727a]"
                               )}
                             >
                               {ind.tuning}

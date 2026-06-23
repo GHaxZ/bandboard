@@ -24,7 +24,7 @@ export default function RootLayout({
       lang="en"
       className={`dark ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#0c0d0e] text-[#f1f2f4]">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <AnonymousUserProvider>
           {children}
           <Toaster />

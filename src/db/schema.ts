@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 export const songs = sqliteTable('songs', {
@@ -103,7 +103,9 @@ export const userSongProgress = sqliteTable('user_song_progress', {
   backingStartOffset: real('backing_start_offset'),
   tabStartOffset: real('tab_start_offset'),
   updatedAt: integer('updated_at').notNull(),
-});
+}, (table) => [
+  uniqueIndex('user_song_unique_idx').on(table.userUuid, table.songId)
+]);
 
 export const userSongProgressRelations = relations(userSongProgress, ({ one }) => ({
   song: one(songs, {

@@ -15,7 +15,7 @@ function parseViews(text: string): number {
   
   // Detect multiplier
   let multiplier = 1;
-  if (lower.includes('m') || lower.includes('mio') || lower.includes('mill')) {
+  if (lower.includes('mio') || lower.includes('mill') || (lower.includes('m') && !lower.includes('mil'))) {
     multiplier = 1_000_000;
   } else if (lower.includes('k') || lower.includes('tsd') || lower.includes('thous') || lower.includes('mil')) {
     multiplier = 1_000;
@@ -195,4 +195,12 @@ export async function searchYouTube(query: string): Promise<YouTubeVideo[]> {
     return apiYouTube(query, apiKey);
   }
   return scrapeYouTube(query);
+}
+
+export function getYouTubeId(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i
+  );
+  return match ? match[1] : null;
 }

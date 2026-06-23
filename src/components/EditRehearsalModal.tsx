@@ -110,13 +110,13 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && onClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-[#161719] border border-[#27282b] text-[#f1f2f4]">
+      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#f1f2f4]">
-            <Calendar className="w-5 h-5 text-[#888d96]" />
+          <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+            <Calendar className="w-5 h-5 text-muted-foreground" />
             Edit Rehearsal Details
           </DialogTitle>
-          <DialogDescription className="text-[#888d96] text-xs">
+          <DialogDescription className="text-muted-foreground text-xs">
             Modify title, date/time scheduling, and instructions for this rehearsal session.
           </DialogDescription>
         </DialogHeader>
@@ -124,7 +124,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
           {/* Rehearsal Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="editRehearsalTitle" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+            <Label htmlFor="editRehearsalTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Rehearsal Title
             </Label>
             <Input
@@ -134,14 +134,14 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               placeholder="e.g. Rehearsal Prep - June 24"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
             />
           </div>
 
           {/* Date & Split Time Picker Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="editRehearsalDate" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+              <Label htmlFor="editRehearsalDate" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Select Date
               </Label>
               <Input
@@ -151,12 +151,12 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                 disabled={isLoading}
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="bg-[#0c0d0e] border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
+                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
               />
             </div>
             
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Select Time
               </Label>
               <div className="flex items-center gap-1.5">
@@ -164,28 +164,28 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                   disabled={isLoading}
                   value={hourStr}
                   onChange={(e) => setHourStr(e.target.value)}
-                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 24 }).map((_, i) => {
                     const h = String(i).padStart(2, "0");
                     return (
-                      <option key={h} value={h} className="bg-[#161719]">
+                      <option key={h} value={h} className="bg-card">
                         {h}
                       </option>
                     );
                   })}
                 </select>
-                <span className="text-[#888d96] font-bold">:</span>
+                <span className="text-muted-foreground font-bold">:</span>
                 <select
                   disabled={isLoading}
                   value={minuteStr}
                   onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus:ring-1 focus:ring-[#5b80a5] focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 12 }).map((_, i) => {
                     const m = String(i * 5).padStart(2, "0");
                     return (
-                      <option key={m} value={m} className="bg-[#161719]">
+                      <option key={m} value={m} className="bg-card">
                         {m}
                       </option>
                     );
@@ -197,7 +197,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="editRehearsalNotes" className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider">
+            <Label htmlFor="editRehearsalNotes" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Notes / Location (Optional)
             </Label>
             <textarea
@@ -207,7 +207,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               placeholder="e.g. Studio Room B. Focus on transitions."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-[#0c0d0e] border border-[#27282b] text-[#f1f2f4] focus-visible:ring-[#5b80a5] rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#5b80a5] placeholder-[#555860]"
+              className="w-full bg-background border border-border text-foreground focus-visible:ring-ring rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder-[#555860]"
             />
           </div>
 
@@ -217,13 +217,13 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             </div>
           )}
 
-          <DialogFooter className="pt-3 border-t border-[#27282b] gap-2 sm:gap-0">
+          <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
               type="button"
               variant="ghost"
               disabled={isLoading}
               onClick={onClose}
-              className="text-[#888d96] hover:text-[#f1f2f4] hover:bg-[#27282b] rounded-xl border border-transparent"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
             >
               Cancel
             </Button>
@@ -234,7 +234,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
                 hasUnsavedChanges && !isLoading
                   ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
-                  : "bg-[#24272c] hover:bg-[#2d3137] border border-[#3b3e45] text-[#f1f2f4]"
+                  : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}
             >
               {isLoading ? (

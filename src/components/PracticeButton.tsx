@@ -23,7 +23,7 @@ export function PracticeButton({
     <Button
       onClick={onClick}
       className={cn(
-        "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] hover:text-[#f1f2f4] rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer font-bold text-xs shadow-sm",
+        "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] hover:text-foreground rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer font-bold text-xs shadow-sm",
         size === "sm" ? "h-8 px-3 text-[11px]" : size === "h-9" ? "h-9 px-4" : size === "icon" ? "h-8 w-8 p-0 justify-center" : "h-10 px-4",
         className
       )}
