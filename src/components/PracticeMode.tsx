@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, getAlternativeLinks } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { toast } from "sonner";
@@ -19,6 +20,10 @@ import {
   ExternalLink,
   FileText,
   Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Gauge,
   Save,
   Trash2,
   Settings,
@@ -161,6 +166,22 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   const seekTargetRef = useRef<number | null>(null);
   const lastSeekTimeRef = useRef<number>(0);
 
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bandboard_player_volume");
+      return saved ? Number(saved) : 100;
+    }
+    return 100;
+  });
+  const [speed, setSpeed] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bandboard_player_speed");
+      return saved ? Number(saved) : 1.0;
+    }
+    return 1.0;
+  });
+
   useEffect(() => {
     progressMapRef.current = progressMap;
   }, [progressMap]);
@@ -168,6 +189,28 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   useEffect(() => {
     songRef.current = song;
   }, [song]);
+
+  // Sync volume change to players
+  useEffect(() => {
+    if (backingPlayerRef.current && typeof backingPlayerRef.current.setVolume === "function") {
+      try { backingPlayerRef.current.setVolume(volume); } catch (e) { }
+    }
+    if (tabPlayerRef.current && typeof tabPlayerRef.current.setVolume === "function") {
+      try { tabPlayerRef.current.setVolume(volume); } catch (e) { }
+    }
+    localStorage.setItem("bandboard_player_volume", String(volume));
+  }, [volume]);
+
+  // Sync playback speed change to players
+  useEffect(() => {
+    if (backingPlayerRef.current && typeof backingPlayerRef.current.setPlaybackRate === "function") {
+      try { backingPlayerRef.current.setPlaybackRate(speed); } catch (e) { }
+    }
+    if (tabPlayerRef.current && typeof tabPlayerRef.current.setPlaybackRate === "function") {
+      try { tabPlayerRef.current.setPlaybackRate(speed); } catch (e) { }
+    }
+    localStorage.setItem("bandboard_player_speed", String(speed));
+  }, [speed]);
 
   // Practice markers (user-specific timestamps)
   const [markers, setMarkers] = useState<number[]>([]);
@@ -314,8 +357,17 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           onReady: (event: any) => {
             // Play video and seek to start offset
             event.target.playVideo();
+            try {
+              event.target.setVolume(volume);
+              event.target.setPlaybackRate(speed);
+            } catch (e) { }
             if (backingOffsetVal > 0) {
               event.target.seekTo(backingOffsetVal, true);
+            }
+          },
+          onStateChange: (event: any) => {
+            if (activeVideo === "backing") {
+              setIsPlaying(event.data === 1);
             }
           }
         }
@@ -335,8 +387,17 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           onReady: (event: any) => {
             // Play video and seek to start offset
             event.target.playVideo();
+            try {
+              event.target.setVolume(volume);
+              event.target.setPlaybackRate(speed);
+            } catch (e) { }
             if (tabOffsetVal > 0) {
               event.target.seekTo(tabOffsetVal, true);
+            }
+          },
+          onStateChange: (event: any) => {
+            if (activeVideo === "tab") {
+              setIsPlaying(event.data === 1);
             }
           }
         }
@@ -371,29 +432,12 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
             return;
           }
 
-          // Sync volume between players
-          if (
-            typeof backingPlayer.getVolume === "function" &&
-            typeof tabPlayer.getVolume === "function"
-          ) {
-            const activePlayer = activeVideo === "backing" ? backingPlayer : tabPlayer;
-            const inactivePlayer = activeVideo === "backing" ? tabPlayer : backingPlayer;
-
+          // Ensure the inactive player remains muted
+          const inactivePlayer = activeVideo === "backing" ? tabPlayer : backingPlayer;
+          if (typeof inactivePlayer.isMuted === "function" && !inactivePlayer.isMuted()) {
             try {
-              const activeVolume = activePlayer.getVolume();
-              const inactiveVolume = inactivePlayer.getVolume();
-
-              if (activeVolume !== inactiveVolume) {
-                inactivePlayer.setVolume(activeVolume);
-              }
-
-              // Ensure the inactive player remains muted
-              if (typeof inactivePlayer.isMuted === "function" && !inactivePlayer.isMuted()) {
-                inactivePlayer.mute();
-              }
-            } catch (volErr) {
-              // ignore transient volume errors
-            }
+              inactivePlayer.mute();
+            } catch (e) { }
           }
 
           const isBackingPlaying = backingPlayer.getPlayerState() === 1;
@@ -622,8 +666,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
   // Monitor when focus shifts to iframe and redirect it back to parent window
   useEffect(() => {
     let iframeFocused = false;
-    let lastVolume = -1;
-    let lastMute = false;
     let lastTime = -1;
     let lastState = -1;
     let focusTimeout: any = null;
@@ -645,29 +687,24 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       setTimeout(() => {
         if (document.activeElement && document.activeElement.tagName === "IFRAME") {
           iframeFocused = true;
-          
-          // Clear any existing timeout
+
           if (focusTimeout) clearTimeout(focusTimeout);
-          
+
           // Initial timeout: restore focus in 50ms
           focusTimeout = setTimeout(restoreFocus, 50);
 
-          // Get initial volume and time of the active player to track changes
           const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
           if (activePlayer) {
             try {
-              if (typeof activePlayer.getVolume === "function") lastVolume = activePlayer.getVolume();
-              if (typeof activePlayer.isMuted === "function") lastMute = activePlayer.isMuted();
               if (typeof activePlayer.getCurrentTime === "function") lastTime = activePlayer.getCurrentTime();
               if (typeof activePlayer.getPlayerState === "function") lastState = activePlayer.getPlayerState();
-            } catch (e) {}
+            } catch (e) { }
           }
         }
       }, 50);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Do not steal focus if a mouse button is held down (e.g. dragging the volume slider or seek bar)
       if (e.buttons > 0) return;
 
       if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
@@ -675,23 +712,18 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
       }
     };
 
-    // Fast check loop when iframe is focused to detect volume or seek changes
+    // Fast check loop when iframe is focused to detect manual seek or state changes
     const interval = setInterval(() => {
       if (!iframeFocused || !document.activeElement || document.activeElement.tagName !== "IFRAME") {
         return;
       }
 
       const activePlayer = activeVideoRef.current === "backing" ? backingPlayerRef.current : tabPlayerRef.current;
-      const inactivePlayer = activeVideoRef.current === "backing" ? tabPlayerRef.current : backingPlayerRef.current;
       if (activePlayer) {
         try {
-          let currentVolume = lastVolume;
-          let currentMute = lastMute;
           let currentTime = lastTime;
           let currentState = lastState;
 
-          if (typeof activePlayer.getVolume === "function") currentVolume = activePlayer.getVolume();
-          if (typeof activePlayer.isMuted === "function") currentMute = activePlayer.isMuted();
           if (typeof activePlayer.getCurrentTime === "function") currentTime = activePlayer.getCurrentTime();
           if (typeof activePlayer.getPlayerState === "function") currentState = activePlayer.getPlayerState();
 
@@ -700,32 +732,20 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
           // Natural playback advances by ~0.1s every 100ms
           const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
 
-          const volumeChanged = currentVolume !== lastVolume;
-          const muteChanged = currentMute !== lastMute;
           const stateChanged = currentState !== lastState;
           const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
 
-          // Sync volume immediately to inactive player if volume changed
-          if (volumeChanged && inactivePlayer && typeof inactivePlayer.setVolume === "function") {
-            try {
-              inactivePlayer.setVolume(currentVolume);
-            } catch (e) {}
-          }
-
-          // If volume changed, mute changed, state changed, or user manually seeked
-          if (volumeChanged || muteChanged || stateChanged || userSeeked) {
-            lastVolume = currentVolume;
-            lastMute = currentMute;
+          // If play state changed, or user manually seeked
+          if (stateChanged || userSeeked) {
             lastTime = currentTime;
             lastState = currentState;
 
-            // Reset the restoreFocus timer: wait 50ms after the last interaction
             if (focusTimeout) clearTimeout(focusTimeout);
             focusTimeout = setTimeout(restoreFocus, 50);
           } else {
             lastTime = currentTime;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     }, 100);
 
@@ -927,18 +947,24 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
               </div>
             )}
 
-
+            {/* Transparent overlay to block native volume controls in YouTube iframe */}
+            {(backingVideoId || tabVideoId) && (
+              <div
+                className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
+                title="Volume controlled via Feed Selector settings below"
+              />
+            )}
           </div>
 
           {/* Unified Practice Controls & Video Sync Settings */}
-          <Card className="border-[#27282b] bg-[#161719]/40 rounded-2xl shadow-lg overflow-hidden">
-            <div className="p-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-[#27282b]">
+          <Card className="border-[#27282b] bg-[#161719]/40 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-[#27282b]">
                 {/* Col 1: Switcher Controls */}
-                <div className="space-y-3 pb-4 md:pb-0 md:pr-4">
+                <div className="space-y-2.5 pb-3 md:pb-0 md:pr-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider block">
-                      Feed Selector
+                      Playback settings
                     </span>
                     <span className="text-[10px] text-[#acd1f8] flex items-center gap-1 font-semibold bg-[#2e4057]/20 border border-[#2e4057]/50 px-2 py-0.5 rounded">
                       <Info className="w-3 h-3" />
@@ -982,13 +1008,52 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                     <p className="text-[11px] text-[#888d96]">Dual feeds not configured for this instrument.</p>
                   )}
 
-                  <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
-                    Press <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">TAB</kbd> on your keyboard to toggle feeds instantly.
-                  </p>
+                  {/* Volume Control */}
+                  <div className="flex items-center gap-3 bg-[#0c0d0e]/40 border border-[#27282b] px-3.5 py-2 rounded-xl">
+                    <button
+                      onClick={() => setVolume(v => v === 0 ? 100 : 0)}
+                      className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+                    >
+                      {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    </button>
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center justify-between text-[9px] text-[#888d96] font-bold uppercase tracking-wider mb-1.5">
+                        <span>Volume</span>
+                        <span className="text-[#acd1f8] font-mono">{volume}%</span>
+                      </div>
+                      <Slider
+                        value={[volume]}
+                        onValueChange={(val) => setVolume(Array.isArray(val) ? val[0] : val)}
+                        min={0}
+                        max={100}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Playback Speed Control */}
+                  <div className="flex items-center gap-3 bg-[#0c0d0e]/40 border border-[#27282b] px-3.5 py-2 rounded-xl">
+                    <span className="text-[#acd1f8] flex items-center"><Gauge className="w-3.5 h-3.5" /></span>
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center justify-between text-[9px] text-[#888d96] font-bold uppercase tracking-wider mb-1.5">
+                        <span>Speed</span>
+                        <span className="text-[#acd1f8] font-mono">{speed.toFixed(2)}x</span>
+                      </div>
+                      <Slider
+                        value={[speed]}
+                        onValueChange={(val) => setSpeed(Array.isArray(val) ? val[0] : val)}
+                        min={0.5}
+                        max={2.0}
+                        step={0.05}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Col 2: Practice Markers (Private) */}
-                <div className="space-y-3 pt-4 md:pt-0 md:px-4">
+                <div className="space-y-2.5 pt-3 md:pt-0 md:px-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider flex items-center gap-1">
                       <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
@@ -1003,10 +1068,6 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                     <Bookmark className="w-3 h-3 fill-current" />
                     Save Current Time
                   </Button>
-
-                  <p className="text-[9px] text-[#888d96] font-medium leading-normal bg-[#0c0d0e]/40 p-2 rounded-lg border border-[#27282b]/60">
-                    Press keyboard keys <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">1</kbd> - <kbd className="bg-[#0c0d0e] px-1.5 py-0.5 rounded border border-[#27282b] font-mono text-[9px] text-[#acd1f8]">9</kbd> to instantly skip to the respective marker.
-                  </p>
 
                   <div className="space-y-1.5">
                     {markers.length > 0 ? (
@@ -1042,7 +1103,7 @@ export function PracticeMode({ song, onExit, onRefresh, progressMap, preferredIn
                 </div>
 
                 {/* Col 3: Start Sync Offsets (Private) */}
-                <div className="space-y-3 pt-4 md:pt-0 md:pl-4">
+                <div className="space-y-2.5 pt-3 md:pt-0 md:pl-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-[#888d96] uppercase tracking-wider flex items-center gap-1">
                       <Settings className="w-3.5 h-3.5 text-[#acd1f8]" />

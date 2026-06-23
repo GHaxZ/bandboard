@@ -11,12 +11,16 @@ import {
   Music,
   Calendar,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  Volume2,
+  VolumeX,
+  Gauge
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
 import { getSongTunings } from "@/lib/tunings";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { toast } from "sonner";
@@ -184,6 +188,37 @@ export function RehearsalAutoplay({
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+
+  const [volume, setVolume] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bandboard_player_volume");
+      return saved ? Number(saved) : 100;
+    }
+    return 100;
+  });
+  const [speed, setSpeed] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bandboard_player_speed");
+      return saved ? Number(saved) : 1.0;
+    }
+    return 1.0;
+  });
+
+  // Sync volume change to player
+  useEffect(() => {
+    if (playerRef.current && typeof playerRef.current.setVolume === "function") {
+      try { playerRef.current.setVolume(volume); } catch (e) {}
+    }
+    localStorage.setItem("bandboard_player_volume", String(volume));
+  }, [volume]);
+
+  // Sync speed change to player
+  useEffect(() => {
+    if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
+      try { playerRef.current.setPlaybackRate(speed); } catch (e) {}
+    }
+    localStorage.setItem("bandboard_player_speed", String(speed));
+  }, [speed]);
 
 
 
@@ -360,6 +395,10 @@ export function RehearsalAutoplay({
           onReady: (event: any) => {
             event.target.playVideo();
             setIsPlaying(true);
+            try {
+              event.target.setVolume(volume);
+              event.target.setPlaybackRate(speed);
+            } catch (e) {}
             if (startOffset > 0) {
               event.target.seekTo(startOffset, true);
             }
@@ -529,11 +568,9 @@ export function RehearsalAutoplay({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Monitor when focus shifts to iframe and redirect it back to parent window when mouse returns to parent page
+  // Monitor when focus shifts to iframe and redirect it back to parent window
   useEffect(() => {
     let iframeFocused = false;
-    let lastVolume = -1;
-    let lastMute = false;
     let lastTime = -1;
     let lastState = -1;
     let focusTimeout: any = null;
@@ -561,8 +598,6 @@ export function RehearsalAutoplay({
 
           if (playerRef.current) {
             try {
-              if (typeof playerRef.current.getVolume === "function") lastVolume = playerRef.current.getVolume();
-              if (typeof playerRef.current.isMuted === "function") lastMute = playerRef.current.isMuted();
               if (typeof playerRef.current.getCurrentTime === "function") lastTime = playerRef.current.getCurrentTime();
               if (typeof playerRef.current.getPlayerState === "function") lastState = playerRef.current.getPlayerState();
             } catch (e) {}
@@ -572,7 +607,6 @@ export function RehearsalAutoplay({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Do not steal focus if a mouse button is held down (e.g. dragging the volume slider or seek bar)
       if (e.buttons > 0) return;
 
       if (iframeFocused && document.activeElement && document.activeElement.tagName === "IFRAME") {
@@ -587,30 +621,20 @@ export function RehearsalAutoplay({
 
       if (playerRef.current) {
         try {
-          let currentVolume = lastVolume;
-          let currentMute = lastMute;
           let currentTime = lastTime;
           let currentState = lastState;
 
-          if (typeof playerRef.current.getVolume === "function") currentVolume = playerRef.current.getVolume();
-          if (typeof playerRef.current.isMuted === "function") currentMute = playerRef.current.isMuted();
           if (typeof playerRef.current.getCurrentTime === "function") currentTime = playerRef.current.getCurrentTime();
           if (typeof playerRef.current.getPlayerState === "function") currentState = playerRef.current.getPlayerState();
 
           const timeDiff = currentTime - lastTime;
           const isPlaying = currentState === 1;
-          // Natural playback advances by ~0.1s every 100ms
           const isNaturalPlayback = isPlaying && Math.abs(timeDiff - 0.1) < 0.08;
 
-          const volumeChanged = currentVolume !== lastVolume;
-          const muteChanged = currentMute !== lastMute;
           const stateChanged = currentState !== lastState;
           const userSeeked = !isNaturalPlayback && Math.abs(timeDiff) > 0.8;
 
-          // If volume changed, mute changed, state changed, or user manually seeked
-          if (volumeChanged || muteChanged || stateChanged || userSeeked) {
-            lastVolume = currentVolume;
-            lastMute = currentMute;
+          if (stateChanged || userSeeked) {
             lastTime = currentTime;
             lastState = currentState;
 
@@ -695,6 +719,14 @@ export function RehearsalAutoplay({
                 id="autoplay-player-div"
                 className={cn("w-full h-full aspect-video", (!currentVideoId || !hasStartedSession) ? "hidden" : "")}
               />
+
+              {/* Transparent overlay to block native volume controls in YouTube iframe */}
+              {currentVideoId && hasStartedSession && (
+                <div
+                  className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
+                  title="Volume controlled via sidebar settings"
+                />
+              )}
 
 
 
@@ -972,6 +1004,57 @@ export function RehearsalAutoplay({
                   >
                     +
                   </button>
+                </div>
+              </div>
+
+              {/* Volume Slider Control */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+                    Volume
+                  </label>
+                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
+                    {volume}%
+                  </span>
+                </div>
+                <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] px-3.5 py-2 rounded-xl gap-3">
+                  <button
+                    onClick={() => setVolume(v => v === 0 ? 100 : 0)}
+                    className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+                  >
+                    {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
+                  <Slider
+                    value={[volume]}
+                    onValueChange={(val) => setVolume(Array.isArray(val) ? val[0] : val)}
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Playback Speed Control Slider */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-[#888d96] uppercase tracking-wider block">
+                    Playback Speed
+                  </label>
+                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
+                    {speed.toFixed(2)}x
+                  </span>
+                </div>
+                <div className="flex items-center bg-[#0c0d0e]/60 border border-[#27282b] px-3.5 py-2 rounded-xl gap-3">
+                  <span className="text-[#acd1f8] flex items-center"><Gauge className="w-3.5 h-3.5" /></span>
+                  <Slider
+                    value={[speed]}
+                    onValueChange={(val) => setSpeed(Array.isArray(val) ? val[0] : val)}
+                    min={0.5}
+                    max={2.0}
+                    step={0.05}
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>
