@@ -764,7 +764,7 @@ export function RehearsalAutoplay({
                           cx="48"
                           cy="48"
                           r={radius}
-                          className="stroke-[#acd1f8] transition-all duration-1000 ease-linear"
+                          className="stroke-[#acd1f8]"
                           strokeWidth="5"
                           fill="transparent"
                           strokeDasharray={circumference}
