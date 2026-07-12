@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { getSongProgress } from "@/app/actions/user";
 import { VideoSelector } from "./VideoSelector";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
-import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
+import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown, Layers } from "lucide-react";
 import { getYouTubeId } from "@/lib/youtube";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import type { Song } from "@/types/models";
@@ -268,6 +269,19 @@ export function SongDashboard({
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
           {onPractice && <PracticeButton onClick={onPractice} />}
+          <Link
+            href={`/songs/${song.id}/tracks`}
+            className="inline-flex items-center gap-1.5 bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl h-10 px-3 text-xs font-bold transition-all duration-200"
+            title="Custom Tracks"
+          >
+            <Layers className="w-4 h-4" />
+            Custom Tracks
+            {song.customTracks && song.customTracks.length > 0 && (
+              <span className="bg-[#2e4057] text-[#acd1f8] px-1.5 py-0.5 rounded-full text-[9px] font-mono leading-none">
+                {song.customTracks.length}
+              </span>
+            )}
+          </Link>
           {onDelete && (
             <Button
               variant="destructive"

@@ -14,6 +14,21 @@ export interface Track {
   tabLink: string;
 }
 
+export interface CustomTrack {
+  id: string;
+  songId: string;
+  role: Role;
+  label: string;
+  fileName: string;
+  storedName: string;
+  mimeType: string;
+  sizeBytes: number;
+  duration: number | null;
+  startOffset: number;
+  isVideo: boolean;
+  createdAt: number;
+}
+
 export interface RoleGroup {
   id: string;
   songId: string;
@@ -32,6 +47,7 @@ export interface Song {
   lyricsUrl: string | null;
   createdAt: number;
   roleGroups: RoleGroup[];
+  customTracks?: CustomTrack[];
 }
 
 export interface RehearsalSong {

@@ -32,6 +32,7 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       if (e.key === "Tab") {
         if (configRef.current.onToggleVideo) {
           e.preventDefault();
+          e.stopPropagation();
           configRef.current.onToggleVideo();
         }
         return;
@@ -39,6 +40,10 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       if (e.key === " ") {
         if (configRef.current.onPlayPause) {
           e.preventDefault();
+          e.stopPropagation();
+          if (active && active !== document.body) {
+            (active as HTMLElement).blur();
+          }
           configRef.current.onPlayPause();
         }
         return;
@@ -46,6 +51,10 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       if (e.key === "ArrowLeft") {
         if (configRef.current.onSeekBackward) {
           e.preventDefault();
+          e.stopPropagation();
+          if (active && active !== document.body) {
+            (active as HTMLElement).blur();
+          }
           configRef.current.onSeekBackward();
         }
         return;
@@ -53,6 +62,10 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       if (e.key === "ArrowRight") {
         if (configRef.current.onSeekForward) {
           e.preventDefault();
+          e.stopPropagation();
+          if (active && active !== document.body) {
+            (active as HTMLElement).blur();
+          }
           configRef.current.onSeekForward();
         }
         return;
@@ -65,7 +78,7 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 }

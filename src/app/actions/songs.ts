@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { songs, tracks, roleGroups } from "@/db/schema";
+import { songs, tracks, roleGroups, customTracks } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { searchYouTube, getYouTubeId } from "@/lib/youtube";
 import { getYouTubeQuery } from "@/lib/youtube-query";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/songsterr";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
+import { deleteStoredFile } from "@/lib/uploads";
 import type { Song } from "@/types/models";
 
 // ---------------------------------------------------------------------------
@@ -128,7 +129,7 @@ export async function getSongs(): Promise<Song[]> {
   try {
     return await db.query.songs.findMany({
       orderBy: [asc(songs.title)],
-      with: { roleGroups: { with: { tracks: true } } },
+      with: { roleGroups: { with: { tracks: true } }, customTracks: true },
     });
   } catch (error) {
     console.error("Failed to query songs:", error);
@@ -140,7 +141,7 @@ export async function getSongDetails(songId: string): Promise<Song | null> {
   try {
     const song = await db.query.songs.findFirst({
       where: eq(songs.id, songId),
-      with: { roleGroups: { with: { tracks: true } } },
+      with: { roleGroups: { with: { tracks: true } }, customTracks: true },
     });
     return (song as Song) ?? null;
   } catch (error) {
@@ -156,7 +157,17 @@ export async function deleteSong(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const customRows = await db
+      .select({ storedName: customTracks.storedName })
+      .from(customTracks)
+      .where(eq(customTracks.songId, songId));
+
     await db.delete(songs).where(eq(songs.id, songId));
+
+    for (const row of customRows) {
+      deleteStoredFile(row.storedName);
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Failed to delete song:", error);

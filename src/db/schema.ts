@@ -51,6 +51,32 @@ export const tracks = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// customTracks — user-uploaded audio/video stems for a song, aligned on a
+// shared timeline. startOffset (seconds) is the only sync knob and is shared
+// across all users (set once in Track Studio).
+// ---------------------------------------------------------------------------
+export const customTracks = sqliteTable(
+  'custom_tracks',
+  {
+    id: text('id').primaryKey(),
+    songId: text('song_id')
+      .notNull()
+      .references(() => songs.id, { onDelete: 'cascade' }),
+    role: text('role').$type<Role>().notNull(),
+    label: text('label').notNull(),
+    fileName: text('file_name').notNull(),
+    storedName: text('stored_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    duration: real('duration'),
+    startOffset: real('start_offset').notNull().default(0),
+    isVideo: integer('is_video', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('custom_tracks_song_id_idx').on(table.songId)]
+);
+
+// ---------------------------------------------------------------------------
 // rehearsals
 // ---------------------------------------------------------------------------
 export const rehearsals = sqliteTable('rehearsals', {
@@ -130,6 +156,7 @@ export const songsRelations = relations(songs, ({ many }) => ({
   roleGroups: many(roleGroups),
   rehearsalSongs: many(rehearsalSongs),
   userProgress: many(userSongProgress),
+  customTracks: many(customTracks),
 }));
 
 export const roleGroupsRelations = relations(roleGroups, ({ one, many }) => ({
@@ -144,6 +171,13 @@ export const tracksRelations = relations(tracks, ({ one }) => ({
   roleGroup: one(roleGroups, {
     fields: [tracks.roleGroupId],
     references: [roleGroups.id],
+  }),
+}));
+
+export const customTracksRelations = relations(customTracks, ({ one }) => ({
+  song: one(songs, {
+    fields: [customTracks.songId],
+    references: [songs.id],
   }),
 }));
 

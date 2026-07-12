@@ -100,3 +100,42 @@ export const NO_VIDEO_SKIP_MS = 4000;
 /** Sentinel stored in roleGroups.backingTrackLink / tabVideoLink when a search
  *  returned no results, so lazyLoadTrackMedia doesn't re-search. */
 export const NO_VIDEO_SENTINEL = 'none';
+
+// ---------------------------------------------------------------------------
+// Custom tracks — uploads, alignment, DAW view (PLAN §22.1)
+// ---------------------------------------------------------------------------
+export const ALLOWED_UPLOAD_MIMES = [
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+  'audio/ogg',
+  'audio/flac',
+  'audio/x-flac',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/aac',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-matroska',
+];
+
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+export const MULTITRACK_DRIFT_MS = 200;
+
+export const DAW_PX_PER_SEC_DEFAULT = 50;
+export const DAW_PX_PER_SEC_MIN = 10;
+export const DAW_PX_PER_SEC_MAX = 200;
+
+export const ROLE_COLORS: Record<Role, string> = {
+  Guitar: 'bg-[#5b80a5]',
+  Bass: 'bg-[#4ea388]',
+  Drums: 'bg-[#cf73b5]',
+  Vocals: 'bg-[#cf9c73]',
+  'Piano/Keyboard': 'bg-[#73a2cf]',
+  Other: 'bg-[#9ebbcf]',
+};
