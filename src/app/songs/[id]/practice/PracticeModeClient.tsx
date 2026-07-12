@@ -1,49 +1,41 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PracticeMode } from "@/components/PracticeMode";
 import { getSongDetails } from "@/app/actions/songs";
-import { getUserSettings, getAllSongProgress } from "@/app/actions/user";
-import { Song, ProgressMap } from "@/types/models";
+import { getProgressMap } from "@/app/actions/user";
+import type { Song, ProgressMap } from "@/types/models";
+import type { Role } from "@/lib/constants";
 
 interface PracticeModeClientProps {
   songId: string;
   initialSong: Song;
-  preferredInstrument: string;
+  preferredInstrument: Role;
   initialProgressMap: ProgressMap;
+  initialVolume: number;
+  initialSpeed: number;
 }
 
-export function PracticeModeClient({ songId, initialSong, preferredInstrument, initialProgressMap }: PracticeModeClientProps) {
+export function PracticeModeClient({
+  songId,
+  initialSong,
+  preferredInstrument,
+  initialProgressMap,
+  initialVolume,
+  initialSpeed,
+}: PracticeModeClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
   const [song, setSong] = useState<Song>(initialSong);
-  const [instrument, setInstrument] = useState(preferredInstrument);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
-
-  useEffect(() => {
-    // No longer need client-side data loader on mount as progressMap is loaded server-side!
-  }, []);
 
   async function refreshData() {
     startTransition(async () => {
       const updated = await getSongDetails(songId);
-      if (updated) {
-        setSong(updated);
-      }
-      const progressList = await getAllSongProgress();
-      const map: ProgressMap = {};
-      progressList.forEach((p) => {
-        map[p.songId] = {
-          status: p.status,
-          speed: p.speed,
-          notes: p.notes,
-          practiceMarkers: p.practiceMarkers,
-          backingStartOffset: p.backingStartOffset,
-          tabStartOffset: p.tabStartOffset,
-        };
-      });
+      if (updated) setSong(updated);
+      const map = await getProgressMap();
       setProgressMap(map);
     });
   }
@@ -51,10 +43,15 @@ export function PracticeModeClient({ songId, initialSong, preferredInstrument, i
   return (
     <PracticeMode
       song={song}
-      onExit={() => router.push(`/songs/${songId}`)}
+      onExit={() => {
+        if (typeof window !== "undefined" && window.history.length > 1) router.back();
+        else router.push(`/songs/${songId}`);
+      }}
       onRefresh={refreshData}
       progressMap={progressMap}
-      preferredInstrument={instrument}
+      preferredInstrument={preferredInstrument}
+      initialVolume={initialVolume}
+      initialSpeed={initialSpeed}
     />
   );
 }

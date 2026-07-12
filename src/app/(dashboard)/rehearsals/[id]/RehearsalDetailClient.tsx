@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  Calendar as CalendarIcon,
   Music as MusicIcon,
   ArrowLeft,
   Edit,
@@ -14,17 +13,19 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditRehearsalModal } from "@/components/EditRehearsalModal";
+import { ClientDate } from "@/components/ClientDate";
 import { SetlistManager } from "@/components/SetlistManager";
 import { SongDashboard } from "@/components/SongDashboard";
 import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
-import { getUserSettings, getAllSongProgress } from "@/app/actions/user";
-import { RehearsalDetails, Song, ProgressMap } from "@/types/models";
+import { getProgressMap } from "@/app/actions/user";
+import type { RehearsalDetails, Song, ProgressMap } from "@/types/models";
+import type { Role } from "@/lib/constants";
 
 interface RehearsalDetailClientProps {
   rehearsalId: string;
   initialDetails: RehearsalDetails;
   songsList: Song[];
-  preferredInstrument: string;
+  preferredInstrument: Role;
   initialProgressMap: ProgressMap;
 }
 
@@ -42,34 +43,16 @@ export function RehearsalDetailClient({
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
-  const [instrument, setInstrument] = useState(preferredInstrument);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
 
-  // Sync active song to URL search parameter `?song=...`
-  const activeSongId = searchParams.get("song") || (rehearsalDetails.rehearsalSongs[0]?.songId || null);
-
-  useEffect(() => {
-    // No longer need client-side data loader on mount as progressMap is loaded server-side!
-  }, []);
+  const activeSongId =
+    searchParams.get("song") || rehearsalDetails.rehearsalSongs[0]?.songId || null;
 
   async function refreshData() {
     startTransition(async () => {
       const details = await getRehearsalDetails(rehearsalId);
-      if (details) {
-        setRehearsalDetails(details);
-      }
-      const progressList = await getAllSongProgress();
-      const map: ProgressMap = {};
-      progressList.forEach((p) => {
-        map[p.songId] = {
-          status: p.status,
-          speed: p.speed,
-          notes: p.notes,
-          practiceMarkers: p.practiceMarkers,
-          backingStartOffset: p.backingStartOffset,
-          tabStartOffset: p.tabStartOffset,
-        };
-      });
+      if (details) setRehearsalDetails(details);
+      const map = await getProgressMap();
       setProgressMap(map);
     });
   }
@@ -77,9 +60,7 @@ export function RehearsalDetailClient({
   async function handleDeleteRehearsal() {
     if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
       const res = await deleteRehearsal(rehearsalId);
-      if (res.success) {
-        router.push("/rehearsals");
-      }
+      if (res.success) router.push("/rehearsals");
     }
   }
 
@@ -91,7 +72,6 @@ export function RehearsalDetailClient({
 
   return (
     <div className="space-y-6">
-      {/* Back Link Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
           <Link
@@ -105,13 +85,7 @@ export function RehearsalDetailClient({
               {rehearsalDetails.title}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {new Date(rehearsalDetails.date).toLocaleString(undefined, {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              <ClientDate ms={rehearsalDetails.date} variant="datetime" />
             </p>
           </div>
         </div>
@@ -133,7 +107,6 @@ export function RehearsalDetailClient({
         </div>
       </div>
 
-      {/* Rehearsal Tabs / View Mode Switcher */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 bg-card border border-border p-1 rounded-xl w-fit">
           <Link
@@ -141,7 +114,7 @@ export function RehearsalDetailClient({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 bg-muted text-foreground"
           >
             <ListMusic className="w-4 h-4" />
-            Setlist & Practice
+            Setlist &amp; Practice
           </Link>
           <Link
             href={`/rehearsals/${rehearsalId}/kanban`}
@@ -166,7 +139,6 @@ export function RehearsalDetailClient({
           </div>
         )}
 
-        {/* Grid layout: Setlist Column & Active Track Details Dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-4 bg-card/40 border border-border rounded-2xl p-4 shadow-lg h-fit">
             <SetlistManager
@@ -179,11 +151,10 @@ export function RehearsalDetailClient({
               progressMap={progressMap}
               onPracticeSong={(songId) => router.push(`/songs/${songId}/practice`)}
               onStartAutoplay={() => router.push(`/rehearsals/${rehearsalId}/practice`)}
-              preferredInstrument={instrument}
+              preferredInstrument={preferredInstrument}
             />
           </div>
 
-          {/* Player Dashboard Column */}
           <div className="lg:col-span-8">
             {activeSongId ? (
               (() => {
@@ -195,8 +166,10 @@ export function RehearsalDetailClient({
                   <SongDashboard
                     song={currentRehSong.song}
                     onRefresh={refreshData}
-                    onPractice={() => router.push(`/songs/${currentRehSong.songId}/practice`)}
-                    preferredInstrument={instrument}
+                    onPractice={() =>
+                      router.push(`/songs/${currentRehSong.songId}/practice`)
+                    }
+                    preferredInstrument={preferredInstrument}
                   />
                 );
               })()
@@ -204,7 +177,10 @@ export function RehearsalDetailClient({
               <div className="text-center py-20 bg-card/40 border border-border rounded-2xl p-6 text-muted-foreground">
                 <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
                 <h3 className="font-semibold text-muted-foreground">No Song Selected</h3>
-                <p className="text-xs mt-1">Select a song from the setlist on the left to load its notations and backing players.</p>
+                <p className="text-xs mt-1">
+                  Select a song from the setlist on the left to load its notations and backing
+                  players.
+                </p>
               </div>
             )}
           </div>

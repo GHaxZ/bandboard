@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AnonymousUserProvider } from "@/components/AnonymousUserProvider";
-import { AccessGuard } from "@/components/AccessGuard";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -21,19 +19,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`dark ${inter.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`dark ${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AnonymousUserProvider>
-          <AccessGuard>
-            {children}
-          </AccessGuard>
-          <Toaster />
-        </AnonymousUserProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );
 }
-

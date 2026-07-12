@@ -1,19 +1,29 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
 
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { getSongTunings } from "@/lib/tunings";
-import { addSongToRehearsalSetlist, removeSongFromRehearsalSetlist, reorderRehearsalSongs } from "@/app/actions/rehearsals";
+import {
+  addSongToRehearsalSetlist,
+  removeSongFromRehearsalSetlist,
+  reorderRehearsalSongs,
+} from "@/app/actions/rehearsals";
 import { cn } from "@/lib/utils";
-import { ArrowUp, ArrowDown, Trash2, Plus, Music, Search, ListMusic, Play } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Plus, Music, ListMusic, Play } from "lucide-react";
 import { SearchInput } from "./SearchInput";
 import { PracticeButton } from "./PracticeButton";
-
-import { Track, RoleGroup, Song, RehearsalSong, ProgressMap } from "@/types/models";
+import { ProgressBadge } from "./ProgressBadge";
+import { TuningBadges } from "./TuningBadges";
+import type { Song, RehearsalSong, ProgressMap } from "@/types/models";
+import type { Role } from "@/lib/constants";
 
 interface SetlistManagerProps {
   rehearsalId: string;
@@ -25,7 +35,7 @@ interface SetlistManagerProps {
   progressMap?: ProgressMap;
   onPracticeSong?: (songId: string) => void;
   onStartAutoplay?: () => void;
-  preferredInstrument?: string;
+  preferredInstrument?: Role | string;
 }
 
 export function SetlistManager({
@@ -44,8 +54,6 @@ export function SetlistManager({
   const [searchQuery, setSearchQuery] = useState("");
 
   const currentSongIds = new Set(rehearsalSongs.map((rs) => rs.songId));
-  
-  // Filter songs that are not yet in the rehearsal
   const availableSongs = allSongs.filter(
     (song) =>
       !currentSongIds.has(song.id) &&
@@ -55,20 +63,15 @@ export function SetlistManager({
 
   async function handleAddSong(songId: string) {
     const res = await addSongToRehearsalSetlist(rehearsalId, songId);
-    if (res.success) {
-      onRefresh();
-    }
+    if (res.success) onRefresh();
   }
 
   async function handleRemoveSong(songId: string) {
     const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
     if (res.success) {
       if (activeSongId === songId) {
-        // Clear selected song if it was deleted
         const remaining = rehearsalSongs.filter((rs) => rs.songId !== songId);
-        if (remaining.length > 0) {
-          onSelectSong(remaining[0].songId);
-        }
+        if (remaining.length > 0) onSelectSong(remaining[0].songId);
       }
       onRefresh();
     }
@@ -78,17 +81,10 @@ export function SetlistManager({
     const newSongs = [...rehearsalSongs];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newSongs.length) return;
-
-    // Swap items
-    const temp = newSongs[index];
-    newSongs[index] = newSongs[targetIndex];
-    newSongs[targetIndex] = temp;
-
+    [newSongs[index], newSongs[targetIndex]] = [newSongs[targetIndex], newSongs[index]];
     const orderedIds = newSongs.map((rs) => rs.songId);
     const res = await reorderRehearsalSongs(rehearsalId, orderedIds);
-    if (res.success) {
-      onRefresh();
-    }
+    if (res.success) onRefresh();
   }
 
   return (
@@ -139,7 +135,6 @@ export function SetlistManager({
                     : "bg-background/40 border-border/80 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
                 }`}
               >
-                {/* Song info and selection clicker */}
                 <button
                   onClick={() => onSelectSong(rs.songId)}
                   className="flex-1 text-left min-w-0 flex items-center gap-3 pr-2"
@@ -149,59 +144,17 @@ export function SetlistManager({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className={`text-sm font-bold truncate ${isSelected ? "text-foreground" : "text-[#d1d1d6]"}`}>
+                      <p
+                        className={`text-sm font-bold truncate ${
+                          isSelected ? "text-foreground" : "text-[#d1d1d6]"
+                        }`}
+                      >
                         {rs.song.title}
                       </p>
-                      {(() => {
-                        const progStatus = (progressMap && progressMap[rs.songId]?.status) || "not_started";
-                        return (
-                          <Badge
-                            className={cn(
-                              "text-[8px] font-extrabold uppercase px-1 py-0 rounded-md border-0 shrink-0",
-                              progStatus === "mastered"
-                                ? "bg-purple-950/40 text-purple-400"
-                                : progStatus === "ready_to_play"
-                                ? "bg-emerald-950/40 text-emerald-400"
-                                : progStatus === "learning"
-                                ? "bg-sky-950/40 text-sky-400"
-                                : "bg-red-950/40 text-red-400"
-                            )}
-                          >
-                            {progStatus === "ready_to_play"
-                              ? "Ready to Play"
-                              : progStatus === "not_started"
-                              ? "Not learned"
-                              : progStatus === "learning"
-                              ? "Learning"
-                              : progStatus}
-                          </Badge>
-                        );
-                      })()}
-                      {/* Tuning Badges */}
-                      {(() => {
-                        const songTunings = getSongTunings(rs.song);
-                        if (songTunings.length === 0) return null;
-                        return (
-                          <div className="flex flex-wrap gap-1">
-                            {songTunings.map((ind) => {
-                              const isHighlighted = ind.role.toLowerCase() === preferredInstrument.toLowerCase();
-                              return (
-                                <Badge
-                                  key={`${ind.role}-${ind.tuning}`}
-                                  className={cn(
-                                    "text-[8px] font-mono tracking-wide px-1 py-0 border",
-                                    isHighlighted
-                                      ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
-                                      : "bg-card/40 border-border text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
-                                  )}
-                                >
-                                  {ind.tuning}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                      <ProgressBadge
+                        status={progressMap?.[rs.songId]?.status || "not_started"}
+                      />
+                      <TuningBadges song={rs.song} highlightRole={preferredInstrument} size="xs" />
                     </div>
                     <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
                       {rs.song.artist}
@@ -209,7 +162,6 @@ export function SetlistManager({
                   </div>
                 </button>
 
-                {/* Reordering and removal controls */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <Button
                     variant="ghost"
@@ -256,7 +208,6 @@ export function SetlistManager({
         </div>
       )}
 
-      {/* Add Songs Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[80vh] flex flex-col p-6 bg-card border border-border text-foreground">
           <DialogHeader>
@@ -269,7 +220,6 @@ export function SetlistManager({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Search bar */}
           <SearchInput
             placeholder="Search by title or artist..."
             value={searchQuery}
@@ -277,7 +227,6 @@ export function SetlistManager({
             className="my-2"
           />
 
-          {/* Scrollable song list */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-2 min-h-[250px] max-h-[40vh]">
             {availableSongs.length === 0 ? (
               <div className="text-center py-10 text-xs text-muted-foreground">
@@ -294,31 +243,7 @@ export function SetlistManager({
                   <div className="min-w-0 pr-3 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <p className="text-sm font-bold text-foreground truncate">{song.title}</p>
-                      {/* Tuning Badges */}
-                      {(() => {
-                        const songTunings = getSongTunings(song);
-                        if (songTunings.length === 0) return null;
-                        return (
-                          <div className="flex flex-wrap gap-1">
-                            {songTunings.map((ind) => {
-                              const isHighlighted = ind.role.toLowerCase() === preferredInstrument.toLowerCase();
-                              return (
-                                <Badge
-                                  key={`${ind.role}-${ind.tuning}`}
-                                  className={cn(
-                                    "text-[8px] font-mono tracking-wide px-1 py-0 border",
-                                    isHighlighted
-                                      ? "bg-[#2e4057] border-[#446285] text-[#acd1f8] hover:bg-[#344b67] hover:text-[#cde3fa]"
-                                      : "bg-card/40 border-border text-[#6c727a] hover:bg-[#1c1d21]/60 hover:text-[#b8c2d1]"
-                                  )}
-                                >
-                                  {ind.tuning}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                      <TuningBadges song={song} highlightRole={preferredInstrument} size="xs" />
                     </div>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{song.artist}</p>
                   </div>
@@ -347,3 +272,7 @@ export function SetlistManager({
     </div>
   );
 }
+
+// Badge import kept for potential future use; suppress unused warning.
+void Badge;
+void cn;

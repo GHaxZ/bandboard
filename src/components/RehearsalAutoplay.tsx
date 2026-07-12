@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Play,
   Pause,
@@ -14,7 +14,7 @@ import {
   ArrowLeft,
   Volume2,
   VolumeX,
-  Gauge
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,478 +23,215 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { getSongTunings } from "@/lib/tunings";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { ClientDate } from "./ClientDate";
 import { toast } from "sonner";
 import { getUserSettings, saveUserSettings } from "@/app/actions/user";
-
-import { Track, RoleGroup, Song, RehearsalSong, RehearsalDetails, ProgressMap } from "@/types/models";
-import { getYouTubeId } from "@/lib/youtube";
-import { useYoutubeApi } from "@/hooks/useYoutubeApi";
+import type { RehearsalDetails, ProgressMap } from "@/types/models";
+import { resolveOffsets } from "@/types/models";
+import { getBackingVideoId } from "@/lib/youtube";
+import { useAutoplayPlayer } from "@/hooks/useAutoplayPlayer";
 import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
+import { usePlayerStore } from "@/stores/player-store";
+import { NO_VIDEO_SKIP_MS, SEEK_STEP_S } from "@/lib/constants";
+import type { Role } from "@/lib/constants";
 
 interface RehearsalAutoplayProps {
   rehearsal: RehearsalDetails;
   onExit: () => void;
-  preferredInstrument?: string;
+  preferredInstrument: Role;
   progressMap: ProgressMap;
-}
-
-// Helper to extract backing track video ID
-function getBackingVideoId(song: Song, preferredRole?: string): string | null {
-  const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
-
-  // 1. Try matching preferred role backing track
-  if (preferredRole) {
-    const matchingRg = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    if (matchingRg?.backingTrackLink) {
-      const vidId = getYouTubeId(matchingRg.backingTrackLink);
-      if (vidId) return vidId;
-    }
-  }
-
-  // 2. Try any backing track link
-  for (const rg of standardRoleGroups) {
-    if (rg.backingTrackLink) {
-      const vidId = getYouTubeId(rg.backingTrackLink);
-      if (vidId) return vidId;
-    }
-  }
-
-  // 3. Fallback to tab video link of preferred role
-  if (preferredRole) {
-    const matchingRg = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    if (matchingRg?.tabVideoLink) {
-      const vidId = getYouTubeId(matchingRg.tabVideoLink);
-      if (vidId) return vidId;
-    }
-  }
-
-  // 4. Try any tab video link
-  for (const rg of standardRoleGroups) {
-    if (rg.tabVideoLink) {
-      const vidId = getYouTubeId(rg.tabVideoLink);
-      if (vidId) return vidId;
-    }
-  }
-
-  return null;
 }
 
 export function RehearsalAutoplay({
   rehearsal,
   onExit,
   preferredInstrument,
-  progressMap
+  progressMap,
 }: RehearsalAutoplayProps) {
-  const apiLoaded = useYoutubeApi();
-  const playerRef = useRef<any>(null);
-  const isMouseOverPlayerRef = useRef(false);
-  const seekTargetRef = useRef<number | null>(null);
-  const lastSeekTimeRef = useRef<number>(0);
-
-  // Rehearsal songs queue, sorted by sortOrder
   const queue = [...rehearsal.rehearsalSongs].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // States
-  const [currentSongIndex, setCurrentSongIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
+  // Store-backed state
+  const currentIndex = usePlayerStore((s) => s.currentIndex);
+  const setCurrentIndex = usePlayerStore((s) => s.setCurrentIndex);
+  const sessionStarted = usePlayerStore((s) => s.sessionStarted);
+  const startSession = usePlayerStore((s) => s.startSession);
+  const finished = usePlayerStore((s) => s.finished);
+  const finish = usePlayerStore((s) => s.finish);
+  const restart = usePlayerStore((s) => s.restart);
+  const countdown = usePlayerStore((s) => s.countdown);
+  const countdownPaused = usePlayerStore((s) => s.countdownPaused);
+  const transitionTimeout = usePlayerStore((s) => s.transitionTimeout);
+  const setTransitionTimeout = usePlayerStore((s) => s.setTransitionTimeout);
+  const autoplayEnabled = usePlayerStore((s) => s.autoplayEnabled);
+  const setAutoplayEnabled = usePlayerStore((s) => s.setAutoplayEnabled);
+  const startCountdown = usePlayerStore((s) => s.startCountdown);
+  const tickCountdown = usePlayerStore((s) => s.tickCountdown);
+  const pauseCountdown = usePlayerStore((s) => s.pauseCountdown);
+  const skipCountdown = usePlayerStore((s) => s.skipCountdown);
+  const skipReason = usePlayerStore((s) => s.skipReason);
+  const triggerNoVideo = usePlayerStore((s) => s.triggerNoVideo);
+  const clearSkipReason = usePlayerStore((s) => s.clearSkipReason);
+  const reset = usePlayerStore((s) => s.reset);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const setPlaying = usePlayerStore((s) => s.setPlaying);
+  const volume = usePlayerStore((s) => s.volume);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const speed = usePlayerStore((s) => s.speed);
+  const setSpeed = usePlayerStore((s) => s.setSpeed);
 
-  const [volume, setVolume] = useState<number>(100);
-  const [speed, setSpeed] = useState<number>(1.0);
-
-  // Sync volume change to player
-  useEffect(() => {
-    if (playerRef.current && typeof playerRef.current.setVolume === "function") {
-      try { playerRef.current.setVolume(volume); } catch (e) {}
-    }
-  }, [volume]);
-
-  // Sync speed change to player
-  useEffect(() => {
-    if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
-      try { playerRef.current.setPlaybackRate(speed); } catch (e) {}
-    }
-  }, [speed]);
-
-
-
-  // Autoplay Configurations
-  const [autoplayEnabled, setAutoplayEnabled] = useState<boolean>(true);
-  const [transitionTimeout, setTransitionTimeout] = useState<number>(5);
-
-  // Countdown States
-  const [countdown, setCountdown] = useState(5);
-  const [isCountdownActive, setIsCountdownActive] = useState(true); // Count in on first load
-  const [isCountdownPaused, setIsCountdownPaused] = useState(false);
-  const [hasStartedSession, setHasStartedSession] = useState(false);
+  const [instrumentPreference, setInstrumentPreference] = useState<Role>(preferredInstrument);
 
   const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
-  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const triggerSkipOverlay = (type: "back" | "forward") => {
-    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
-    setSkipOverlay({ type, key: Date.now() });
-    overlayTimeoutRef.current = setTimeout(() => {
-      setSkipOverlay(null);
-    }, 600);
-  };
-
-  const [instrumentPreference, setInstrumentPreference] = useState<string>(preferredInstrument || "Guitar");
-
-  // Load autoplay configurations from database or fallback to legacy localStorage
+  // Load autoplay settings from DB once
   useEffect(() => {
     async function loadSettings() {
-      try {
-        const dbSettings = await getUserSettings();
-        let enabled = true;
-        let timeout = 5;
-
-        if (dbSettings && dbSettings.autoplayTimeout !== undefined) {
-          enabled = dbSettings.autoplayEnabled;
-          timeout = dbSettings.autoplayTimeout;
-        } else {
-          // Fallback to legacy localStorage if available
-          const legacyAutoplay = localStorage.getItem("bandboard_autoplay_enabled");
-          const legacyTimeout = localStorage.getItem("bandboard_autoplay_timeout");
-
-          if (legacyAutoplay !== null) {
-            enabled = legacyAutoplay === "true";
-            localStorage.removeItem("bandboard_autoplay_enabled");
-          }
-          if (legacyTimeout !== null) {
-            const val = parseInt(legacyTimeout);
-            timeout = isNaN(val) ? 5 : val;
-            localStorage.removeItem("bandboard_autoplay_timeout");
-          }
-
-          // Save migrated values to DB
-          await saveUserSettings(undefined, undefined, enabled, timeout);
-        }
-
-        setAutoplayEnabled(enabled);
-        setTransitionTimeout(timeout);
-        setCountdown(timeout);
-      } catch (err) {
-        console.error("Failed to load autoplay settings:", err);
-      }
+      const s = await getUserSettings();
+      setAutoplayEnabled(s.autoplayEnabled);
+      setTransitionTimeout(s.autoplayTimeout);
     }
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const currentSong = queue[currentSongIndex]?.song;
-  const currentVideoId = currentSong ? getBackingVideoId(currentSong, instrumentPreference) : null;
-  const upcomingSong = !hasStartedSession ? currentSong : queue[currentSongIndex + 1]?.song;
-
-  // Sync refs to avoid stale closures in YouTube callbacks
-  const autoplayEnabledRef = useRef(autoplayEnabled);
-  const transitionTimeoutRef = useRef(transitionTimeout);
-  const currentSongIndexRef = useRef(currentSongIndex);
-  const queueLengthRef = useRef(queue.length);
-  const hasStartedSessionRef = useRef(hasStartedSession);
-
+  // Bootstrap initial countdown on mount
   useEffect(() => {
-    autoplayEnabledRef.current = autoplayEnabled;
-  }, [autoplayEnabled]);
-
-  useEffect(() => {
-    transitionTimeoutRef.current = transitionTimeout;
-  }, [transitionTimeout]);
-
-  useEffect(() => {
-    currentSongIndexRef.current = currentSongIndex;
-  }, [currentSongIndex]);
-
-  useEffect(() => {
-    queueLengthRef.current = queue.length;
-  }, [queue.length]);
-
-  useEffect(() => {
-    hasStartedSessionRef.current = hasStartedSession;
-  }, [hasStartedSession]);
-
-  const handleSongEndedRef = useRef<() => void>(() => {});
-  handleSongEndedRef.current = () => {
-    if (currentSongIndexRef.current >= queueLengthRef.current - 1) {
-      setIsFinished(true);
-      setIsPlaying(false);
-    } else if (autoplayEnabledRef.current) {
-      setCountdown(transitionTimeoutRef.current);
-      setIsCountdownActive(true);
-      setIsCountdownPaused(false);
-    } else {
-      setIsPlaying(false);
+    if (!sessionStarted && countdown === null && !finished) {
+      startCountdown();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Auto-skip countdown handler
+  // Countdown ticker
   useEffect(() => {
-    if (!isCountdownActive || isCountdownPaused) return;
-
+    if (countdown === null || countdownPaused) return;
     if (countdown <= 0) {
-      setIsCountdownActive(false);
-      if (!hasStartedSession) {
-        setHasStartedSession(true);
+      if (!sessionStarted) {
+        startSession();
       } else {
-        const nextIndex = currentSongIndex + 1;
-        if (nextIndex < queue.length) {
-          setCurrentSongIndex(nextIndex);
-        }
+        setCurrentIndex(Math.min(currentIndex + 1, queue.length - 1));
       }
       return;
     }
+    const t = setTimeout(() => tickCountdown(), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown, countdownPaused, sessionStarted, currentIndex, queue.length]);
 
-    const timer = setTimeout(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
+  const currentSong = queue[currentIndex]?.song;
+  const currentVideoId = currentSong ? getBackingVideoId(currentSong, instrumentPreference) : null;
+  const upcomingSong = !sessionStarted ? currentSong : queue[currentIndex + 1]?.song;
+  const currentRoleGroup =
+    currentSong?.roleGroups.find((rg) => rg.role === instrumentPreference) ??
+    currentSong?.roleGroups.find((rg) => rg.role !== "Other") ??
+    null;
+  const backingOffset = currentSong
+    ? resolveOffsets(progressMap[currentSong.id], currentRoleGroup?.id).backing
+    : 0;
 
-    return () => clearTimeout(timer);
-  }, [isCountdownActive, countdown, isCountdownPaused, currentSongIndex, queue.length, hasStartedSession]);
-
-  // Handle video when currentSongIndex, currentVideoId or hasStartedSession changes
+  // No-video path: 4s timer then advance
   useEffect(() => {
-    if (!apiLoaded || !currentSong) return;
-    if (!hasStartedSession) return; // Wait until countdown ends or skip clicked before playing first song
-
-    // Reset countdown states
-    setIsCountdownActive(false);
-    setIsCountdownPaused(false);
-    setCountdown(transitionTimeout);
-
-    const offsetVal = progressMap[currentSong.id]?.backingStartOffset ?? 0;
-
-    if (currentVideoId) {
-      // Re-create or load video
-      if (playerRef.current && typeof playerRef.current.loadVideoById === "function") {
-        try {
-          playerRef.current.loadVideoById({
-            videoId: currentVideoId,
-            startSeconds: offsetVal
-          });
-          setIsPlaying(true);
-        } catch (e) {
-          console.error("Error loading video by ID:", e);
-          initPlayer(currentVideoId, offsetVal);
-        }
+    if (!sessionStarted || finished) return;
+    if (currentVideoId || skipReason !== "no_video") return;
+    const t = setTimeout(() => {
+      // treat as ended
+      if (currentIndex >= queue.length - 1) {
+        finish();
+      } else if (autoplayEnabled) {
+        startCountdown();
       } else {
-        initPlayer(currentVideoId, offsetVal);
+        setPlaying(false);
       }
-    } else {
-      // No video found for the song: wait 4 seconds, then show countdown to skip
-      setIsPlaying(false);
-      if (playerRef.current) {
-        try {
-          playerRef.current.pauseVideo();
-        } catch (e) {}
-      }
+    }, NO_VIDEO_SKIP_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStarted, finished, currentVideoId, skipReason, currentIndex, queue.length]);
 
-      const warningTimer = setTimeout(() => {
-        handleSongEndedRef.current();
-      }, 4000);
-
-      return () => clearTimeout(warningTimer);
-    }
-  }, [currentSongIndex, apiLoaded, currentVideoId, hasStartedSession]);
-
-  // Destroy player on unmount
+  // Detect no-video on song change once session started
   useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
-      }
-    };
-  }, []);
-
-  const initPlayer = (videoId: string, startOffset: number) => {
-    if (playerRef.current) {
-      try {
-        playerRef.current.destroy();
-      } catch (e) {}
+    if (!sessionStarted || finished) return;
+    if (!currentVideoId && skipReason !== "no_video") {
+      triggerNoVideo();
+    } else if (currentVideoId && skipReason === "no_video") {
+      clearSkipReason();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentVideoId, sessionStarted]);
 
-    try {
-      playerRef.current = new (window as any).YT.Player("autoplay-player-div", {
-        videoId: videoId,
-        playerVars: {
-          enablejsapi: 1,
-          origin: typeof window !== "undefined" ? window.location.origin : "",
-          autoplay: 1,
-          controls: 1,
-          rel: 0,
-        },
-        events: {
-          onReady: (event: any) => {
-            event.target.playVideo();
-            setIsPlaying(true);
-            try {
-              event.target.setVolume(volume);
-              event.target.setPlaybackRate(speed);
-            } catch (e) {}
-            if (startOffset > 0) {
-              event.target.seekTo(startOffset, true);
-            }
-          },
-          onStateChange: (event: any) => {
-            const state = event.data;
-            if (state === (window as any).YT.PlayerState.ENDED) {
-              handleSongEndedRef.current();
-            } else if (state === (window as any).YT.PlayerState.PLAYING) {
-              setIsPlaying(true);
-            } else if (state === (window as any).YT.PlayerState.PAUSED) {
-              setIsPlaying(false);
-            }
-          }
-        }
-      });
-    } catch (err) {
-      console.error("Failed to initialize YT Player:", err);
-    }
-  };
-
-  const handleTogglePlay = () => {
-    if (!playerRef.current) return;
-    try {
-      if (isPlaying) {
-        playerRef.current.pauseVideo();
-        setIsPlaying(false);
-      } else {
-        playerRef.current.playVideo();
-        setIsPlaying(true);
-      }
-    } catch (e) {}
-  };
-
-  const handlePrevSong = () => {
-    if (currentSongIndex > 0) {
-      setCurrentSongIndex((prev) => prev - 1);
-    }
-  };
-
-  const handleNextSong = () => {
-    if (currentSongIndex < queue.length - 1) {
-      setCurrentSongIndex((prev) => prev + 1);
-    }
-  };
-
-  const handleSkipCountdown = () => {
-    setIsCountdownActive(false);
-    if (!hasStartedSession) {
-      setHasStartedSession(true);
+  const onEnded = () => {
+    if (currentIndex >= queue.length - 1) {
+      finish();
+    } else if (autoplayEnabled) {
+      startCountdown();
     } else {
-      const nextIndex = currentSongIndex + 1;
-      if (nextIndex < queue.length) {
-        setCurrentSongIndex(nextIndex);
-      }
+      setPlaying(false);
     }
   };
 
-  const handleRestartRehearsal = () => {
-    setCurrentSongIndex(0);
-    setIsFinished(false);
-    setHasStartedSession(true);
-    setIsCountdownActive(false);
-    setIsPlaying(false);
+  const { playPause, seekBy } = useAutoplayPlayer({
+    videoId: currentVideoId,
+    startOffset: backingOffset,
+    sessionStarted,
+    onEnded,
+  });
+
+  // Skip overlay helper
+  const triggerSkipOverlay = (type: "back" | "forward") => {
+    setSkipOverlay({ type, key: Date.now() });
+    setTimeout(() => setSkipOverlay(null), 600);
   };
+
+  // Keyboard
+  usePracticeKeyboard({
+    onPlayPause: playPause,
+    onSeekBackward: () => {
+      seekBy(-SEEK_STEP_S);
+      triggerSkipOverlay("back");
+    },
+    onSeekForward: () => {
+      seekBy(SEEK_STEP_S);
+      triggerSkipOverlay("forward");
+    },
+  });
+
+  useIframeFocusGuard();
+
+  // Reset store on unmount
+  useEffect(() => {
+    return () => reset();
+  }, [reset]);
+
+  const handleTogglePlay = () => playPause();
+  const handlePrevSong = () => currentIndex > 0 && setCurrentIndex(currentIndex - 1);
+  const handleNextSong = () => currentIndex < queue.length - 1 && setCurrentIndex(currentIndex + 1);
+  const handleSkipCountdown = () => skipCountdown(queue.length);
+  const handleRestart = () => restart();
 
   const handleInstrumentChange = (role: string) => {
-    setInstrumentPreference(role);
+    setInstrumentPreference(role as Role);
     toast.success(`Prioritizing ${role} backing tracks`);
   };
 
-  // Save autoplay settings to database for persistence
   const handleAutoplayEnabledChange = async (val: boolean) => {
     setAutoplayEnabled(val);
-    await saveUserSettings(undefined, undefined, val, undefined);
+    await saveUserSettings({ autoplayEnabled: val });
     toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
   };
 
   const handleTimeoutChange = async (val: number) => {
-    // If countdown is active, we don't hot-reload countdown directly to prevent timer jump. It updates for next song.
     setTransitionTimeout(val);
-    await saveUserSettings(undefined, undefined, autoplayEnabled, val);
+    await saveUserSettings({ autoplayTimeout: val, autoplayEnabled });
   };
 
-  // Keyboard event listener for hotkeys in Autoplay Mode
-  usePracticeKeyboard({
-    onPlayPause: () => {
-      if (playerRef.current) {
-        try {
-          const state = playerRef.current.getPlayerState();
-          if (state === 1) { // playing
-            playerRef.current.pauseVideo();
-            setIsPlaying(false);
-          } else {
-            playerRef.current.playVideo();
-            setIsPlaying(true);
-          }
-        } catch (err) {
-          console.error("Error toggling play via Space in autoplay:", err);
-        }
-      }
-    },
-    onSeekBackward: () => {
-      if (playerRef.current) {
-        try {
-          const now = Date.now();
-          let baseTime = playerRef.current.getCurrentTime();
-          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-            baseTime = seekTargetRef.current;
-          }
-          let targetTime = Math.max(0, baseTime - 5);
-          seekTargetRef.current = targetTime;
-          lastSeekTimeRef.current = now;
-
-          playerRef.current.seekTo(targetTime, true);
-          triggerSkipOverlay("back");
-        } catch (err) {
-          console.error("Error seeking back in autoplay:", err);
-        }
-      }
-    },
-    onSeekForward: () => {
-      if (playerRef.current) {
-        try {
-          const now = Date.now();
-          let baseTime = playerRef.current.getCurrentTime();
-          if (seekTargetRef.current !== null && now - lastSeekTimeRef.current < 800) {
-            baseTime = seekTargetRef.current;
-          }
-          let targetTime = baseTime + 5;
-          const duration = playerRef.current.getDuration();
-          if (duration && targetTime > duration) {
-            targetTime = duration;
-          }
-          seekTargetRef.current = targetTime;
-          lastSeekTimeRef.current = now;
-
-          playerRef.current.seekTo(targetTime, true);
-          triggerSkipOverlay("forward");
-        } catch (err) {
-          console.error("Error seeking forward in autoplay:", err);
-        }
-      }
-    }
-  });
-
-  // Monitor when focus shifts to iframe and redirect it back to parent window
-  useIframeFocusGuard(() => playerRef.current);
-
-  // Circular progress countdown SVG calculations
+  // Circular countdown
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (countdown / transitionTimeout) * circumference;
-
-  const nextSong = queue[currentSongIndex + 1]?.song;
+  const totalForRing = transitionTimeout || 1;
+  const dashOffset = circumference - ((countdown ?? 0) / totalForRing) * circumference;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background text-foreground flex flex-col h-screen overflow-hidden">
-      {/* Autoplay Header styled like single song practice mode */}
+    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden">
       <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
           <Button
@@ -506,12 +243,12 @@ export function RehearsalAutoplay({
             Exit Practice Mode
           </Button>
           <div>
-            <h2 className="text-sm font-bold text-foreground truncate">
-              {rehearsal.title}
-            </h2>
+            <h2 className="text-sm font-bold text-foreground truncate">{rehearsal.title}</h2>
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>{new Date(rehearsal.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+              <span>
+                <ClientDate ms={rehearsal.date} variant="date" />
+              </span>
             </div>
           </div>
         </div>
@@ -523,63 +260,57 @@ export function RehearsalAutoplay({
         </div>
       </header>
 
-      {/* Main Body */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-        {/* Left Column: Player (70%) */}
+        {/* Player */}
         <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-background/60">
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
-            {/* Player aspect wrapper */}
             <div
               className="w-full aspect-video bg-black border border-border rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
-              onMouseEnter={() => {
-                isMouseOverPlayerRef.current = true;
-              }}
               onMouseLeave={() => {
-                isMouseOverPlayerRef.current = false;
                 if (document.activeElement && document.activeElement.tagName === "IFRAME") {
                   (document.activeElement as HTMLElement).blur();
                   window.focus();
                 }
               }}
             >
-              {/* YouTube Iframe element */}
               <div
                 id="autoplay-player-div"
-                className={cn("w-full h-full aspect-video", (!currentVideoId || !hasStartedSession) ? "hidden" : "")}
+                className={cn(
+                  "w-full h-full aspect-video",
+                  !currentVideoId || !sessionStarted ? "hidden" : ""
+                )}
               />
 
-              {/* Transparent overlay to block native volume controls in YouTube iframe */}
-              {currentVideoId && hasStartedSession && (
+              {currentVideoId && sessionStarted && (
                 <div
                   className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
                   title="Volume controlled via sidebar settings"
                 />
               )}
 
-              {/* Skip Overlay Visual Animation */}
               {skipOverlay && (
                 <div
                   key={skipOverlay.key}
                   className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 bg-transparent"
                 >
                   <div className="bg-black/80 text-foreground rounded-full w-24 h-24 flex flex-col items-center justify-center backdrop-blur-md border border-white/10 animate-skip-alert shadow-2xl">
-                    <span className="text-2xl font-bold">{skipOverlay.type === "back" ? "◀◀" : "▶▶"}</span>
-                    <span className="text-xs font-bold font-mono mt-0.5">{skipOverlay.type === "back" ? "-5s" : "+5s"}</span>
+                    <span className="text-2xl font-bold">
+                      {skipOverlay.type === "back" ? "◀◀" : "▶▶"}
+                    </span>
+                    <span className="text-xs font-bold font-mono mt-0.5">
+                      {skipOverlay.type === "back" ? "-5s" : "+5s"}
+                    </span>
                   </div>
                 </div>
               )}
 
-
-
-              {/* HUD: Countdown overlay */}
-              {isCountdownActive && upcomingSong && (
+              {/* Countdown overlay */}
+              {countdown !== null && upcomingSong && !finished && (
                 <div className="absolute inset-0 z-30 bg-background/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                      {!hasStartedSession ? "Starting Rehearsal In" : "Up Next In"}
+                      {!sessionStarted ? "Starting Rehearsal In" : "Up Next In"}
                     </p>
-                    
-                    {/* Circular Countdown Progress */}
                     <div className="relative w-24 h-24 flex items-center justify-center">
                       <svg className="w-24 h-24 transform -rotate-90">
                         <circle
@@ -598,14 +329,11 @@ export function RehearsalAutoplay({
                           strokeWidth="5"
                           fill="transparent"
                           strokeDasharray={circumference}
-                          strokeDashoffset={strokeDashoffset}
+                          strokeDashoffset={dashOffset}
                         />
                       </svg>
-                      <span className="absolute text-2xl font-black text-[#acd1f8]">
-                        {countdown}
-                      </span>
+                      <span className="absolute text-2xl font-black text-[#acd1f8]">{countdown}</span>
                     </div>
-
                     <div className="space-y-1.5">
                       <h3 className="text-base font-black text-foreground leading-snug line-clamp-1">
                         {upcomingSong.title}
@@ -614,30 +342,28 @@ export function RehearsalAutoplay({
                         by {upcomingSong.artist}
                       </p>
                     </div>
-
-                    {/* Control HUD Buttons */}
                     <div className="flex items-center gap-3 pt-2">
                       <Button
                         size="sm"
-                        onClick={() => setIsCountdownPaused(!isCountdownPaused)}
+                        onClick={() => pauseCountdown(!countdownPaused)}
                         className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-4 h-9 animate-none"
                       >
-                        {isCountdownPaused ? "Resume Autoplay" : "Pause Timer"}
+                        {countdownPaused ? "Resume Autoplay" : "Pause Timer"}
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleSkipCountdown}
                         className="bg-[#acd1f8] hover:bg-[#bce0ff] text-[#0c0d0e] rounded-xl text-xs font-black px-4 h-9 animate-none"
                       >
-                        {!hasStartedSession ? "Start Now" : "Play Now"}
+                        {!sessionStarted ? "Start Now" : "Play Now"}
                       </Button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* HUD: Warning overlay when no video exists */}
-              {!currentVideoId && !isCountdownActive && !isFinished && currentSong && hasStartedSession && (
+              {/* No-video overlay */}
+              {!currentVideoId && countdown === null && !finished && currentSong && sessionStarted && (
                 <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-3 max-w-md flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-[#3b1c1c] border border-red-900/60 flex items-center justify-center text-red-400 mb-2">
@@ -645,7 +371,9 @@ export function RehearsalAutoplay({
                     </div>
                     <h3 className="text-sm font-bold text-red-400">No Backing Track Found</h3>
                     <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                      Could not find a valid backing track or video link for <span className="font-bold text-foreground">"{currentSong.title}"</span>. Skipping in a few seconds...
+                      Could not find a valid backing track or video link for{" "}
+                      <span className="font-bold text-foreground">&quot;{currentSong.title}&quot;</span>.
+                      Skipping in a few seconds...
                     </p>
                     <div className="flex gap-2 pt-2">
                       <Button
@@ -659,8 +387,8 @@ export function RehearsalAutoplay({
                 </div>
               )}
 
-              {/* HUD: Rehearsal Session Finished */}
-              {isFinished && (
+              {/* Finished overlay */}
+              {finished && (
                 <div className="absolute inset-0 z-30 bg-background/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
                     <div className="w-14 h-14 rounded-full bg-[#1b3b2b] border border-emerald-900/60 flex items-center justify-center text-emerald-400 mb-2">
@@ -674,7 +402,7 @@ export function RehearsalAutoplay({
                     </div>
                     <div className="flex items-center gap-3 pt-3">
                       <Button
-                        onClick={handleRestartRehearsal}
+                        onClick={handleRestart}
                         className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-4 h-10 animate-none"
                       >
                         <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Restart Setlist
@@ -691,12 +419,12 @@ export function RehearsalAutoplay({
               )}
             </div>
 
-            {/* Video Player Information Footer */}
+            {/* Now-playing footer */}
             {currentSong && (
               <div className="bg-card/40 border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0 shadow-lg">
                 <div className="min-w-0">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
-                    Now Playing (Song {currentSongIndex + 1} of {queue.length})
+                    Now Playing (Song {currentIndex + 1} of {queue.length})
                   </span>
                   <h3 className="text-lg font-black text-foreground mt-1 truncate">
                     {currentSong.title}
@@ -707,13 +435,12 @@ export function RehearsalAutoplay({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  {/* Now Playing Tuning badges */}
                   {(() => {
-                    const songTunings = getSongTunings(currentSong);
-                    if (songTunings.length === 0) return null;
+                    const tunings = getSongTunings(currentSong);
+                    if (tunings.length === 0) return null;
                     return (
                       <div className="flex flex-wrap gap-1">
-                        {songTunings.map((ind) => (
+                        {tunings.map((ind) => (
                           <Badge
                             key={`${ind.role}-${ind.tuning}`}
                             className={cn(
@@ -730,12 +457,11 @@ export function RehearsalAutoplay({
                     );
                   })()}
 
-                  {/* Player Queue Control Buttons */}
                   <div className="flex items-center gap-1.5 border-l border-border pl-3.5">
                     <Button
                       variant="outline"
                       size="icon"
-                      disabled={currentSongIndex === 0}
+                      disabled={currentIndex === 0}
                       onClick={handlePrevSong}
                       className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
                       title="Previous Song"
@@ -746,16 +472,20 @@ export function RehearsalAutoplay({
                       variant="outline"
                       size="icon"
                       onClick={handleTogglePlay}
-                      disabled={!currentVideoId || !hasStartedSession}
+                      disabled={!currentVideoId || !sessionStarted}
                       className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-[#acd1f8] hover:text-white rounded-lg flex items-center justify-center cursor-pointer"
                       title={isPlaying ? "Pause" : "Play"}
                     >
-                      {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                      {isPlaying ? (
+                        <Pause className="w-4 h-4 fill-current" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      )}
                     </Button>
                     <Button
                       variant="outline"
                       size="icon"
-                      disabled={currentSongIndex === queue.length - 1}
+                      disabled={currentIndex === queue.length - 1}
                       onClick={handleNextSong}
                       className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg disabled:opacity-30 flex items-center justify-center cursor-pointer"
                       title="Next Song"
@@ -769,31 +499,32 @@ export function RehearsalAutoplay({
           </div>
         </div>
 
-        {/* Right Column: Queue Sidebar (30%) */}
+        {/* Sidebar */}
         <div className="w-full lg:w-80 lg:border-l border-border bg-card/10 flex flex-col overflow-hidden flex-shrink-0 min-h-0">
-          {/* Instrument Selection & Autoplay Settings */}
           <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card/40">
-            {/* Instrument selector tabs */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                 Practice Instrument
               </label>
-              <Tabs value={instrumentPreference} onValueChange={handleInstrumentChange} className="w-full">
+              <Tabs
+                value={instrumentPreference}
+                onValueChange={handleInstrumentChange}
+                className="w-full"
+              >
                 <TabsList className="bg-background border border-border p-0.5 rounded-xl h-auto flex w-full">
-                  {["Guitar", "Bass", "Vocals", "Drums", "Keys"].map((inst) => (
+                  {(["Guitar", "Bass", "Vocals", "Drums", "Piano/Keyboard"] as Role[]).map((inst) => (
                     <TabsTrigger
                       key={inst}
                       value={inst}
                       className="px-1 py-1 text-[10px] font-bold rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all cursor-pointer flex-1 text-center"
                     >
-                      {inst === "Keys" ? "Piano" : inst}
+                      {inst === "Piano/Keyboard" ? "Piano" : inst}
                     </TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
             </div>
 
-            {/* Autoplay toggle (styled as dual button) and countdown duration */}
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -826,7 +557,9 @@ export function RehearsalAutoplay({
               </div>
 
               <div className="flex items-center justify-between gap-4 pt-1">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Transition Timer:</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Transition Timer:
+                </span>
                 <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-20 justify-between">
                   <button
                     type="button"
@@ -848,22 +581,23 @@ export function RehearsalAutoplay({
                 </div>
               </div>
 
-              {/* Volume Slider Control */}
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Volume
                   </label>
-                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
-                    {volume}%
-                  </span>
+                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">{volume}%</span>
                 </div>
                 <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
                   <button
-                    onClick={() => setVolume(v => v === 0 ? 100 : 0)}
+                    onClick={() => setVolume(volume === 0 ? 100 : 0)}
                     className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
                   >
-                    {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    {volume === 0 ? (
+                      <VolumeX className="w-3.5 h-3.5" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5" />
+                    )}
                   </button>
                   <Slider
                     value={[volume]}
@@ -876,7 +610,6 @@ export function RehearsalAutoplay({
                 </div>
               </div>
 
-              {/* Playback Speed Control Slider */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -887,7 +620,9 @@ export function RehearsalAutoplay({
                   </span>
                 </div>
                 <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
-                  <span className="text-[#acd1f8] flex items-center"><Gauge className="w-3.5 h-3.5" /></span>
+                  <span className="text-[#acd1f8] flex items-center">
+                    <Gauge className="w-3.5 h-3.5" />
+                  </span>
                   <Slider
                     value={[speed]}
                     onValueChange={(val) => setSpeed(Array.isArray(val) ? val[0] : val)}
@@ -901,7 +636,7 @@ export function RehearsalAutoplay({
             </div>
           </div>
 
-          {/* Queue Header */}
+          {/* Queue */}
           <div className="p-4 border-b border-border flex-shrink-0 flex items-center justify-between bg-card/10">
             <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-muted-foreground" />
@@ -912,25 +647,22 @@ export function RehearsalAutoplay({
             </span>
           </div>
 
-          {/* Queue list */}
           <div className="flex-grow overflow-y-auto p-3 space-y-2.5 min-h-0 scrollbar-thin">
             {queue.map((rs, index) => {
-              const song = rs.song;
-              const isSongActive = index === currentSongIndex;
-              const isSongCompleted = index < currentSongIndex;
-              const isSongNext = index === currentSongIndex + 1;
-
+              const isSongActive = index === currentIndex;
+              const isSongCompleted = index < currentIndex;
+              const isSongNext = index === currentIndex + 1;
               return (
                 <div
                   key={rs.songId}
-                  onClick={() => setCurrentSongIndex(index)}
+                  onClick={() => setCurrentIndex(index)}
                   className={cn(
                     "flex flex-col p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none gap-2",
                     isSongActive
                       ? "bg-muted border-[#5b80a5]/45 shadow-md shadow-[#0c0d0e]/40"
                       : isSongCompleted
-                      ? "bg-background/20 border-border/60 opacity-60 hover:opacity-90 hover:border-[#383a3f]"
-                      : "bg-background/40 border-border/80 hover:bg-card/40 hover:border-[#383a3f]"
+                        ? "bg-background/20 border-border/60 opacity-60 hover:opacity-90 hover:border-[#383a3f]"
+                        : "bg-background/40 border-border/80 hover:bg-card/40 hover:border-[#383a3f]"
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -938,27 +670,29 @@ export function RehearsalAutoplay({
                       <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                         {index + 1}.
                       </span>
-
-                      {/* Album Art or placeholder */}
-                      {song.albumArt ? (
+                      {rs.song.albumArt ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={song.albumArt}
+                          src={rs.song.albumArt}
                           alt=""
                           className="w-8 h-8 rounded-lg object-cover border border-border flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-card border border-border/60 flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
                           <Music className="w-3.5 h-3.5 text-muted-foreground" />
                         </div>
                       )}
-
                       <div className="min-w-0 flex-grow">
-                        <h4 className={cn("text-xs font-bold truncate", isSongActive ? "text-foreground" : "text-[#d1d1d6]")}>
-                          {song.title}
+                        <h4
+                          className={cn(
+                            "text-xs font-bold truncate",
+                            isSongActive ? "text-foreground" : "text-[#d1d1d6]"
+                          )}
+                        >
+                          {rs.song.title}
                         </h4>
                         <p className="text-[10px] text-muted-foreground truncate mt-0.5 font-medium">
-                          {song.artist}
+                          {rs.song.artist}
                         </p>
                       </div>
                     </div>
@@ -974,14 +708,14 @@ export function RehearsalAutoplay({
                     </div>
                   </div>
 
-                  {/* Tunings in queue */}
                   {(() => {
-                    const songTunings = getSongTunings(song);
-                    if (songTunings.length === 0) return null;
+                    const tunings = getSongTunings(rs.song);
+                    if (tunings.length === 0) return null;
                     return (
                       <div className="flex flex-wrap gap-1.5 pl-8 mt-0.5">
-                        {songTunings.map((ind) => {
-                          const isMatch = ind.role.toLowerCase() === instrumentPreference.toLowerCase();
+                        {tunings.map((ind) => {
+                          const isMatch =
+                            ind.role.toLowerCase() === instrumentPreference.toLowerCase();
                           return (
                             <Badge
                               key={`${ind.role}-${ind.tuning}`}

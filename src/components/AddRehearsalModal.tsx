@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,7 +24,7 @@ interface AddRehearsalModalProps {
 export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalModalProps) {
   const [title, setTitle] = useState("");
   const [dateStr, setDateStr] = useState("");
-  const [hourStr, setHourStr] = useState("19"); // Default to 7 PM / 19:00
+  const [hourStr, setHourStr] = useState("19");
   const [minuteStr, setMinuteStr] = useState("00");
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -32,9 +39,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
 
     try {
       const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
-      if (isNaN(timestamp)) {
-        throw new Error("Invalid date or time selected");
-      }
+      if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
 
       const res = await createRehearsal(title, timestamp, notes);
       if (res.success && res.rehearsalId) {
@@ -65,14 +70,17 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             Schedule Rehearsal
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Set up a new rehearsal prep session. You will be able to build and order your setlist after creating it.
+            Set up a new rehearsal prep session. You will be able to build and order your setlist
+            after creating it.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
-          {/* Rehearsal Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="rehearsalTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="rehearsalTitle"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Rehearsal Title
             </Label>
             <Input
@@ -86,10 +94,12 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             />
           </div>
 
-          {/* Date & Split Time Picker Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="rehearsalDate" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <Label
+                htmlFor="rehearsalDate"
+                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+              >
                 Select Date
               </Label>
               <Input
@@ -102,7 +112,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                 className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
               />
             </div>
-            
+
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Select Time
@@ -128,7 +138,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                   disabled={isLoading}
                   value={minuteStr}
                   onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 12 }).map((_, i) => {
                     const m = String(i * 5).padStart(2, "0");
@@ -143,9 +153,11 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             </div>
           </div>
 
-          {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="rehearsalNotes" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="rehearsalNotes"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Notes / Location (Optional)
             </Label>
             <textarea

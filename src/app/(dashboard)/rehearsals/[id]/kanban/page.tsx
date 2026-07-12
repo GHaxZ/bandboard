@@ -1,8 +1,7 @@
 import { getRehearsalDetails } from "@/app/actions/rehearsals";
-import { getUserSettings, getAllSongProgress } from "@/app/actions/user";
+import { getUserSettings, getProgressMap } from "@/app/actions/user";
 import { redirect } from "next/navigation";
 import { RehearsalKanbanClient } from "./RehearsalKanbanClient";
-import { ProgressMap } from "@/types/models";
 
 interface RehearsalKanbanPageProps {
   params: Promise<{ id: string }>;
@@ -12,32 +11,19 @@ export const dynamic = "force-dynamic";
 
 export default async function RehearsalKanbanPage({ params }: RehearsalKanbanPageProps) {
   const resolvedParams = await params;
-  const rehearsalDetails = await getRehearsalDetails(resolvedParams.id);
-  const dbSettings = await getUserSettings();
-  const preferredInstrument = dbSettings?.preferredInstrument || "Guitar";
+  const [rehearsalDetails, settings, initialProgressMap] = await Promise.all([
+    getRehearsalDetails(resolvedParams.id),
+    getUserSettings(),
+    getProgressMap(),
+  ]);
 
-  const progressList = await getAllSongProgress();
-  const initialProgressMap: ProgressMap = {};
-  progressList.forEach((p) => {
-    initialProgressMap[p.songId] = {
-      status: p.status,
-      speed: p.speed,
-      notes: p.notes,
-      practiceMarkers: p.practiceMarkers,
-      backingStartOffset: p.backingStartOffset,
-      tabStartOffset: p.tabStartOffset,
-    };
-  });
-
-  if (!rehearsalDetails) {
-    redirect("/rehearsals");
-  }
+  if (!rehearsalDetails) redirect("/rehearsals");
 
   return (
     <RehearsalKanbanClient
       rehearsalId={resolvedParams.id}
       initialDetails={rehearsalDetails}
-      preferredInstrument={preferredInstrument}
+      preferredInstrument={settings.preferredInstrument}
       initialProgressMap={initialProgressMap}
     />
   );

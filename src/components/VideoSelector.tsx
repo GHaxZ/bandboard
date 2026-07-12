@@ -1,14 +1,21 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { searchYouTubeVideosAction } from "@/app/actions/songs";
 import { Loader2, Search, Play, Check, Video } from "lucide-react";
-import { getYouTubeQuery } from "@/lib/utils";
+import { getYouTubeQuery } from "@/lib/youtube-query";
+import type { YouTubeVideo } from "@/lib/youtube";
 
 interface VideoSelectorProps {
   isOpen: boolean;
@@ -21,15 +28,6 @@ interface VideoSelectorProps {
   instrumentName: string;
   currentUrl: string | null;
   onSave: (url: string | null) => Promise<void>;
-}
-
-interface YouTubeVideo {
-  videoId: string;
-  title: string;
-  channelName: string;
-  viewsText: string;
-  thumbnail: string;
-  url: string;
 }
 
 export function VideoSelector({
@@ -50,7 +48,6 @@ export function VideoSelector({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Set default search queries
   useEffect(() => {
     if (isOpen) {
       setManualUrl(currentUrl || "");
@@ -58,6 +55,7 @@ export function VideoSelector({
       setQuery(defaultQuery);
       handleSearch(defaultQuery);
     }
+     
   }, [isOpen, trackId, type, role, songTitle, songArtist, instrumentName, currentUrl]);
 
   async function handleSearch(searchQuery: string) {
@@ -107,14 +105,17 @@ export function VideoSelector({
             Select {type === "backing" ? "Backing Track" : "Tab Video"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Choose a video for <span className="font-bold text-foreground">{instrumentName}</span> on {songTitle}.
+            Choose a video for <span className="font-bold text-foreground">{instrumentName}</span> on{" "}
+            {songTitle}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 my-2">
-          {/* Manual URL Input */}
           <div className="space-y-1.5">
-            <Label htmlFor="manualUrl" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="manualUrl"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Paste Direct Video URL
             </Label>
             <div className="flex gap-2">
@@ -125,8 +126,8 @@ export function VideoSelector({
                 onChange={(e) => setManualUrl(e.target.value)}
                 className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
               />
-              <Button 
-                onClick={handleSaveManual} 
+              <Button
+                onClick={handleSaveManual}
                 disabled={isSaving}
                 className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-semibold"
               >
@@ -136,12 +137,13 @@ export function VideoSelector({
           </div>
 
           <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-border"></div>
-            <span className="flex-shrink mx-3 text-[10px] text-muted-foreground uppercase tracking-widest">Or Search YouTube</span>
-            <div className="flex-grow border-t border-border"></div>
+            <div className="flex-grow border-t border-border" />
+            <span className="flex-shrink mx-3 text-[10px] text-muted-foreground uppercase tracking-widest">
+              Or Search YouTube
+            </span>
+            <div className="flex-grow border-t border-border" />
           </div>
 
-          {/* Search Section */}
           <div className="space-y-2">
             <div className="flex gap-2">
               <Input
@@ -151,8 +153,8 @@ export function VideoSelector({
                 onKeyDown={(e) => e.key === "Enter" && handleSearch(query)}
                 className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
               />
-              <Button 
-                onClick={() => handleSearch(query)} 
+              <Button
+                onClick={() => handleSearch(query)}
                 disabled={isLoading}
                 className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl"
               >
@@ -160,7 +162,6 @@ export function VideoSelector({
               </Button>
             </div>
 
-            {/* Results */}
             <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
@@ -185,20 +186,14 @@ export function VideoSelector({
                           : "bg-background/40 border-border/60 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
                       }`}
                     >
-                      {/* Thumbnail */}
                       <div className="relative w-24 aspect-video rounded-lg overflow-hidden bg-background flex-shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={video.thumbnail}
-                          alt=""
-                          className="object-cover w-full h-full"
-                        />
+                        <img src={video.thumbnail} alt="" className="object-cover w-full h-full" />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors">
                           <Play className="w-4 h-4 text-white drop-shadow" />
                         </div>
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                         <div>
                           <p className="text-xs font-medium text-foreground line-clamp-2 leading-snug">
@@ -209,9 +204,7 @@ export function VideoSelector({
                           </p>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] text-muted-foreground">
-                            {video.viewsText}
-                          </p>
+                          <p className="text-[10px] text-muted-foreground">{video.viewsText}</p>
                           {isCurrent && (
                             <span className="flex items-center gap-0.5 text-[10px] font-bold text-foreground bg-muted px-1.5 py-0.5 rounded-full border border-dialog-border">
                               <Check className="w-2.5 h-2.5" /> Current
@@ -228,8 +221,8 @@ export function VideoSelector({
         </div>
 
         <DialogFooter className="mt-2 pt-3 border-t border-border">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
           >

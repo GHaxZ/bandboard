@@ -7,6 +7,7 @@ import { saveSongProgress } from "@/app/actions/user";
 import { Loader2, FileText, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { PROGRESS_STATUSES } from "@/lib/constants";
 import { toast } from "sonner";
 
 interface PracticeLogCardProps {
@@ -33,7 +34,6 @@ export function PracticeLogCard({
   const [progressSpeed, setProgressSpeed] = useState<number>(initialSpeed);
   const [isSavingProgress, setIsSavingProgress] = useState<boolean>(false);
 
-  // Sync state with props when they change
   useEffect(() => {
     setProgressStatus(initialStatus || "not_started");
     setProgressNotes(initialNotes || "");
@@ -44,15 +44,17 @@ export function PracticeLogCard({
     progressStatus !== (initialStatus || "not_started") ||
     progressNotes !== (initialNotes || "");
 
-  const handleSaveProgress = async () => {
+  async function handleSaveProgress() {
     setIsSavingProgress(true);
     try {
-      const res = await saveSongProgress(songId, progressStatus, progressSpeed, progressNotes);
+      const res = await saveSongProgress(songId, {
+        status: progressStatus as never,
+        speed: progressSpeed,
+        notes: progressNotes || null,
+      });
       if (res.success) {
         toast.success("Progress saved successfully!");
-        if (onSaveSuccess) {
-          onSaveSuccess();
-        }
+        onSaveSuccess?.();
       } else {
         toast.error("Failed to save progress: " + res.error);
       }
@@ -61,7 +63,7 @@ export function PracticeLogCard({
     } finally {
       setIsSavingProgress(false);
     }
-  };
+  }
 
   return (
     <Card className={cn("border-border bg-card/40 rounded-2xl shadow-lg", className)}>
@@ -78,50 +80,38 @@ export function PracticeLogCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Learning Status */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">Learning Status</label>
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+            Learning Status
+          </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {["not_started", "learning", "ready_to_play", "mastered"].map((status) => {
-              const isSelected = progressStatus === status;
-              const label = 
-                status === "not_started" 
-                  ? "Not learned" 
-                  : status === "learning" 
-                  ? "Learning" 
-                  : status === "ready_to_play"
-                  ? "Ready to Play"
-                  : "Mastered";
+            {PROGRESS_STATUSES.map((status) => {
+              const isSelected = progressStatus === status.id;
               return (
                 <Button
-                  key={status}
+                  key={status.id}
                   type="button"
                   variant={isSelected ? "default" : "outline"}
-                  onClick={() => setProgressStatus(status)}
+                  onClick={() => setProgressStatus(status.id)}
                   className={cn(
                     "rounded-lg text-[9px] font-bold h-8 px-1 transition-all truncate",
                     isSelected
-                      ? status === "mastered"
-                        ? "bg-purple-950/40 border border-purple-800 text-purple-400 hover:bg-purple-950/50"
-                        : status === "ready_to_play"
-                        ? "bg-emerald-950/40 border border-emerald-800 text-emerald-400 hover:bg-emerald-950/50"
-                        : status === "learning"
-                        ? "bg-sky-950/40 border border-sky-800 text-sky-400 hover:bg-sky-950/50"
-                        : "bg-red-950/40 border border-red-900 text-red-400 hover:bg-red-950/50"
+                      ? cn(status.soft, status.border, status.text, "hover:opacity-90 border")
                       : "border-border bg-background/20 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   )}
-                  title={label}
+                  title={status.label}
                 >
-                  {label}
+                  {status.label}
                 </Button>
               );
             })}
           </div>
         </div>
 
-        {/* Notes */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">Notes</label>
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+            Notes
+          </label>
           <textarea
             placeholder="Record highlights, difficult parts, or speed settings..."
             value={progressNotes}
@@ -130,7 +120,6 @@ export function PracticeLogCard({
           />
         </div>
 
-        {/* Save Button */}
         <Button
           onClick={handleSaveProgress}
           disabled={isSavingProgress}

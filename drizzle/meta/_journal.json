@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1783026783718,
+      "tag": "0000_normal_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783089974583,
+      "tag": "0001_crazy_lady_ursula",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783096139407,
+      "tag": "0002_redundant_living_lightning",
+      "breakpoints": true
+    }
+  ]
+}

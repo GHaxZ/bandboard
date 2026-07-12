@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
@@ -21,109 +21,95 @@ import {
   exportUserData,
   importUserData,
 } from "@/app/actions/user";
+import { logout, syncDeviceId } from "@/app/actions/auth";
+import { INSTRUMENT_ROLES, ROLE_LABEL } from "@/lib/constants";
+import type { Role } from "@/lib/constants";
 
 interface SettingsClientProps {
-  preferredInstrument: string;
+  preferredInstrument: Role;
   userUuid: string;
 }
 
 export function SettingsClient({ preferredInstrument, userUuid }: SettingsClientProps) {
-  const [instrument, setInstrument] = useState(preferredInstrument);
-  const [userUuidState, setUserUuidState] = useState(userUuid);
+  const [instrument, setInstrument] = useState<Role>(preferredInstrument);
   const [copySuccess, setCopySuccess] = useState(false);
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
 
-  useEffect(() => {
-    // Sync with localStorage just in case the cookie is unpopulated or out of sync
-    if (userUuid === "anonymous" || !userUuid) {
-      const stored = localStorage.getItem("band_orchestrator_uid");
-      if (stored) {
-        setUserUuidState(stored);
-      }
-    }
-  }, [userUuid]);
-
-  async function handleInstrumentChange(val: string) {
+  async function handleInstrumentChange(val: Role) {
     setInstrument(val);
-    await saveUserSettings(val);
-    toast.success(`Role updated to ${val}`);
+    await saveUserSettings({ preferredInstrument: val });
+    toast.success(`Role updated to ${ROLE_LABEL[val]}`);
   }
 
-  const handleCopyId = () => {
-    if (typeof navigator !== "undefined" && userUuidState) {
-      navigator.clipboard.writeText(userUuidState);
+  function handleCopyId() {
+    if (typeof navigator !== "undefined" && userUuid) {
+      navigator.clipboard.writeText(userUuid);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
       toast.success("Device ID copied to clipboard!");
     }
-  };
+  }
 
-  const handleSyncId = () => {
+  async function handleSyncId() {
     setSyncError("");
     const trimmed = syncIdInput.trim();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(trimmed)) {
-      setSyncError("Invalid Device ID format. Must be a valid UUID v4.");
-      return;
+    const res = await syncDeviceId(trimmed);
+    if (res.success) {
+      toast.success("Device ID synchronized! Reloading page...");
+      window.location.reload();
+    } else {
+      setSyncError(res.error || "Invalid Device ID.");
     }
+  }
 
-    localStorage.setItem("band_orchestrator_uid", trimmed);
-    document.cookie = `band_orchestrator_uid=${trimmed}; path=/; max-age=${60 * 60 * 24 * 365 * 10}; SameSite=Lax`;
-    toast.success("Device ID synchronized! Reloading page...");
-    window.location.reload();
-  };
-
-  const handleExportProfile = async () => {
+  async function handleExportProfile() {
     const result = await exportUserData();
     if (result.success && result.data) {
       const dataStr = JSON.stringify(result.data, null, 2);
       const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-      const exportFileDefaultName = `bandboard_profile_${userUuidState.substring(0, 8)}.json`;
-      const linkElement = document.createElement("a");
-      linkElement.setAttribute("href", dataUri);
-      linkElement.setAttribute("download", exportFileDefaultName);
-      linkElement.click();
+      const fileName = `bandboard_profile_${userUuid.substring(0, 8)}.json`;
+      const link = document.createElement("a");
+      link.setAttribute("href", dataUri);
+      link.setAttribute("download", fileName);
+      link.click();
       toast.success("Profile exported successfully!");
     } else {
       toast.error("Export failed: " + (result.error || "Unknown error"));
     }
-  };
+  }
 
-  const handleImportProfile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  function handleImportProfile(e: React.ChangeEvent<HTMLInputElement>) {
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
       fileReader.readAsText(e.target.files[0], "UTF-8");
       fileReader.onload = async (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string);
-          if (!parsed.band_orchestrator_uid) {
+          if (!parsed.bandboard_uid) {
             toast.error("Invalid file: No Device ID found.");
             return;
           }
-
           const res = await importUserData(parsed);
           if (res.success && res.userUuid) {
-            localStorage.setItem("band_orchestrator_uid", res.userUuid);
-            document.cookie = `band_orchestrator_uid=${res.userUuid}; path=/; max-age=${60 * 60 * 24 * 365 * 10}; SameSite=Lax`;
             toast.success("Profile imported successfully!");
             window.location.reload();
           } else {
             toast.error("Import failed: " + (res.error || "Database error"));
           }
-        } catch (err) {
+        } catch {
           toast.error("Failed to parse file as JSON.");
         }
       };
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-black text-foreground flex items-center gap-2">
           <SettingsIcon className="w-5 h-5 text-muted-foreground" />
-          Settings & Preferences
+          Settings &amp; Preferences
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5 font-medium">
           Customize your instrument settings and view identity preferences.
@@ -131,7 +117,7 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Instrument Setting */}
+        {/* Instrument */}
         <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
           <CardHeader>
             <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
@@ -139,13 +125,14 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
               My Role (Instrument)
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Select your main role. When viewing a song dashboard, details for this instrument category will be shown by default.
+              Select your main role. When viewing a song dashboard, details for this instrument
+              category will be shown by default.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {["Guitar", "Bass", "Drums", "Vocals", "Piano/Keyboard", "Other"].map((inst) => {
-                const isSelected = instrument.toLowerCase() === inst.toLowerCase();
+              {INSTRUMENT_ROLES.map((inst) => {
+                const isSelected = instrument === inst;
                 return (
                   <Button
                     key={inst}
@@ -153,11 +140,11 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
                     onClick={() => handleInstrumentChange(inst)}
                     className={`rounded-xl h-11 font-bold text-xs ${
                       isSelected
-                        ? "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground border-0"
+                        ? "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
                         : "border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
-                    {inst}
+                    {ROLE_LABEL[inst]}
                   </Button>
                 );
               })}
@@ -165,14 +152,14 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/40 border border-border p-3 rounded-xl leading-relaxed">
               <CheckCircle className="w-4 h-4 text-[#5b80a5] shrink-0" />
               <span>
-                Your role is saved locally on this device as{" "}
-                <strong className="font-bold text-foreground">{instrument}</strong>.
+                Your role is synced to your device as{" "}
+                <strong className="font-bold text-foreground">{ROLE_LABEL[instrument]}</strong>.
               </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Shared Secret Settings */}
+        {/* Auth */}
         <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
           <CardHeader>
             <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
@@ -186,12 +173,13 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                If your band administrator has set an access password, you must be logged in to view setlists. You are currently authenticated.
+                If your band administrator has set an access password, you must be authenticated to
+                view setlists. You are currently authenticated.
               </p>
               <Button
                 variant="outline"
-                onClick={() => {
-                  localStorage.removeItem("bandboard_secret");
+                onClick={async () => {
+                  await logout();
                   toast.success("Secret token cleared. Logging out...");
                   window.location.reload();
                 }}
@@ -204,24 +192,27 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
         </Card>
       </div>
 
-      {/* Practice Sync & Backup Card */}
+      {/* Sync & Backup */}
       <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
         <CardHeader>
           <CardTitle className="text-base font-bold text-[#f1f2f4] flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-muted-foreground" />
-            Practice Data & Device Sync
+            Practice Data &amp; Device Sync
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground mt-1 leading-relaxed">
-            Your practice speed preferences, learning logs, and notes are automatically saved under your anonymous ID. Sync this ID or import/export files to share settings across multiple devices and browsers.
+            Your practice speed preferences, learning logs, and notes are automatically saved under
+            your anonymous ID. Sync this ID or import/export files to share settings across multiple
+            devices and browsers.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Identity Display */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Your Anonymous Device ID</label>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Your Anonymous Device ID
+            </label>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-background border border-border text-xs text-[#5b80a5] font-mono px-4 py-3 rounded-xl select-all break-all leading-normal">
-                {userUuidState || "Generating..."}
+                {userUuid || "Generating..."}
               </code>
               <Button
                 variant="outline"
@@ -230,15 +221,20 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
                 className="h-11 w-11 border-border bg-background/40 hover:bg-muted rounded-xl flex-shrink-0 text-muted-foreground hover:text-foreground"
                 title="Copy Device ID"
               >
-                {copySuccess ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                {copySuccess ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
               </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            {/* Sync Section */}
             <div className="space-y-3">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Sync Another Device</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Sync Another Device
+              </label>
               <div className="flex gap-2">
                 <Input
                   placeholder="Paste another device's ID..."
@@ -256,9 +252,10 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
               {syncError && <p className="text-xs text-red-400 font-semibold">{syncError}</p>}
             </div>
 
-            {/* Backup/Import Section */}
             <div className="space-y-3">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Backup &amp; Import Profile</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Backup &amp; Import Profile
+              </label>
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={handleExportProfile}
@@ -268,7 +265,7 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
                   <Download className="w-3.5 h-3.5" />
                   Export Profile
                 </Button>
-                
+
                 <div className="relative">
                   <input
                     type="file"

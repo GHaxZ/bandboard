@@ -1,41 +1,30 @@
+import type { Song } from '@/types/models';
+
 export interface TuningInfo {
   tuning: string;
-  role: "Guitar" | "Bass";
+  role: 'Guitar' | 'Bass';
 }
 
-export function getSongTunings(song: {
-  roleGroups: {
-    role: string;
-    tracks: {
-      instrumentName: string;
-      role: string;
-      details: string | null;
-      tuning: string;
-    }[];
-  }[];
-}): TuningInfo[] {
+export function getSongTunings(
+  song: Pick<Song, 'roleGroups'>
+): TuningInfo[] {
   const tunings: TuningInfo[] = [];
-  const seenKeys = new Set<string>();
+  const seen = new Set<string>();
 
-  song.roleGroups?.forEach((rg) => {
-    if (rg.role === "Guitar" || rg.role === "Bass") {
-      rg.tracks?.forEach((t) => {
+  for (const rg of song.roleGroups ?? []) {
+    if (rg.role === 'Guitar' || rg.role === 'Bass') {
+      for (const t of rg.tracks ?? []) {
         if (t.tuning) {
           const tuningStr = t.tuning.trim();
-          const role = rg.role as "Guitar" | "Bass";
-          const uniqueKey = `${role}:${tuningStr}`;
-
-          if (!seenKeys.has(uniqueKey)) {
-            seenKeys.add(uniqueKey);
-            tunings.push({
-              tuning: tuningStr,
-              role,
-            });
+          const key = `${rg.role}:${tuningStr}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            tunings.push({ tuning: tuningStr, role: rg.role });
           }
         }
-      });
+      }
     }
-  });
+  }
 
   return tunings;
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `user_song_progress` ADD `offsets` text;

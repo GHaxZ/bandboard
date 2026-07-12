@@ -1,29 +1,30 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Calendar as CalendarIcon,
-  ArrowLeft,
-  Edit,
-  Sliders,
-  ListMusic,
-  FileText,
-} from "lucide-react";
+import { ArrowLeft, Edit, Sliders, ListMusic, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { KanbanBoard } from "@/components/KanbanBoard";
+import dynamic from "next/dynamic";
 import { PrivateIndicator } from "@/components/PrivateIndicator";
 import { EditRehearsalModal } from "@/components/EditRehearsalModal";
+import { ClientDate } from "@/components/ClientDate";
 import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
-import { getUserSettings, getAllSongProgress, saveSongProgress } from "@/app/actions/user";
-import { RehearsalDetails, ProgressMap } from "@/types/models";
+import { getProgressMap, saveSongProgress } from "@/app/actions/user";
+import type { RehearsalDetails, ProgressMap } from "@/types/models";
+import type { Role } from "@/lib/constants";
+
+// DnD is client-only; avoid SSR hydration mismatch (PLAN §3.5 r).
+const KanbanBoard = dynamic(
+  () => import("@/components/KanbanBoard").then((m) => m.KanbanBoard),
+  { ssr: false, loading: () => null }
+);
 
 interface RehearsalKanbanClientProps {
   rehearsalId: string;
   initialDetails: RehearsalDetails;
-  preferredInstrument: string;
+  preferredInstrument: Role;
   initialProgressMap: ProgressMap;
 }
 
@@ -38,31 +39,13 @@ export function RehearsalKanbanClient({
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
-  const [instrument, setInstrument] = useState(preferredInstrument);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
-
-  useEffect(() => {
-    // No longer need client-side data loader on mount as progressMap is loaded server-side!
-  }, []);
 
   async function refreshData() {
     startTransition(async () => {
       const details = await getRehearsalDetails(rehearsalId);
-      if (details) {
-        setRehearsalDetails(details);
-      }
-      const progressList = await getAllSongProgress();
-      const map: ProgressMap = {};
-      progressList.forEach((p) => {
-        map[p.songId] = {
-          status: p.status,
-          speed: p.speed,
-          notes: p.notes,
-          practiceMarkers: p.practiceMarkers,
-          backingStartOffset: p.backingStartOffset,
-          tabStartOffset: p.tabStartOffset,
-        };
-      });
+      if (details) setRehearsalDetails(details);
+      const map = await getProgressMap();
       setProgressMap(map);
     });
   }
@@ -70,15 +53,12 @@ export function RehearsalKanbanClient({
   async function handleDeleteRehearsal() {
     if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
       const res = await deleteRehearsal(rehearsalId);
-      if (res.success) {
-        router.push("/rehearsals");
-      }
+      if (res.success) router.push("/rehearsals");
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Back Link Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
           <Link
@@ -92,13 +72,7 @@ export function RehearsalKanbanClient({
               {rehearsalDetails.title}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {new Date(rehearsalDetails.date).toLocaleString(undefined, {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              <ClientDate ms={rehearsalDetails.date} variant="datetime" />
             </p>
           </div>
         </div>
@@ -120,7 +94,6 @@ export function RehearsalKanbanClient({
         </div>
       </div>
 
-      {/* Rehearsal Tabs / View Mode Switcher */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 bg-card border border-border p-1 rounded-xl w-fit">
           <Link
@@ -128,7 +101,7 @@ export function RehearsalKanbanClient({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 text-muted-foreground hover:text-foreground"
           >
             <ListMusic className="w-4 h-4" />
-            Setlist & Practice
+            Setlist &amp; Practice
           </Link>
           <Link
             href={`/rehearsals/${rehearsalId}/kanban`}
@@ -162,28 +135,25 @@ export function RehearsalKanbanClient({
           rehearsalId={rehearsalDetails.id}
           rehearsalSongs={rehearsalDetails.rehearsalSongs}
           progressMap={progressMap}
+          preferredInstrument={preferredInstrument}
           onSaveProgress={async (songId, status) => {
-            const oldProgress = progressMap[songId] || { speed: 100, notes: null };
+            const oldProgress = progressMap[songId] || {
+              status: "not_started" as never,
+              speed: 100,
+              notes: null,
+              practiceMarkers: null,
+              offsets: {},
+            };
             setProgressMap({
               ...progressMap,
-              [songId]: {
-                ...oldProgress,
-                status,
-              },
+              [songId]: { ...oldProgress, status: status as never },
             });
-            const res = await saveSongProgress(songId, status, oldProgress.speed, oldProgress.notes);
-            if (!res.success) {
-              toast.error("Failed to save progress: " + res.error);
-            }
+            const res = await saveSongProgress(songId, { status: status as never });
+            if (!res.success) toast.error("Failed to save progress: " + res.error);
             refreshData();
           }}
-          onSelectSong={(songId) => {
-            router.push(`/rehearsals/${rehearsalId}?song=${songId}`);
-          }}
-          onPracticeSong={(songId) => {
-            router.push(`/songs/${songId}/practice`);
-          }}
-          preferredInstrument={instrument}
+          onSelectSong={(songId) => router.push(`/rehearsals/${rehearsalId}?song=${songId}`)}
+          onPracticeSong={(songId) => router.push(`/songs/${songId}/practice`)}
         />
       </div>
 

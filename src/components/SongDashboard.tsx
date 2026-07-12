@@ -1,22 +1,23 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, getAlternativeLinks } from "@/lib/utils";
-import { updateTrackVideoLink, lazyLoadTrackMedia, getGeniusLyricsLinkAction } from "@/app/actions/songs";
+import {
+  updateRoleGroupVideo,
+  lazyLoadTrackMedia,
+  refreshSongMetadata,
+} from "@/app/actions/songs";
+import { getSongProgress } from "@/app/actions/user";
 import { VideoSelector } from "./VideoSelector";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
-import {
-  getSongProgress
-} from "@/app/actions/user";
-
-import { Track, RoleGroup, Song } from "@/types/models";
 import { getYouTubeId } from "@/lib/youtube";
+import { NO_VIDEO_SENTINEL } from "@/lib/constants";
+import type { Song } from "@/types/models";
 
 interface SongDashboardProps {
   song: Song;
@@ -28,7 +29,21 @@ interface SongDashboardProps {
   onRoleChange?: (role: string) => void;
 }
 
-export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferredInstrument, activeRole, onRoleChange }: SongDashboardProps) {
+// Module-scoped set so we only attempt lazy-load once per roleGroup per session.
+const attemptedLazy = new Set<string>();
+export function clearAttemptedLazy() {
+  attemptedLazy.clear();
+}
+
+export function SongDashboard({
+  song,
+  onRefresh,
+  onDelete,
+  onPractice,
+  preferredInstrument,
+  activeRole,
+  onRoleChange,
+}: SongDashboardProps) {
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
@@ -39,46 +54,46 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
     currentUrl: string | null;
   } | null>(null);
 
-  // States to manage lazy loading of YouTube links on demand
   const [isLazyLoading, setIsLazyLoading] = useState(false);
   const [lazyLoadedTrackId, setLazyLoadedTrackId] = useState<string | null>(null);
   const loadingRef = useRef(false);
   const isMountedRef = useRef(true);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
-  
-  // Track selected non-standard instrument when "Other Instruments" tab is active
+
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
+  const [initialProgress, setInitialProgress] = useState<{
+    status: string;
+    speed: number;
+    notes: string;
+  } | null>(null);
 
-  // User progress state
-  const [initialProgress, setInitialProgress] = useState<{ status: string; speed: number; notes: string } | null>(null);
-
-  // Load progress when song.id changes
   useEffect(() => {
     async function loadSongUserData() {
       if (!song.id) return;
-      
       const prog = await getSongProgress(song.id);
       if (prog) {
-        setInitialProgress({ status: prog.status, speed: prog.speed, notes: prog.notes || "" });
+        setInitialProgress({
+          status: prog.status,
+          speed: prog.speed,
+          notes: prog.notes || "",
+        });
       } else {
         setInitialProgress({ status: "not_started", speed: 100, notes: "" });
       }
     }
-    
     loadSongUserData();
   }, [song.id]);
 
-  // Track expanded state of additional notation tracks inside role groups
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
-
   const lastPreferredRef = useRef(preferredInstrument);
 
-  // Sync activeTrackId when activeRole prop changes
+  // Sync activeTrackId when activeRole prop changes (URL-driven)
   useEffect(() => {
     if (activeRole) {
       const matching = song.roleGroups.find(
@@ -86,23 +101,24 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
       );
       if (matching) {
         setActiveTrackId(matching.id);
-      } else if (activeRole.toLowerCase() === "other" && song.roleGroups.some(rg => rg.role === "Other")) {
+      } else if (
+        activeRole.toLowerCase() === "other" &&
+        song.roleGroups.some((rg) => rg.role === "Other")
+      ) {
         setActiveTrackId("other-tab");
       }
     }
   }, [activeRole, song.roleGroups]);
 
-  // Smart initialization: select the roleGroup that matches the user's preferred instrument/role
-  // ponytail: Auto-select based on preferredInstrument only when the song or the preference itself changes
+  // Smart initialization on song / preference change
   useEffect(() => {
     const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
     const otherRoleGroup = song.roleGroups.find((rg) => rg.role === "Other");
     const otherTracks = otherRoleGroup?.tracks || [];
-    
+
     if (song.id !== initializedSongId || lastPreferredRef.current !== preferredInstrument) {
-      const preferredRole = preferredInstrument || localStorage.getItem("bandboard_instrument") || "Guitar";
-      
-      // If activeRole prop is present, prioritize it
+      const preferredRole = preferredInstrument || "Guitar";
+
       if (activeRole) {
         const matching = song.roleGroups.find(
           (rg) => rg.role.toLowerCase() === activeRole.toLowerCase()
@@ -121,31 +137,27 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
         }
       }
 
-      // Find matching role group for preferred role
       const matchingRoleGroup = standardRoleGroups.find(
         (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
       );
 
       if (matchingRoleGroup) {
         setActiveTrackId(matchingRoleGroup.id);
-      } else {
-        // Fallback: search for first standard role group, else use other-tab
-        if (standardRoleGroups.length > 0) {
-          setActiveTrackId(standardRoleGroups[0].id);
-        } else if (otherTracks.length > 0) {
-          setActiveTrackId("other-tab");
-          setSelectedOtherTrackId(otherTracks[0].id);
-        }
+      } else if (standardRoleGroups.length > 0) {
+        setActiveTrackId(standardRoleGroups[0].id);
+      } else if (otherTracks.length > 0) {
+        setActiveTrackId("other-tab");
+        setSelectedOtherTrackId(otherTracks[0].id);
       }
       setInitializedSongId(song.id);
-      setLazyLoadedTrackId(null); // Reset lazy loaded indicator for the new song context
+      setLazyLoadedTrackId(null);
       lastPreferredRef.current = preferredInstrument;
     } else if (activeTrackId === "other-tab" && !selectedOtherTrackId && otherTracks.length > 0) {
       setSelectedOtherTrackId(otherTracks[0].id);
     }
   }, [song, activeTrackId, selectedOtherTrackId, initializedSongId, preferredInstrument, activeRole]);
 
-  // Trigger YouTube media lazy-load when active role group is standard and missing media links
+  // Lazy-load missing YT media for the active standard role group
   useEffect(() => {
     const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
     const activeRoleGroup = standardRoleGroups.find((rg) => rg.id === activeTrackId);
@@ -155,52 +167,56 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
     const needsBacking = activeRoleGroup.backingTrackLink === null;
     const needsTabVideo = activeRoleGroup.tabVideoLink === null;
 
-    if ((needsBacking || needsTabVideo) && activeRoleGroup.id !== lazyLoadedTrackId && !isLazyLoading && !loadingRef.current) {
+    if (
+      (needsBacking || needsTabVideo) &&
+      activeRoleGroup.id !== lazyLoadedTrackId &&
+      !isLazyLoading &&
+      !loadingRef.current &&
+      !attemptedLazy.has(activeRoleGroup.id)
+    ) {
       loadingRef.current = true;
       setIsLazyLoading(true);
+      attemptedLazy.add(activeRoleGroup.id);
 
       lazyLoadTrackMedia(activeRoleGroup.id)
         .then((res) => {
           loadingRef.current = false;
           if (!isMountedRef.current) return;
           setIsLazyLoading(false);
-          setLazyLoadedTrackId(activeRoleGroup.id); // ALWAYS mark as attempted to prevent loop
-          if (res.success) {
-            onRefresh();
-          }
+          setLazyLoadedTrackId(activeRoleGroup.id);
+          if (res.success) onRefresh();
         })
         .catch((err) => {
           loadingRef.current = false;
           console.error("Lazy loading track media failed:", err);
           if (isMountedRef.current) {
             setIsLazyLoading(false);
-            setLazyLoadedTrackId(activeRoleGroup.id); // Also mark as attempted on failure
+            setLazyLoadedTrackId(activeRoleGroup.id);
           }
         });
     }
   }, [song.roleGroups, activeTrackId, lazyLoadedTrackId, isLazyLoading, onRefresh]);
 
-  // Pre-resolve lyrics link in the background if it's missing (e.g. for existing songs)
+  // Backfill missing metadata for legacy rows on demand (not automatic)
   useEffect(() => {
-    if (song && !song.lyrics) {
-      getGeniusLyricsLinkAction(song.id, song.artist, song.title)
-        .then((resolvedUrl) => {
-          if (resolvedUrl && resolvedUrl.startsWith("http") && isMountedRef.current) {
-            onRefresh();
-          }
+    if (song && (!song.albumArt || !song.lyricsUrl)) {
+      refreshSongMetadata(song.id)
+        .then((res) => {
+          if (res.success && isMountedRef.current) onRefresh();
         })
-        .catch((err) => {
-          console.error("Error pre-resolving lyrics link in background:", err);
-        });
+        .catch((err) => console.error("Metadata refresh failed:", err));
     }
-  }, [song, onRefresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song.id]);
 
   if (!song.roleGroups || song.roleGroups.length === 0) {
     return (
       <div className="text-center py-10 bg-card border border-border rounded-2xl p-6 text-muted-foreground">
         <Music className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
         <h3 className="font-semibold text-lg text-foreground">No Tracks Found</h3>
-        <p className="text-sm mt-1">This song doesn&apos;t have any notation or instrument tracks loaded.</p>
+        <p className="text-sm mt-1">
+          This song doesn&apos;t have any notation or instrument tracks loaded.
+        </p>
       </div>
     );
   }
@@ -212,25 +228,19 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
   async function handleSaveVideoLink(url: string | null) {
     if (!videoSelectorState) return;
     const { trackId, type } = videoSelectorState;
-    const res = await updateTrackVideoLink(trackId, type, url);
-    if (res.success) {
-      onRefresh();
-    }
+    const res = await updateRoleGroupVideo(trackId, type, url);
+    if (res.success) onRefresh();
   }
 
-  const handleTabChange = (val: string) => {
+  function handleTabChange(val: string) {
     setActiveTrackId(val);
-    const rg = song.roleGroups.find(g => g.id === val);
+    const rg = song.roleGroups.find((g) => g.id === val);
     if (rg) {
-      if (onRoleChange) {
-        onRoleChange(rg.role);
-      }
+      onRoleChange?.(rg.role);
     } else if (val === "other-tab") {
-      if (onRoleChange) {
-        onRoleChange("Other");
-      }
+      onRoleChange?.("Other");
     }
-  };
+  }
 
   return (
     <Card className="border-border bg-card overflow-hidden rounded-2xl shadow-xl">
@@ -257,9 +267,7 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
           </div>
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
-          {onPractice && (
-            <PracticeButton onClick={onPractice} />
-          )}
+          {onPractice && <PracticeButton onClick={onPractice} />}
           {onDelete && (
             <Button
               variant="destructive"
@@ -276,7 +284,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
 
       <CardContent className="p-6">
         <Tabs value={activeTrackId} onValueChange={handleTabChange} className="w-full">
-          {/* Scrollable tabs list for mobile */}
           <div className="overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
             <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-max min-w-full">
               {standardRoleGroups.map((rg) => (
@@ -300,7 +307,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
             </TabsList>
           </div>
 
-          {/* Standard Role Groups Content */}
           {standardRoleGroups.map((roleGroup) => {
             const backingVideoId = getYouTubeId(roleGroup.backingTrackLink);
             const tabVideoId = getYouTubeId(roleGroup.tabVideoLink);
@@ -311,31 +317,32 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                 value={roleGroup.id}
                 className="mt-6 space-y-6 focus-visible:ring-0 focus-visible:outline-none"
               >
-                {/* Notation & Sheets Card */}
+                {/* Notation & Sheets */}
                 <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
                   <div>
                     <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
-                      <Music className="w-4 h-4 text-muted-foreground" /> {
-                        roleGroup.role === "Vocals" ? "Lyrics" : "Notation & Sheets"
-                      }
+                      <Music className="w-4 h-4 text-muted-foreground" />{" "}
+                      {roleGroup.role === "Vocals" ? "Lyrics" : "Notation & Sheets"}
                     </h4>
                     <p className="text-xs text-muted-foreground mt-1 font-medium">
-                      {
-                        roleGroup.role === "Vocals" 
-                          ? "Select a vocalist track to open lyrics reference."
-                          : "Select a track representation below to open notation."
-                      }
+                      {roleGroup.role === "Vocals"
+                        ? "Select a vocalist track to open lyrics reference."
+                        : "Select a track representation below to open notation."}
                     </p>
                   </div>
 
                   <div className="space-y-3">
                     {roleGroup.tracks.map((track, idx) => {
                       const isMultiple = roleGroup.tracks.length > 1;
-                      const isExpanded = !isMultiple || (isNotationExpanded[track.id] ?? (idx === 0));
+                      const isExpanded =
+                        !isMultiple || (isNotationExpanded[track.id] ?? idx === 0);
                       const links = getAlternativeLinks(track.tabLink);
-                      
+
                       return (
-                        <div key={track.id} className="bg-background/60 border border-border rounded-2xl overflow-hidden transition-all duration-200">
+                        <div
+                          key={track.id}
+                          className="bg-background/60 border border-border rounded-2xl overflow-hidden transition-all duration-200"
+                        >
                           {isMultiple ? (
                             <button
                               type="button"
@@ -349,34 +356,49 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                             >
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-xs font-extrabold text-foreground">
-                                  {track.instrumentName} {track.details ? `— ${track.details}` : ""}
+                                  {track.instrumentName}{" "}
+                                  {track.details ? `— ${track.details}` : ""}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground font-medium">
                                   Track {idx + 1}
                                 </span>
                               </div>
-                              
+
                               <div className="flex items-center gap-3.5">
                                 {(roleGroup.role === "Guitar" || roleGroup.role === "Bass") && (
                                   <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-lg">
-                                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Tuning:</span>
-                                    <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">{track.tuning}</span>
+                                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
+                                      Tuning:
+                                    </span>
+                                    <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">
+                                      {track.tuning}
+                                    </span>
                                   </div>
                                 )}
-                                <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+                                <ChevronDown
+                                  className={cn(
+                                    "w-4 h-4 text-muted-foreground transition-transform duration-200",
+                                    isExpanded && "rotate-180"
+                                  )}
+                                />
                               </div>
                             </button>
                           ) : (
                             <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60">
                               <div>
                                 <span className="text-xs font-extrabold text-foreground">
-                                  {track.instrumentName} {track.details ? `— ${track.details}` : ""}
+                                  {track.instrumentName}{" "}
+                                  {track.details ? `— ${track.details}` : ""}
                                 </span>
                               </div>
                               {(roleGroup.role === "Guitar" || roleGroup.role === "Bass") && (
                                 <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-lg">
-                                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Tuning:</span>
-                                  <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">{track.tuning}</span>
+                                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
+                                    Tuning:
+                                  </span>
+                                  <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">
+                                    {track.tuning}
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -460,7 +482,12 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                                 ) : roleGroup.role === "Vocals" ? (
                                   <>
                                     <a
-                                      href={song.lyrics || `https://genius.com/search?q=${encodeURIComponent(song.artist + " " + song.title)}`}
+                                      href={
+                                        song.lyricsUrl ||
+                                        `https://genius.com/search?q=${encodeURIComponent(
+                                          song.artist + " " + song.title
+                                        )}`
+                                      }
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={cn(
@@ -512,11 +539,14 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
 
                 {/* Backing Track & Video Lessons */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Backing Track Card */}
+                  {/* Backing Track */}
                   <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
                     <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
                       <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Play className="w-3.5 h-3.5 text-muted-foreground" /> {roleGroup.role === "Vocals" ? "Backing Track (Instrumental)" : "Backing Track"}
+                        <Play className="w-3.5 h-3.5 text-muted-foreground" />{" "}
+                        {roleGroup.role === "Vocals"
+                          ? "Backing Track (Instrumental)"
+                          : "Backing Track"}
                       </span>
                       <Button
                         variant="ghost"
@@ -527,7 +557,10 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                             trackId: roleGroup.id,
                             type: "backing",
                             instrumentName: roleGroup.role,
-                            currentUrl: roleGroup.backingTrackLink === "none" ? null : roleGroup.backingTrackLink,
+                            currentUrl:
+                              roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
+                                ? null
+                                : roleGroup.backingTrackLink,
                           })
                         }
                         className="text-[10px] font-bold text-muted-foreground hover:text-foreground h-8 rounded-lg"
@@ -539,9 +572,11 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                       {isLazyLoading && roleGroup.backingTrackLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                          <p className="text-xs text-muted-foreground">Searching YouTube backing track...</p>
+                          <p className="text-xs text-muted-foreground">
+                            Searching YouTube backing track...
+                          </p>
                         </div>
-                      ) : (backingVideoId && roleGroup.backingTrackLink !== "none") ? (
+                      ) : backingVideoId && roleGroup.backingTrackLink !== NO_VIDEO_SENTINEL ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
                           <iframe
                             src={`https://www.youtube.com/embed/${backingVideoId}`}
@@ -553,7 +588,9 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                         </div>
                       ) : (
                         <div className="text-center py-8">
-                          <p className="text-xs text-muted-foreground mb-4 font-medium">No backing track link found.</p>
+                          <p className="text-xs text-muted-foreground mb-4 font-medium">
+                            No backing track link found.
+                          </p>
                           <Button
                             onClick={() =>
                               setVideoSelectorState({
@@ -561,7 +598,10 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                                 trackId: roleGroup.id,
                                 type: "backing",
                                 instrumentName: roleGroup.role,
-                                currentUrl: roleGroup.backingTrackLink === "none" ? null : roleGroup.backingTrackLink,
+                                currentUrl:
+                                  roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
+                                    ? null
+                                    : roleGroup.backingTrackLink,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
@@ -573,17 +613,16 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                     </div>
                   </div>
 
-                  {/* Tab/Reference Video Card */}
+                  {/* Tab/Reference Video */}
                   <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
                     <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
                       <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Video className="w-3.5 h-3.5 text-muted-foreground" /> {
-                          roleGroup.role === "Vocals" 
-                            ? "Original Song (Vocal Reference)" 
-                            : roleGroup.role === "Piano/Keyboard" 
-                            ? "Video Lesson / Cover" 
-                            : "Tab Video Lesson"
-                        }
+                        <Video className="w-3.5 h-3.5 text-muted-foreground" />{" "}
+                        {roleGroup.role === "Vocals"
+                          ? "Original Song (Vocal Reference)"
+                          : roleGroup.role === "Piano/Keyboard"
+                            ? "Video Lesson / Cover"
+                            : "Tab Video Lesson"}
                       </span>
                       <Button
                         variant="ghost"
@@ -594,7 +633,10 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                             trackId: roleGroup.id,
                             type: "tab",
                             instrumentName: roleGroup.role,
-                            currentUrl: roleGroup.tabVideoLink === "none" ? null : roleGroup.tabVideoLink,
+                            currentUrl:
+                              roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
+                                ? null
+                                : roleGroup.tabVideoLink,
                           })
                         }
                         className="text-[10px] font-bold text-muted-foreground hover:text-foreground h-8 rounded-lg"
@@ -606,9 +648,13 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                       {isLazyLoading && roleGroup.tabVideoLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
-                          <p className="text-xs text-muted-foreground">{roleGroup.role === "Vocals" ? "Searching original song..." : "Searching YouTube lesson..."}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {roleGroup.role === "Vocals"
+                              ? "Searching original song..."
+                              : "Searching YouTube lesson..."}
+                          </p>
                         </div>
-                      ) : (tabVideoId && roleGroup.tabVideoLink !== "none") ? (
+                      ) : tabVideoId && roleGroup.tabVideoLink !== NO_VIDEO_SENTINEL ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
                           <iframe
                             src={`https://www.youtube.com/embed/${tabVideoId}`}
@@ -620,7 +666,11 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                         </div>
                       ) : (
                         <div className="text-center py-8">
-                          <p className="text-xs text-muted-foreground mb-4 font-medium">{roleGroup.role === "Vocals" ? "No video reference found." : "No video lesson or cover found."}</p>
+                          <p className="text-xs text-muted-foreground mb-4 font-medium">
+                            {roleGroup.role === "Vocals"
+                              ? "No video reference found."
+                              : "No video lesson or cover found."}
+                          </p>
                           <Button
                             onClick={() =>
                               setVideoSelectorState({
@@ -628,18 +678,19 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                                 trackId: roleGroup.id,
                                 type: "tab",
                                 instrumentName: roleGroup.role,
-                                currentUrl: roleGroup.tabVideoLink === "none" ? null : roleGroup.tabVideoLink,
+                                currentUrl:
+                                  roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
+                                    ? null
+                                    : roleGroup.tabVideoLink,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
                           >
-                            {
-                              roleGroup.role === "Vocals" 
-                                ? "Search Original Song" 
-                                : roleGroup.role === "Piano/Keyboard" 
-                                ? "Search Video Lesson" 
-                                : "Search Tab Video"
-                            }
+                            {roleGroup.role === "Vocals"
+                              ? "Search Original Song"
+                              : roleGroup.role === "Piano/Keyboard"
+                                ? "Search Video Lesson"
+                                : "Search Tab Video"}
                           </Button>
                         </div>
                       )}
@@ -647,7 +698,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                   </div>
                 </div>
 
-                {/* PRACTICE PROGRESS/REHEARSAL LOG CARD */}
                 <PracticeLogCard
                   songId={song.id}
                   initialStatus={initialProgress?.status}
@@ -656,7 +706,11 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                   onSaveSuccess={async () => {
                     const prog = await getSongProgress(song.id);
                     if (prog) {
-                      setInitialProgress({ status: prog.status, speed: prog.speed, notes: prog.notes || "" });
+                      setInitialProgress({
+                        status: prog.status,
+                        speed: prog.speed,
+                        notes: prog.notes || "",
+                      });
                     }
                     onRefresh();
                   }}
@@ -667,16 +721,15 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
             );
           })}
 
-          {/* Grouped Other Tracks Content */}
           {otherTracks.length > 0 && (
             <TabsContent value="other-tab" className="mt-6 focus-visible:ring-0 focus-visible:outline-none">
               {(() => {
-                const currentOtherTrack = otherTracks.find((t) => t.id === selectedOtherTrackId) || otherTracks[0];
+                const currentOtherTrack =
+                  otherTracks.find((t) => t.id === selectedOtherTrackId) || otherTracks[0];
                 const links = getAlternativeLinks(currentOtherTrack.tabLink);
 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {/* Left list of other instruments */}
                     <div className="md:col-span-1 space-y-2">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1">
                         Select Instrument
@@ -703,14 +756,14 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                       </div>
                     </div>
 
-                    {/* Right details panel for the selected other instrument */}
                     <div className="md:col-span-3 space-y-6">
-                      {/* Equipment / Role Info details */}
                       <div className="bg-background border border-border rounded-2xl p-4 flex items-center justify-between">
                         <div className="flex-1">
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block">Equipment / Role Info</span>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block">
+                            Equipment / Role Info
+                          </span>
                           <span className="text-sm font-semibold text-foreground block mt-0.5 leading-relaxed whitespace-normal">
-                            {currentOtherTrack.details || `Role: ${currentOtherTrack.role}`}
+                            {currentOtherTrack.details || `Role: ${otherRoleGroup?.role ?? "Other"}`}
                           </span>
                         </div>
                         <div className="h-10 w-10 rounded-xl bg-card border border-border flex items-center justify-center flex-shrink-0 ml-2">
@@ -718,7 +771,6 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                         </div>
                       </div>
 
-                      {/* Notation Links */}
                       <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
                         <div>
                           <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
@@ -745,12 +797,12 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
                         </div>
                       </div>
 
-                      {/* Other Notice */}
                       <div className="bg-background border border-border rounded-2xl p-6 text-center text-muted-foreground">
                         <Info className="w-8 h-8 mx-auto mb-2 text-[#27282b]" />
                         <h5 className="font-semibold text-sm text-foreground">Non-Standard Instrument</h5>
                         <p className="text-xs mt-1">
-                          Backing tracks and video lessons are not automated for non-standard instruments. Use the interactive notation tab above.
+                          Backing tracks and video lessons are not automated for non-standard
+                          instruments. Use the interactive notation tab above.
                         </p>
                       </div>
                     </div>
@@ -762,25 +814,27 @@ export function SongDashboard({ song, onRefresh, onDelete, onPractice, preferred
         </Tabs>
       </CardContent>
 
-      {/* Video Selector Modal */}
-      {videoSelectorState && (() => {
-        const matchingGroup = song.roleGroups.find((rg) => rg.id === videoSelectorState.trackId);
-        const role = matchingGroup ? matchingGroup.role : "Other";
-        return (
-          <VideoSelector
-            isOpen={videoSelectorState.isOpen}
-            onClose={() => setVideoSelectorState(null)}
-            trackId={videoSelectorState.trackId}
-            type={videoSelectorState.type}
-            role={role}
-            instrumentName={videoSelectorState.instrumentName}
-            currentUrl={videoSelectorState.currentUrl}
-            songTitle={song.title}
-            songArtist={song.artist}
-            onSave={handleSaveVideoLink}
-          />
-        );
-      })()}
+      {videoSelectorState &&
+        (() => {
+          const matchingGroup = song.roleGroups.find(
+            (rg) => rg.id === videoSelectorState.trackId
+          );
+          const role = matchingGroup ? matchingGroup.role : "Other";
+          return (
+            <VideoSelector
+              isOpen={videoSelectorState.isOpen}
+              onClose={() => setVideoSelectorState(null)}
+              trackId={videoSelectorState.trackId}
+              type={videoSelectorState.type}
+              role={role}
+              instrumentName={videoSelectorState.instrumentName}
+              currentUrl={videoSelectorState.currentUrl}
+              songTitle={song.title}
+              songArtist={song.artist}
+              onSave={handleSaveVideoLink}
+            />
+          );
+        })()}
     </Card>
   );
 }

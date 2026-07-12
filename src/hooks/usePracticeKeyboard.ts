@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 
 interface PracticeKeyboardConfig {
@@ -8,18 +10,21 @@ interface PracticeKeyboardConfig {
   onMarkerJump?: (index: number) => void;
 }
 
+/** Global keyboard shortcuts for the player surfaces (PLAN §9.6). */
 export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
   const configRef = useRef(config);
-
   useEffect(() => {
     configRef.current = config;
   }, [config]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
       if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
+        active &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.tagName === "SELECT")
       ) {
         return;
       }
@@ -31,7 +36,6 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         }
         return;
       }
-
       if (e.key === " ") {
         if (configRef.current.onPlayPause) {
           e.preventDefault();
@@ -39,7 +43,6 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         }
         return;
       }
-
       if (e.key === "ArrowLeft") {
         if (configRef.current.onSeekBackward) {
           e.preventDefault();
@@ -47,7 +50,6 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         }
         return;
       }
-
       if (e.key === "ArrowRight") {
         if (configRef.current.onSeekForward) {
           e.preventDefault();
@@ -55,10 +57,9 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         }
         return;
       }
-
       if (e.key >= "1" && e.key <= "9") {
         if (configRef.current.onMarkerJump) {
-          const index = parseInt(e.key) - 1;
+          const index = parseInt(e.key, 10) - 1;
           configRef.current.onMarkerJump(index);
         }
       }

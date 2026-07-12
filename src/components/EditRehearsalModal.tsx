@@ -1,8 +1,14 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -31,7 +37,25 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calculate initial date/time values to compare against current state
+  useEffect(() => {
+    if (isOpen && rehearsal) {
+      setTitle(rehearsal.title);
+      setNotes(rehearsal.notes || "");
+      const d = new Date(rehearsal.date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hours = String(d.getHours()).padStart(2, "0");
+      const rawMins = d.getMinutes();
+      const roundedMins = Math.round(rawMins / 5) * 5;
+      const finalMins = roundedMins >= 60 ? 55 : roundedMins;
+      const minutes = String(finalMins).padStart(2, "0");
+      setDateStr(`${year}-${month}-${day}`);
+      setHourStr(hours);
+      setMinuteStr(minutes);
+    }
+  }, [isOpen, rehearsal]);
+
   const d = new Date(rehearsal?.date || 0);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -41,44 +65,12 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
   const roundedMins = Math.round(rawMins / 5) * 5;
   const finalMins = roundedMins >= 60 ? 55 : roundedMins;
   const minutes = String(finalMins).padStart(2, "0");
-
-  const initialTitle = rehearsal?.title || "";
-  const initialNotes = rehearsal?.notes || "";
-  const initialDateStr = rehearsal ? `${year}-${month}-${day}` : "";
-  const initialHourStr = rehearsal ? hours : "19";
-  const initialMinuteStr = rehearsal ? minutes : "00";
-
-  const hasUnsavedChanges = rehearsal && (
-    title !== initialTitle ||
-    notes !== initialNotes ||
-    dateStr !== initialDateStr ||
-    hourStr !== initialHourStr ||
-    minuteStr !== initialMinuteStr
-  );
-
-  // Initialize date and time strings from stored timestamp in local timezone
-  useEffect(() => {
-    if (isOpen && rehearsal) {
-      setTitle(rehearsal.title);
-      setNotes(rehearsal.notes || "");
-
-      const d = new Date(rehearsal.date);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      
-      // Round minutes to nearest 5 for selector compatibility
-      const rawMins = d.getMinutes();
-      const roundedMins = Math.round(rawMins / 5) * 5;
-      const finalMins = roundedMins >= 60 ? 55 : roundedMins;
-      const minutes = String(finalMins).padStart(2, "0");
-
-      setDateStr(`${year}-${month}-${day}`);
-      setHourStr(hours);
-      setMinuteStr(minutes);
-    }
-  }, [isOpen, rehearsal]);
+  const hasUnsavedChanges =
+    title !== rehearsal.title ||
+    notes !== (rehearsal.notes || "") ||
+    dateStr !== `${year}-${month}-${day}` ||
+    hourStr !== hours ||
+    minuteStr !== minutes;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,10 +81,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
 
     try {
       const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
-      if (isNaN(timestamp)) {
-        throw new Error("Invalid date or time selected");
-      }
-
+      if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
       const res = await updateRehearsal(rehearsal.id, title, timestamp, notes);
       if (res.success) {
         onSuccess();
@@ -122,9 +111,11 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
-          {/* Rehearsal Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="editRehearsalTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="editRehearsalTitle"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Rehearsal Title
             </Label>
             <Input
@@ -138,10 +129,12 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             />
           </div>
 
-          {/* Date & Split Time Picker Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="editRehearsalDate" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <Label
+                htmlFor="editRehearsalDate"
+                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+              >
                 Select Date
               </Label>
               <Input
@@ -154,7 +147,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                 className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
               />
             </div>
-            
+
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Select Time
@@ -195,9 +188,11 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             </div>
           </div>
 
-          {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="editRehearsalNotes" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="editRehearsalNotes"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Notes / Location (Optional)
             </Label>
             <textarea

@@ -3,17 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Calendar as CalendarIcon,
-  Music as MusicIcon,
-  Plus,
-  Clock,
-} from "lucide-react";
+import { Calendar as CalendarIcon, Music as MusicIcon, Plus, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddRehearsalModal } from "@/components/AddRehearsalModal";
+import { ClientDate } from "@/components/ClientDate";
+import { EmptyState } from "@/components/EmptyState";
 import { getRehearsals } from "@/app/actions/rehearsals";
-import { Rehearsal } from "@/types/models";
+import type { Rehearsal } from "@/types/models";
 
 interface RehearsalsDashboardProps {
   initialRehearsals: Rehearsal[];
@@ -53,27 +50,28 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
       </div>
 
       {rehearsalsList.length === 0 ? (
-        <div className="text-center py-16 bg-card/40 border border-border rounded-2xl p-6 text-muted-foreground">
-          <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b]" />
-          <h3 className="font-semibold text-lg text-foreground">No Rehearsals Scheduled</h3>
-          <p className="text-sm mt-1">Get started by creating a practice session and adding songs.</p>
-          <Button
-            onClick={() => setIsAddRehearsalOpen(true)}
-            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl mt-4 text-xs font-bold"
-          >
-            Schedule Your First Prep
-          </Button>
-        </div>
+        <EmptyState
+          icon={CalendarIcon}
+          title="No Rehearsals Scheduled"
+          description="Get started by creating a practice session and adding songs."
+          action={
+            <Button
+              onClick={() => setIsAddRehearsalOpen(true)}
+              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold"
+            >
+              Schedule Your First Prep
+            </Button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {rehearsalsList.map((reh) => {
-            const dateObj = new Date(reh.date);
             return (
               <Link key={reh.id} href={`/rehearsals/${reh.id}`} className="block">
                 <Card className="border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0 h-full flex flex-col justify-between">
                   <CardHeader className="p-5 pb-3">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
-                      {dateObj.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                      <ClientDate ms={reh.date} variant="date" />
                     </span>
                     <CardTitle className="text-base font-bold text-foreground mt-1 line-clamp-1 group-hover:text-foreground">
                       {reh.title}
@@ -86,11 +84,12 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
                   </CardHeader>
                   <CardContent className="px-5 pb-5 pt-0 flex items-center justify-between text-xs text-muted-foreground border-t border-border/60 mt-3 pt-3">
                     <span className="flex items-center gap-1 font-semibold text-muted-foreground">
-                      <MusicIcon className="w-3.5 h-3.5 text-muted-foreground" /> {reh.rehearsalSongs?.length || 0} songs
+                      <MusicIcon className="w-3.5 h-3.5 text-muted-foreground" />{" "}
+                      {reh.rehearsalSongs?.length || 0} songs
                     </span>
                     <span className="flex items-center gap-1 font-semibold text-muted-foreground">
                       <Clock className="w-3.5 h-3.5 text-muted-foreground" />{" "}
-                      {dateObj.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      <ClientDate ms={reh.date} variant="time" />
                     </span>
                   </CardContent>
                 </Card>

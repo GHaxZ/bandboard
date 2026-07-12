@@ -11,19 +11,18 @@ export const dynamic = "force-dynamic";
 
 export default async function SongDetailPage({ params }: SongPageProps) {
   const resolvedParams = await params;
-  const song = await getSongDetails(resolvedParams.id);
-  const dbSettings = await getUserSettings();
-  const preferredInstrument = dbSettings?.preferredInstrument || "Guitar";
+  const [song, settings] = await Promise.all([
+    getSongDetails(resolvedParams.id),
+    getUserSettings(),
+  ]);
 
-  if (!song) {
-    redirect("/library");
-  }
+  if (!song) redirect("/library");
 
   return (
     <SongDetailClient
       songId={resolvedParams.id}
       initialSong={song}
-      preferredInstrument={preferredInstrument}
+      preferredInstrument={settings.preferredInstrument}
     />
   );
 }

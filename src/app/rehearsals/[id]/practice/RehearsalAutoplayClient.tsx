@@ -1,40 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RehearsalAutoplay } from "@/components/RehearsalAutoplay";
-import { getUserSettings, getAllSongProgress } from "@/app/actions/user";
-import { RehearsalDetails, ProgressMap } from "@/types/models";
+import type { RehearsalDetails, ProgressMap } from "@/types/models";
+import type { Role } from "@/lib/constants";
 
 interface RehearsalAutoplayClientProps {
-  rehearsalId: string;
   initialDetails: RehearsalDetails;
-  preferredInstrument: string;
+  preferredInstrument: Role;
   initialProgressMap: ProgressMap;
 }
 
 export function RehearsalAutoplayClient({
-  rehearsalId,
   initialDetails,
   preferredInstrument,
   initialProgressMap,
 }: RehearsalAutoplayClientProps) {
   const router = useRouter();
-
-  const [rehearsalDetails] = useState<RehearsalDetails>(initialDetails);
-  const [instrument, setInstrument] = useState(preferredInstrument);
-  const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
-
-  useEffect(() => {
-    // No longer need client-side data loader on mount as progressMap is loaded server-side!
-  }, []);
-
+  const [rehearsalId] = useState(initialDetails.id);
   return (
     <RehearsalAutoplay
-      rehearsal={rehearsalDetails}
+      rehearsal={initialDetails}
       onExit={() => router.push(`/rehearsals/${rehearsalId}`)}
-      preferredInstrument={instrument}
-      progressMap={progressMap}
+      preferredInstrument={preferredInstrument}
+      progressMap={initialProgressMap}
     />
   );
 }

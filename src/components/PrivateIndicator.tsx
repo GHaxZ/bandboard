@@ -10,7 +10,7 @@ interface PrivateIndicatorProps {
 export function PrivateIndicator({
   className,
   tooltip = "These settings are stored locally on your device and are private to you.",
-  text = "Private"
+  text = "Private",
 }: PrivateIndicatorProps) {
   return (
     <span

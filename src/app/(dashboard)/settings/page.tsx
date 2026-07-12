@@ -1,17 +1,10 @@
-import { getUserSettings, getUserUuid } from "@/app/actions/user";
+import { getUserSettings } from "@/app/actions/user";
+import { getUserUuid } from "@/lib/auth";
 import { SettingsClient } from "./SettingsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const dbSettings = await getUserSettings();
-  const userUuid = await getUserUuid();
-  const preferredInstrument = dbSettings?.preferredInstrument || "Guitar";
-
-  return (
-    <SettingsClient
-      preferredInstrument={preferredInstrument}
-      userUuid={userUuid}
-    />
-  );
+  const [settings, userUuid] = await Promise.all([getUserSettings(), getUserUuid()]);
+  return <SettingsClient preferredInstrument={settings.preferredInstrument} userUuid={userUuid} />;
 }

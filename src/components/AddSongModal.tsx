@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,14 +61,17 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             Add Song to Library
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Enter details. We will query public sources for notations, tunings, backing tracks, and lesson videos in the background.
+            Enter details. We will query public sources for notations, tunings, backing tracks,
+            and lesson videos in the background.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
-          {/* Song Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="songTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="songTitle"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Song Title
             </Label>
             <Input
@@ -75,9 +85,11 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             />
           </div>
 
-          {/* Artist/Band Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="artistName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="artistName"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Artist / Band Name
             </Label>
             <Input
