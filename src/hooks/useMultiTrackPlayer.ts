@@ -65,6 +65,12 @@ export function useMultiTrackPlayer({
   }, []);
 
   const play = useCallback(() => {
+    // Cancel any existing rAF so play() is idempotent (e.g. tracks-change +
+    // isPlaying effects in the same commit both calling play()).
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     const spd = usePlayerStore.getState().speed;
     const vol = usePlayerStore.getState().volume;
     clockStartRef.current = performance.now() - (TRef.current / spd) * 1000;
@@ -147,6 +153,25 @@ export function useMultiTrackPlayer({
 
     rafRef.current = requestAnimationFrame(tick);
   }, [audible, setPlaying]);
+
+  // ponytail: reset playhead on song switch (track set change). Cancels the rAF
+  // loop so time stops elapsing when this player goes idle (tracks=[]), and resets
+  // TRef so the next multistem song starts from 0 instead of a stale position.
+  const tracksKey = tracks.map((t) => t.id).join(",");
+  useEffect(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    TRef.current = 0;
+    setCurrentT(0);
+    for (const [, el] of mediaRefs.current) {
+      if (!el.paused) el.pause();
+    }
+    if (usePlayerStore.getState().isPlaying) {
+      play();
+    }
+  }, [tracksKey, play]);
 
   const pause = useCallback(() => {
     if (rafRef.current !== null) {

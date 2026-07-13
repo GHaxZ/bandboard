@@ -78,12 +78,23 @@ export function OriginalEditor({
   const [stemDrafts, setStemDrafts] = useState<CustomTrack[]>(tracks);
   const [deletedStemIds, setDeletedStemIds] = useState<Set<string>>(new Set());
 
+  // Pending stems — files selected in UploadTrackDialog that haven't been uploaded yet.
+  // They show as drafts in the list and are uploaded on Save All.
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
+  const blobUrlsRef = useRef<Map<string, string>>(new Map());
+  const [pendingStemIds, setPendingStemIds] = useState<Set<string>>(new Set());
+
   // --- Timeline state ---
   const [mutedTrackIds, setMutedTrackIds] = useState<Set<string>>(new Set());
   const [soloTrackIds, setSoloTrackIds] = useState<Set<string>>(new Set());
   const [pxPerSec, setPxPerSec] = useState(DAW_PX_PER_SEC_DEFAULT);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Refs to defer clearing cover-art draft state until `song` prop reflects the save.
+  // Prevents flicker: keeps the blob URL visible until the new stored name arrives.
+  const uploadedCoverArtRef = useRef<string | null>(null);
+  const removedCoverArtRef = useRef(false);
 
   const volume = usePlayerStore((s) => s.volume);
   const setVolume = usePlayerStore((s) => s.setVolume);
@@ -122,6 +133,19 @@ export function OriginalEditor({
     });
   }, [tracks]);
 
+  // Clear cover-art draft state only after `song` prop reflects the saved value.
+  // This prevents flicker: the blob URL remains visible until the new stored name arrives.
+  useEffect(() => {
+    if (uploadedCoverArtRef.current && song.coverArtStoredName === uploadedCoverArtRef.current) {
+      setCoverArtFile(null);
+      uploadedCoverArtRef.current = null;
+    }
+    if (removedCoverArtRef.current && song.coverArtStoredName === null) {
+      setCoverArtMarkedForRemoval(false);
+      removedCoverArtRef.current = false;
+    }
+  }, [song.coverArtStoredName]);
+
   const probedRef = useRef(new Set<string>());
 
   const activeStems = useMemo(
@@ -133,7 +157,17 @@ export function OriginalEditor({
     tracks: activeStems,
     mutedTrackIds,
     soloTrackIds,
-    getStreamUrl: (id) => `/api/uploads/${id}`,
+    getStreamUrl: (id) => {
+      // Pending stems use blob URLs until uploaded on Save All.
+      const file = pendingFilesRef.current.get(id);
+      if (file) {
+        if (!blobUrlsRef.current.has(id)) {
+          blobUrlsRef.current.set(id, URL.createObjectURL(file));
+        }
+        return blobUrlsRef.current.get(id)!;
+      }
+      return `/api/uploads/${id}`;
+    },
   });
 
   usePracticeKeyboard({
@@ -152,6 +186,8 @@ export function OriginalEditor({
     notesDraft !== initialScratchpadNotes;
 
   const stemsDirty = stemDrafts.some((t) => {
+    // Pending stems (not yet uploaded) always count as dirty.
+    if (pendingStemIds.has(t.id)) return true;
     const saved = tracks.find((tt) => tt.id === t.id);
     if (!saved) return false;
     return (
@@ -195,9 +231,12 @@ export function OriginalEditor({
       setStemDrafts((prev) =>
         prev.map((t) => (t.id === trackId ? { ...t, duration } : t))
       );
-      updateCustomTrack(trackId, { duration }).then(() => onRefresh());
+      // Only persist duration to server for non-pending stems
+      if (!pendingStemIds.has(trackId)) {
+        updateCustomTrack(trackId, { duration }).then(() => onRefresh());
+      }
     },
-    [onRefresh]
+    [onRefresh, pendingStemIds]
   );
 
   const handleStemRoleChange = useCallback((trackId: string, newRole: Role) => {
@@ -257,6 +296,14 @@ export function OriginalEditor({
   }
 
   function handleDiscard() {
+    // Clean up pending stems (revoke blob URLs, discard file refs).
+    for (const id of pendingStemIds) {
+      const url = blobUrlsRef.current.get(id);
+      if (url) URL.revokeObjectURL(url);
+      pendingFilesRef.current.delete(id);
+    }
+    blobUrlsRef.current.clear();
+    setPendingStemIds(new Set());
     setTitleDraft(song.title);
     setArtistDraft(song.artist);
     setTuningsDraft(song.tunings ?? {});
@@ -299,10 +346,15 @@ export function OriginalEditor({
           toast.error("Cover art upload failed: " + (data.error || res.statusText));
           return;
         }
+        const data = await res.json();
+        uploadedCoverArtRef.current = data.storedName;
+        // ponytail: don't clear coverArtFile yet — keep blob URL visible until song prop updates.
       }
-      // Reset cover-art draft state regardless of whether we uploaded or removed.
-      setCoverArtFile(null);
-      setCoverArtMarkedForRemoval(false);
+      // 2b. Cover art removal
+      if (coverArtMarkedForRemoval) {
+        removedCoverArtRef.current = true;
+        // ponytail: don't clear coverArtMarkedForRemoval yet — keep null preview until song prop updates.
+      }
 
       // 3. Stem edits (role, label, startOffset)
       for (const draft of stemDrafts) {
@@ -317,6 +369,35 @@ export function OriginalEditor({
           await updateCustomTrack(draft.id, patch);
         }
       }
+
+      // 3b. Upload pending stems (deferred from UploadTrackDialog)
+      for (const draft of stemDrafts) {
+        if (!pendingStemIds.has(draft.id)) continue;
+        const file = pendingFilesRef.current.get(draft.id);
+        if (!file) continue;
+        const form = new FormData();
+        form.append("songId", song.id);
+        form.append("role", draft.role);
+        form.append("label", draft.label);
+        form.append("file", file);
+        form.append("kind", "stem");
+        const res = await fetch("/api/uploads", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Stem upload failed");
+        const realTrack = data.track as CustomTrack;
+        // Replace pending ID with real track ID in drafts
+        setStemDrafts((prev) =>
+          prev.map((t) =>
+            t.id === draft.id
+              ? { ...realTrack, role: draft.role, label: draft.label, startOffset: draft.startOffset, duration: t.duration ?? realTrack.duration }
+              : t
+          )
+        );
+        pendingFilesRef.current.delete(draft.id);
+        const blobUrl = blobUrlsRef.current.get(draft.id);
+        if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrlsRef.current.delete(draft.id); }
+      }
+      setPendingStemIds(new Set());
 
       // 4. Deleted stems
       for (const id of deletedStemIds) {
@@ -774,10 +855,29 @@ export function OriginalEditor({
       )}
 
       <UploadTrackDialog
-        songId={song.id}
         isOpen={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
-        onUploaded={() => onRefresh()}
+        onUploaded={(file, role, label) => {
+          const tempId = `pending-${crypto.randomUUID()}`;
+          const now = Date.now();
+          const draftTrack: CustomTrack = {
+            id: tempId,
+            songId: song.id,
+            role,
+            label,
+            fileName: file.name,
+            storedName: "",
+            mimeType: file.type,
+            sizeBytes: file.size,
+            duration: null,
+            startOffset: 0,
+            isVideo: file.type.startsWith('video/'),
+            createdAt: now,
+          };
+          pendingFilesRef.current.set(tempId, file);
+          setStemDrafts((prev) => [...prev, draftTrack]);
+          setPendingStemIds((prev) => new Set(prev).add(tempId));
+        }}
         defaultRole={preferredInstrument}
       />
     </div>

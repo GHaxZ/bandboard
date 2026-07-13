@@ -113,13 +113,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setBackingOffset: (n) => set({ backingOffset: n }),
   setTabOffset: (n) => set({ tabOffset: n }),
 
-  setCurrentIndex: (i) => set({ currentIndex: i, skipReason: null }),
+  setCurrentIndex: (i) => set({ currentIndex: i, skipReason: null, isPlaying: false }),
   next: (len) =>
     set((s) => ({
       currentIndex: Math.min(s.currentIndex + 1, Math.max(0, len - 1)),
       skipReason: null,
+      isPlaying: false,
     })),
-  prev: () => set((s) => ({ currentIndex: Math.max(0, s.currentIndex - 1), skipReason: null })),
+  prev: () => set((s) => ({ currentIndex: Math.max(0, s.currentIndex - 1), skipReason: null, isPlaying: false })),
   setAutoplayEnabled: (v) => set({ autoplayEnabled: v }),
   setTransitionTimeout: (n) => set({ transitionTimeout: n }),
 
@@ -141,6 +142,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         currentIndex: Math.min(s.currentIndex + 1, Math.max(0, len - 1)),
         countdown: null,
         skipReason: null,
+        isPlaying: false,
       };
     }),
   startSession: () => set({ sessionStarted: true, countdown: null, skipReason: null }),

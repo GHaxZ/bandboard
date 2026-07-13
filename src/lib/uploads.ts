@@ -35,6 +35,29 @@ export function extForMime(mime: string): string {
   return MIME_TO_EXT[mime] ?? '';
 }
 
+const EXT_TO_MIME: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.mkv': 'video/x-matroska',
+};
+
+/** Reverse lookup: stored name extension → MIME type. Falls back to
+ *  application/octet-stream if no known extension matches. */
+export function mimeForExt(storedName: string): string {
+  const lower = storedName.toLowerCase();
+  for (const [ext, mime] of Object.entries(EXT_TO_MIME)) {
+    if (lower.endsWith(ext)) return mime;
+  }
+  return 'application/octet-stream';
+}
+
 export function storedPath(storedName: string): string {
   return path.join(UPLOAD_DIR, storedName);
 }

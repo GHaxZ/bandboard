@@ -63,8 +63,9 @@ export function useMultiStemPracticeEngine({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ponytail: practice mode always starts from zero — discard any startOffset.
   const player = useMultiTrackPlayer({
-    tracks,
+    tracks: tracks.map((t) => ({ ...t, startOffset: 0 })),
     mutedTrackIds,
     soloTrackIds: new Set(),
     getStreamUrl: (id) => `/api/uploads/${id}`,

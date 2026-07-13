@@ -4,7 +4,8 @@ import { customTracks } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import { Readable } from 'stream';
-import { storedPath } from '@/lib/uploads';
+import { storedPath, mimeForExt } from '@/lib/uploads';
+import { ALLOWED_UPLOAD_MIMES } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
     }
 
     const { storedName, mimeType } = rows[0];
+    // Guard: if the stored mimeType is empty or somehow invalid (e.g. legacy
+    // rows), infer from the file extension so the browser always gets a valid
+    // Content-Type and doesn't throw a media error on the <video> element.
+    const contentType = ALLOWED_UPLOAD_MIMES.includes(mimeType)
+      ? mimeType
+      : mimeForExt(storedName);
     const filePath = storedPath(storedName);
 
     let stat: fs.Stats;
@@ -95,7 +102,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return new NextResponse(webStream, {
         status: 206,
         headers: {
-          'Content-Type': mimeType,
+          'Content-Type': contentType,
           'Content-Length': String(contentLength),
           'Content-Range': `bytes ${start}-${end}/${totalSize}`,
           'Accept-Ranges': 'bytes',
@@ -109,7 +116,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return new NextResponse(webStream, {
       status: 200,
       headers: {
-        'Content-Type': mimeType,
+        'Content-Type': contentType,
         'Content-Length': String(totalSize),
         'Accept-Ranges': 'bytes',
       },

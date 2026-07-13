@@ -125,15 +125,16 @@ export function VideoSelector({
     setCustomFile(selected);
     setCustomError(null);
     setUploadedId(null);
+    // Auto-upload and save immediately on file selection
+    void handleUploadCustom(selected);
   }
 
-  async function handleUploadCustom() {
-    if (!customFile) return;
-    if (!ALLOWED_UPLOAD_MIMES.includes(customFile.type)) {
-      setCustomError(`File type not allowed: ${customFile.type}`);
+  async function handleUploadCustom(file: File) {
+    if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) {
+      setCustomError(`File type not allowed: ${file.type}`);
       return;
     }
-    if (customFile.size > MAX_UPLOAD_BYTES) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       setCustomError("File too large (max 100MB).");
       return;
     }
@@ -143,8 +144,8 @@ export function VideoSelector({
       const form = new FormData();
       form.append("songId", songId);
       form.append("role", role);
-      form.append("label", customFile.name.replace(/\.[^.]+$/, ""));
-      form.append("file", customFile);
+      form.append("label", file.name.replace(/\.[^.]+$/, ""));
+      form.append("file", file);
       form.append("kind", "artifact");
       const res = await fetch("/api/uploads", { method: "POST", body: form });
       const data = await res.json();
@@ -152,7 +153,10 @@ export function VideoSelector({
       toast.success("Custom file uploaded!");
       setUploadedId(data.track.id);
       await onSaveCustom(data.track.id);
-      onClose();
+      // ponytail: keep dialog open after custom upload so the user can upload
+      // more or switch to a YouTube result. The "In use" badge updates via
+      // currentCustomTrackId after onRefresh. YouTube selection still closes
+      // the dialog (handleSelectVideo / handleSaveManual call onClose()).
     } catch (e) {
       setCustomError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -347,25 +351,15 @@ export function VideoSelector({
                 disabled={isSaving || isUploadingCustom}
                 className="flex-1 w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"
               />
-              {uploadedId && customFile ? (
-                <Button
-                  disabled
-                  className="bg-emerald-600 text-white border border-emerald-500 rounded-xl"
-                >
-                  <Check className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleUploadCustom}
-                  disabled={isUploadingCustom || !customFile || isSaving}
-                  className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl"
-                >
-                  {isUploadingCustom ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
-                  )}
-                </Button>
+              {isUploadingCustom && (
+                <div className="flex items-center justify-center px-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#5b80a5]" />
+                </div>
+              )}
+              {uploadedId && customFile && !isUploadingCustom && (
+                <div className="flex items-center justify-center px-3">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                </div>
               )}
             </div>
             {customError && (

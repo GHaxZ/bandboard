@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/songs";
 import { getSongProgress } from "@/app/actions/user";
 import { VideoSelector } from "./VideoSelector";
+import { YouTubePreview } from "./YouTubePreview";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
@@ -612,15 +613,7 @@ export function SongDashboard({
                           </p>
                         </div>
                       ) : backingVideoId && roleGroup.backingTrackLink !== NO_VIDEO_SENTINEL ? (
-                        <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
-                          <iframe
-                            src={`https://www.youtube.com/embed/${backingVideoId}?controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
-                            title="Backing Track Player"
-                            className="w-full h-full border-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        </div>
+                        <YouTubePreview videoId={backingVideoId} />
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-xs text-muted-foreground mb-4 font-medium">
@@ -706,15 +699,7 @@ export function SongDashboard({
                           </p>
                         </div>
                       ) : tabVideoId && roleGroup.tabVideoLink !== NO_VIDEO_SENTINEL ? (
-                        <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
-                          <iframe
-                            src={`https://www.youtube.com/embed/${tabVideoId}?controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
-                            title="Tab Video Player"
-                            className="w-full h-full border-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        </div>
+                        <YouTubePreview videoId={tabVideoId} />
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-xs text-muted-foreground mb-4 font-medium">
@@ -881,8 +866,22 @@ export function SongDashboard({
               role={role}
               songId={song.id}
               instrumentName={videoSelectorState.instrumentName}
-              currentUrl={videoSelectorState.currentUrl}
-              currentCustomTrackId={videoSelectorState.currentCustomTrackId}
+              currentUrl={
+                videoSelectorState.type === "backing"
+                  ? matchingGroup?.backingTrackLink &&
+                    matchingGroup.backingTrackLink !== NO_VIDEO_SENTINEL
+                    ? matchingGroup.backingTrackLink
+                    : null
+                  : matchingGroup?.tabVideoLink &&
+                      matchingGroup.tabVideoLink !== NO_VIDEO_SENTINEL
+                    ? matchingGroup.tabVideoLink
+                    : null
+              }
+              currentCustomTrackId={
+                videoSelectorState.type === "backing"
+                  ? matchingGroup?.backingCustomTrackId ?? null
+                  : matchingGroup?.tabCustomTrackId ?? null
+              }
               songTitle={song.title}
               songArtist={song.artist}
               onSave={handleSaveVideoLink}

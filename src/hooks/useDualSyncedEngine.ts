@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/stores/player-store";
-import { YT_SYNC_DRIFT_MS, YT_SYNC_INTERVAL_MS } from "@/lib/constants";
+import { YT_SYNC_DRIFT_MS, YT_SYNC_INTERVAL_MS, SEEK_DEBOUNCE_MS } from "@/lib/constants";
 import type { MediaController } from "@/lib/media-controller";
 
 interface UseDualSyncedEngineOpts {
@@ -87,6 +87,17 @@ export function useDualSyncedEngine({
       } catch {
         return;
       }
+
+      const YT_BUFFERING = 3;
+
+      // Skip sync while a user-initiated seek is settling (prevents the
+      // inactive slot from chasing the active's drifting getCurrentTime
+      // during YouTube buffering after a scrub).
+      if (Date.now() - usePlayerStore.getState().lastSeekAt < SEEK_DEBOUNCE_MS) return;
+
+      // If the active is still buffering after the debounce window, also skip
+      // — getCurrentTime() is unreliable until the buffer settles.
+      if (activeState === YT_BUFFERING) return;
 
       // Mirror play/pause so both media share one transport state. ENDED is
       // treated as a "should pause the other" state so a slot ending naturally
@@ -228,7 +239,10 @@ export function useDualSyncedEngine({
     if (!active) return;
     try {
       const state = active.getState();
-      if (state === 1) active.pause();
+      // 1 = playing, 3 = buffering — both mean "currently advancing,
+      // should pause". Treating BUFFERING as playing lets the user
+      // cancel a stuck YouTube buffer by clicking pause.
+      if (state === 1 || state === 3) active.pause();
       else active.play();
     } catch {
       // ignore

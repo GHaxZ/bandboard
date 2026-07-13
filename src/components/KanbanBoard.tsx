@@ -128,18 +128,25 @@ export function KanbanBoard({
                                   )}
                                 >
                                   <div className="flex items-center gap-3">
-                                    {song.albumArt ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={song.albumArt}
-                                        alt=""
-                                        className="w-10 h-10 rounded-lg object-cover border border-border flex-shrink-0"
-                                      />
-                                    ) : (
-                                      <div className="w-10 h-10 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
-                                        <Music className="w-4 h-4 text-muted-foreground" />
-                                      </div>
-                                    )}
+                                    {(() => {
+                                      const coverSrc = song.albumArt
+                                        ? song.albumArt
+                                        : song.coverArtStoredName
+                                          ? `/api/cover-art/${song.id}`
+                                          : null;
+                                      return coverSrc ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={coverSrc}
+                                          alt=""
+                                          className="w-10 h-10 rounded-lg object-cover border border-border flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
+                                          <Music className="w-4 h-4 text-muted-foreground" />
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="min-w-0 flex-1">
                                       <h5 className="text-xs font-bold text-foreground truncate">
                                         {song.title}

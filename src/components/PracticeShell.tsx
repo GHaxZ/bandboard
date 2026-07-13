@@ -165,7 +165,7 @@ export function PracticeShell({
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 px-4 md:px-6 overflow-y-auto min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 px-4 md:px-6 pt-2 overflow-y-auto min-h-0">
         {/* Left: player + controls */}
         <div className="lg:col-span-8 flex flex-col space-y-4">
           <div

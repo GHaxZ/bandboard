@@ -31,22 +31,46 @@ export function CustomPlaybackHUD({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragTime, setDragTime] = useState<number | null>(null);
+  const [pendingSeek, setPendingSeek] = useState<number | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  const dragTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  // Refs to avoid stale closures in the rAF tick and seek callback when the
+  // engine prop changes identity every render (inline literal in callers).
+  const engineRef = useRef(engine);
+  const durationRef = useRef(duration);
+  // Keep refs fresh — using effects instead of writing during render to satisfy
+  // the react-hooks/refs lint rule.
+  useEffect(() => { engineRef.current = engine; });
+  useEffect(() => { durationRef.current = duration; });
+  useEffect(() => { dragTimeRef.current = dragTime; }, [dragTime]);
 
-  // Track current time and duration via rAF while HUD is mounted
+  // Track current time and duration via rAF while HUD is mounted (stable deps).
+  // Also resolves pending seek: once getCurrentTime() catches up to where the
+  // user released the scrubber, clear the pending so the rAF time takes over.
   useEffect(() => {
     const tick = () => {
-      setCurrentTime(engine.getCurrentTime?.() ?? 0);
-      setDuration(engine.duration ?? 0);
+      const eng = engineRef.current;
+      const live = eng.getCurrentTime?.() ?? 0;
+      setCurrentTime(live);
+      setDuration(eng.duration ?? 0);
+      const pending = pendingSeekRef.current;
+      if (pending != null && Math.abs(live - pending) < 0.5) {
+        pendingSeekRef.current = null;
+        setPendingSeek(null);
+      } else {
+        setPendingSeek(pending);
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [engine]);
+  }, []);
 
   // Auto-hide controls after 3s of no mouse movement (only when playing)
   const resetHideTimer = () => {
@@ -72,14 +96,15 @@ export function CustomPlaybackHUD({
     if (isPlaying) setShowControls(false);
   };
 
-  const handlePlayPause = () => engine.playPause();
+  const handlePlayPause = () => engineRef.current.playPause();
 
   const seekToClientX = useCallback((clientX: number) => {
-    if (!progressRef.current || duration <= 0) return;
+    const dur = durationRef.current;
+    if (!progressRef.current || dur <= 0) return;
     const rect = progressRef.current.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    engine.seekTo?.(pct * duration);
-  }, [duration, engine]);
+    setDragTime(pct * dur);
+  }, []);
 
   const handleProgressMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
@@ -89,7 +114,16 @@ export function CustomPlaybackHUD({
   useEffect(() => {
     if (!isDragging) return;
     const onMove = (e: MouseEvent) => seekToClientX(e.clientX);
-    const onUp = () => setIsDragging(false);
+    const onUp = () => {
+      const target = dragTimeRef.current;
+      setIsDragging(false);
+      setDragTime(null);
+      if (target != null) {
+        pendingSeekRef.current = target;
+        setPendingSeek(target);
+        engineRef.current.seekTo?.(target);
+      }
+    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
@@ -98,7 +132,11 @@ export function CustomPlaybackHUD({
     };
   }, [isDragging, seekToClientX]);
 
-  const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const displayTime =
+    dragTime != null ? dragTime
+    : pendingSeek != null ? pendingSeek
+    : currentTime;
+  const progressPct = duration > 0 ? (displayTime / duration) * 100 : 0;
 
   return (
     <div
@@ -140,14 +178,14 @@ export function CustomPlaybackHUD({
         {/* Progress bar */}
         <div
           ref={progressRef}
-          className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group relative"
+          className={cn(
+            "w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group relative",
+            isDragging && "h-2.5"
+          )}
           onMouseDown={handleProgressMouseDown}
         >
           <div
-            className={cn(
-              "h-full bg-[#acd1f8] rounded-full relative",
-              isDragging && "h-2.5"
-            )}
+            className="h-full bg-[#acd1f8] rounded-full relative"
             style={{ width: `${progressPct}%` }}
           >
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow" />
@@ -170,7 +208,7 @@ export function CustomPlaybackHUD({
 
             {/* Time display */}
             <span className="text-[11px] font-mono text-white/80 select-none">
-              {formatTimeHUD(currentTime)} / {formatTimeHUD(duration)}
+              {formatTimeHUD(displayTime)} / {formatTimeHUD(duration)}
             </span>
           </div>
 

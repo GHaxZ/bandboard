@@ -43,6 +43,7 @@ export function useSlotMediaController(
     startOffset: opts.startOffset,
     onEnded: opts.onEnded,
     isActive: opts.isActive,
+    primeOnReady: true,
   });
 
   const mediaElRef = useRef<HTMLMediaElement | null>(null);
