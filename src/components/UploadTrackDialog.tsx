@@ -75,6 +75,10 @@ export function UploadTrackDialog({
       setError(`File type not allowed: ${file.type}`);
       return;
     }
+    if (file.type.startsWith('video/')) {
+      setError("Only audio files are allowed for stems.");
+      return;
+    }
     if (file.size > MAX_UPLOAD_BYTES) {
       setError("File too large (max 100MB).");
       return;
@@ -89,6 +93,7 @@ export function UploadTrackDialog({
       form.append("role", role);
       form.append("label", label.trim() || file.name);
       form.append("file", file);
+      form.append("kind", "stem");
 
       const res = await fetch("/api/uploads", { method: "POST", body: form });
       const data = await res.json();
@@ -130,7 +135,7 @@ export function UploadTrackDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept="audio/*,video/*"
+              accept="audio/*"
               onChange={handleFileChange}
               disabled={isUploading}
               className="w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"

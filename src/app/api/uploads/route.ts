@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const role = form.get('role');
     const label = form.get('label');
     const file = form.get('file');
+    const kind = form.get('kind');
 
     if (typeof songId !== 'string' || !songId) {
       return NextResponse.json({ error: 'Missing songId' }, { status: 400 });
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
     }
     if (!allowedMime(file.type)) {
       return NextResponse.json({ error: 'File type not allowed: ' + file.type }, { status: 400 });
+    }
+    if (kind === 'stem' && file.type.startsWith('video/')) {
+      return NextResponse.json({ error: 'Only audio files are allowed for stems.' }, { status: 400 });
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { rehearsals, rehearsalSongs } from "@/db/schema";
 import { eq, asc, and, gt, sql } from "drizzle-orm";
 import type { Rehearsal, RehearsalDetails } from "@/types/models";
+import { mapSong } from "@/lib/serialize";
 
 // ---------------------------------------------------------------------------
 // CRUD
@@ -67,12 +68,16 @@ export async function deleteRehearsal(
 // ---------------------------------------------------------------------------
 export async function getRehearsals(): Promise<Rehearsal[]> {
   try {
-    return await db.query.rehearsals.findMany({
+    const rows = await db.query.rehearsals.findMany({
       orderBy: [asc(rehearsals.date)],
       with: {
-        rehearsalSongs: { with: { song: { with: { roleGroups: { with: { tracks: true } } } } } },
+        rehearsalSongs: { with: { song: { with: { roleGroups: { with: { tracks: true } }, customTracks: true } } } },
       },
     });
+    return rows.map((r) => ({
+      ...r,
+      rehearsalSongs: r.rehearsalSongs.map((rs) => ({ ...rs, song: mapSong(rs.song) })),
+    }));
   } catch (error) {
     console.error("Failed to query rehearsals:", error);
     return [];
@@ -88,11 +93,18 @@ export async function getRehearsalDetails(
       with: {
         rehearsalSongs: {
           orderBy: [asc(rehearsalSongs.sortOrder)],
-          with: { song: { with: { roleGroups: { with: { tracks: true } } } } },
+          with: { song: { with: { roleGroups: { with: { tracks: true } }, customTracks: true } } },
         },
       },
     });
-    return (detail as RehearsalDetails) ?? null;
+    if (!detail) return null;
+    return {
+      ...detail,
+      rehearsalSongs: detail.rehearsalSongs.map((rs) => ({
+        ...rs,
+        song: mapSong(rs.song),
+      })),
+    };
   } catch (error) {
     console.error("Failed to get rehearsal details:", error);
     return null;

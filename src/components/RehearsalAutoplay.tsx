@@ -23,13 +23,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { getSongTunings } from "@/lib/tunings";
 import { PrivateIndicator } from "./PrivateIndicator";
+import { CustomPlaybackHUD } from "./CustomPlaybackHUD";
 import { ClientDate } from "./ClientDate";
 import { toast } from "sonner";
 import { getUserSettings, saveUserSettings } from "@/app/actions/user";
 import type { RehearsalDetails, ProgressMap } from "@/types/models";
-import { resolveOffsets } from "@/types/models";
-import { getBackingVideoId } from "@/lib/youtube";
-import { useAutoplayPlayer } from "@/hooks/useAutoplayPlayer";
+import { resolveBackingMedia } from "@/lib/backing-media";
+import { useAutoplayEngine } from "@/hooks/useAutoplayEngine";
 import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { usePlayerStore } from "@/stores/player-store";
@@ -120,20 +120,21 @@ export function RehearsalAutoplay({
   }, [countdown, countdownPaused, sessionStarted, currentIndex, queue.length]);
 
   const currentSong = queue[currentIndex]?.song;
-  const currentVideoId = currentSong ? getBackingVideoId(currentSong, instrumentPreference) : null;
+  const backingMedia = currentSong
+    ? resolveBackingMedia(currentSong, instrumentPreference, progressMap[currentSong.id])
+    : { kind: 'none' as const };
+  const customTrack = backingMedia.kind === 'custom-file'
+    ? currentSong?.customTracks?.find((t) => t.id === backingMedia.customTrackId)
+    : undefined;
+  const coverArtUrl = currentSong?.coverArtStoredName
+    ? `/api/cover-art/${currentSong.id}?v=${currentSong.coverArtStoredName}`
+    : currentSong?.albumArt || null;
   const upcomingSong = !sessionStarted ? currentSong : queue[currentIndex + 1]?.song;
-  const currentRoleGroup =
-    currentSong?.roleGroups.find((rg) => rg.role === instrumentPreference) ??
-    currentSong?.roleGroups.find((rg) => rg.role !== "Other") ??
-    null;
-  const backingOffset = currentSong
-    ? resolveOffsets(progressMap[currentSong.id], currentRoleGroup?.id).backing
-    : 0;
 
   // No-video path: 4s timer then advance
   useEffect(() => {
     if (!sessionStarted || finished) return;
-    if (currentVideoId || skipReason !== "no_video") return;
+    if (backingMedia.kind !== "none" || skipReason !== "no_video") return;
     const t = setTimeout(() => {
       // treat as ended
       if (currentIndex >= queue.length - 1) {
@@ -146,18 +147,26 @@ export function RehearsalAutoplay({
     }, NO_VIDEO_SKIP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStarted, finished, currentVideoId, skipReason, currentIndex, queue.length]);
+  }, [sessionStarted, finished, backingMedia.kind, skipReason, currentIndex, queue.length]);
 
   // Detect no-video on song change once session started
   useEffect(() => {
     if (!sessionStarted || finished) return;
-    if (!currentVideoId && skipReason !== "no_video") {
+    if (backingMedia.kind === "none" && skipReason !== "no_video") {
       triggerNoVideo();
-    } else if (currentVideoId && skipReason === "no_video") {
+    } else if (backingMedia.kind !== "none" && skipReason === "no_video") {
       clearSkipReason();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVideoId, sessionStarted]);
+  }, [backingMedia.kind, sessionStarted]);
+
+  // Multistem autostart: play when session starts or song changes (but don't force-play after a user pause)
+  useEffect(() => {
+    if (sessionStarted && backingMedia.kind === "multistem") {
+      setPlaying(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStarted, backingMedia.kind, currentSong?.id]);
 
   const onEnded = () => {
     if (currentIndex >= queue.length - 1) {
@@ -169,11 +178,12 @@ export function RehearsalAutoplay({
     }
   };
 
-  const { playPause, seekBy } = useAutoplayPlayer({
-    videoId: currentVideoId,
-    startOffset: backingOffset,
+  const { playPause, seekBy, seekTo: autoplaySeekTo, getCurrentTime: autoplayGetCurrentTime, getDuration: autoplayGetDuration, renderMedia } = useAutoplayEngine({
+    media: backingMedia,
+    customTrack,
     sessionStarted,
     onEnded,
+    coverArtUrl,
   });
 
   // Skip overlay helper
@@ -277,11 +287,28 @@ export function RehearsalAutoplay({
                 id="autoplay-player-div"
                 className={cn(
                   "w-full h-full aspect-video",
-                  !currentVideoId || !sessionStarted ? "hidden" : ""
+                  backingMedia.kind !== "youtube" || !sessionStarted ? "hidden" : ""
                 )}
               />
 
-              {currentVideoId && sessionStarted && (
+              {renderMedia}
+
+              {/* Custom HUD for all media types */}
+              {sessionStarted && (
+                <CustomPlaybackHUD
+                  engine={{
+                    playPause,
+                    seekBy,
+                    seekTo: autoplaySeekTo,
+                    getCurrentTime: autoplayGetCurrentTime,
+                    get duration() { return autoplayGetDuration(); },
+                    get isPlaying() { return usePlayerStore.getState().isPlaying; },
+                  }}
+                  isPlaying={isPlaying}
+                />
+              )}
+
+              {backingMedia.kind === "youtube" && sessionStarted && (
                 <div
                   className="absolute left-[44px] bottom-0 w-[48px] h-[36px] z-10 bg-transparent cursor-default"
                   title="Volume controlled via sidebar settings"
@@ -363,7 +390,7 @@ export function RehearsalAutoplay({
               )}
 
               {/* No-video overlay */}
-              {!currentVideoId && countdown === null && !finished && currentSong && sessionStarted && (
+              {backingMedia.kind === "none" && countdown === null && !finished && currentSong && sessionStarted && (
                 <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-3 max-w-md flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-[#3b1c1c] border border-red-900/60 flex items-center justify-center text-red-400 mb-2">
@@ -472,7 +499,7 @@ export function RehearsalAutoplay({
                       variant="outline"
                       size="icon"
                       onClick={handleTogglePlay}
-                      disabled={!currentVideoId || !sessionStarted}
+                      disabled={backingMedia.kind === "none" || !sessionStarted}
                       className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-[#acd1f8] hover:text-white rounded-lg flex items-center justify-center cursor-pointer"
                       title={isPlaying ? "Pause" : "Play"}
                     >
@@ -670,18 +697,19 @@ export function RehearsalAutoplay({
                       <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                         {index + 1}.
                       </span>
-                      {rs.song.albumArt ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={rs.song.albumArt}
-                          alt=""
-                          className="w-8 h-8 rounded-lg object-cover border border-border flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
-                          <Music className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                      )}
+                      {(() => {
+                        const art = rs.song.coverArtStoredName
+                          ? `/api/cover-art/${rs.song.id}?v=${rs.song.coverArtStoredName}`
+                          : rs.song.albumArt;
+                        return art ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={art} alt="" className="w-8 h-8 rounded-lg object-cover border border-border flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0">
+                            <Music className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                        );
+                      })()}
                       <div className="min-w-0 flex-grow">
                         <h4
                           className={cn(

@@ -16,6 +16,7 @@ import { EditRehearsalModal } from "@/components/EditRehearsalModal";
 import { ClientDate } from "@/components/ClientDate";
 import { SetlistManager } from "@/components/SetlistManager";
 import { SongDashboard } from "@/components/SongDashboard";
+import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
 import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
 import { getProgressMap } from "@/app/actions/user";
 import type { RehearsalDetails, Song, ProgressMap } from "@/types/models";
@@ -162,12 +163,26 @@ export function RehearsalDetailClient({
                   (rs) => rs.songId === activeSongId
                 );
                 if (!currentRehSong) return null;
+                const currentSong = currentRehSong.song;
+                if (currentSong.songType === "original") {
+                  return (
+                    <OriginalSongDashboard
+                      song={currentSong}
+                      onRefresh={refreshData}
+                      onPractice={() =>
+                        router.push(`/songs/${currentSong.id}/practice`)
+                      }
+                      onEdit={() => router.push(`/songs/${currentSong.id}/edit`)}
+                      preferredInstrument={preferredInstrument}
+                    />
+                  );
+                }
                 return (
                   <SongDashboard
-                    song={currentRehSong.song}
+                    song={currentSong}
                     onRefresh={refreshData}
                     onPractice={() =>
-                      router.push(`/songs/${currentRehSong.songId}/practice`)
+                      router.push(`/songs/${currentSong.id}/practice`)
                     }
                     preferredInstrument={preferredInstrument}
                   />

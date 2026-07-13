@@ -15,7 +15,9 @@ import {
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
+import { deleteCustomTrack } from "@/app/actions/customTracks";
 import type { Song } from "@/types/models";
+import { mapSong } from "@/lib/serialize";
 
 // ---------------------------------------------------------------------------
 // Ingest (PLAN §14)
@@ -28,15 +30,16 @@ export async function ingestSongData(
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
 
-    // Duplicate check (case-insensitive)
-    const existing = await db.select({ title: songs.title, artist: songs.artist }).from(songs);
+    // Duplicate check (case-insensitive) — covers can coexist with originals
+    const existing = await db.select({ title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
     const isDuplicate = existing.some(
       (s) =>
         s.title.trim().toLowerCase() === formattedTitle.toLowerCase() &&
-        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase()
+        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase() &&
+        s.songType === 'cover'
     );
     if (isDuplicate) {
-      return { success: false, error: "This song is already in your library." };
+      return { success: false, error: "This cover song is already in your library." };
     }
 
     // External enrichment (each independent, 3s timeout)
@@ -59,6 +62,7 @@ export async function ingestSongData(
           songsterrId,
           albumArt,
           lyricsUrl,
+          songType: 'cover',
           createdAt: Date.now(),
         })
         .run();
@@ -122,15 +126,142 @@ export async function ingestSongData(
   }
 }
 
+export async function createOriginalSong(
+  title: string,
+  artist: string
+): Promise<{ success: boolean; error?: string; songId?: string }> {
+  try {
+    const formattedTitle = title.trim();
+    const formattedArtist = artist.trim();
+    if (!formattedTitle || !formattedArtist) {
+      return { success: false, error: "Title and artist are required." };
+    }
+
+    const existing = await db.select({ title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
+    const isDuplicate = existing.some(
+      (s) =>
+        s.title.trim().toLowerCase() === formattedTitle.toLowerCase() &&
+        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase() &&
+        s.songType === 'original'
+    );
+    if (isDuplicate) {
+      return { success: false, error: "An original song with this title and artist already exists." };
+    }
+
+    const songId = crypto.randomUUID();
+    db.insert(songs)
+      .values({
+        id: songId,
+        title: formattedTitle,
+        artist: formattedArtist,
+        songsterrId: null,
+        albumArt: null,
+        lyricsUrl: null,
+        songType: 'original',
+        tunings: null,
+        coverArtStoredName: null,
+        createdAt: Date.now(),
+      })
+      .run();
+
+    return { success: true, songId };
+  } catch (error) {
+    console.error("Failed to create original song:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateOriginalMetadata(
+  songId: string,
+  patch: {
+    title?: string;
+    artist?: string;
+    tunings?: Record<string, string> | null;
+    coverArtStoredName?: string | null;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // When renaming, ensure no duplicate original song with the new name+artist exists.
+    if (patch.title !== undefined || patch.artist !== undefined) {
+      const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
+      if (!current) return { success: false, error: "Song not found." };
+      const newTitle = (patch.title ?? current.title).trim();
+      const newArtist = (patch.artist ?? current.artist).trim();
+      const allSongs = await db.select({ id: songs.id, title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
+      const isDuplicate = allSongs.some(
+        (s) =>
+          s.id !== songId &&
+          s.title.trim().toLowerCase() === newTitle.toLowerCase() &&
+          s.artist.trim().toLowerCase() === newArtist.toLowerCase() &&
+          s.songType === 'original'
+      );
+      if (isDuplicate) {
+        return { success: false, error: "An original song with this title and artist already exists." };
+      }
+    }
+
+    const set: Record<string, unknown> = {};
+    if (patch.title !== undefined) set.title = patch.title.trim();
+    if (patch.artist !== undefined) set.artist = patch.artist.trim();
+    if (patch.tunings !== undefined) {
+      set.tunings = patch.tunings ? JSON.stringify(patch.tunings) : null;
+    }
+    if (patch.coverArtStoredName !== undefined) set.coverArtStoredName = patch.coverArtStoredName;
+    if (Object.keys(set).length === 0) return { success: true };
+
+    db.update(songs).set(set).where(eq(songs.id, songId)).run();
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update original metadata:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateRoleGroupCustomArtifact(
+  roleGroupId: string,
+  type: "backing" | "tab",
+  customTrackId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const rg = await db.query.roleGroups.findFirst({ where: eq(roleGroups.id, roleGroupId) });
+    if (!rg) return { success: false, error: "Role group not found." };
+
+    const oldId = type === "backing" ? rg.backingCustomTrackId : rg.tabCustomTrackId;
+    // FK is NO ACTION (Drizzle's ALTER ADD COLUMN omitted ON DELETE SET NULL), so
+    // the slot reference must be cleared before the old custom track row can be
+    // deleted. Set the new value first, then unlink the old track's file + row.
+    const patch =
+      type === "backing"
+        ? { backingCustomTrackId: customTrackId }
+        : { tabCustomTrackId: customTrackId };
+    db.update(roleGroups).set(patch).where(eq(roleGroups.id, roleGroupId)).run();
+    if (oldId && oldId !== customTrackId) {
+      await deleteCustomTrack(oldId);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update role group custom artifact:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function removeRoleGroupCustomArtifact(
+  roleGroupId: string,
+  type: "backing" | "tab"
+): Promise<{ success: boolean; error?: string }> {
+  return updateRoleGroupCustomArtifact(roleGroupId, type, null);
+}
+
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 export async function getSongs(): Promise<Song[]> {
   try {
-    return await db.query.songs.findMany({
+    const rows = await db.query.songs.findMany({
       orderBy: [asc(songs.title)],
       with: { roleGroups: { with: { tracks: true } }, customTracks: true },
     });
+    return rows.map(mapSong);
   } catch (error) {
     console.error("Failed to query songs:", error);
     return [];
@@ -143,7 +274,7 @@ export async function getSongDetails(songId: string): Promise<Song | null> {
       where: eq(songs.id, songId),
       with: { roleGroups: { with: { tracks: true } }, customTracks: true },
     });
-    return (song as Song) ?? null;
+    return song ? mapSong(song) : null;
   } catch (error) {
     console.error("Failed to get song details:", error);
     return null;
@@ -162,11 +293,20 @@ export async function deleteSong(
       .from(customTracks)
       .where(eq(customTracks.songId, songId));
 
+    const coverRow = await db
+      .select({ coverArt: songs.coverArtStoredName })
+      .from(songs)
+      .where(eq(songs.id, songId))
+      .limit(1);
+
     await db.delete(songs).where(eq(songs.id, songId));
 
     for (const row of customRows) {
       deleteStoredFile(row.storedName);
     }
+
+    const coverArt = coverRow[0]?.coverArt;
+    if (coverArt) deleteStoredFile(coverArt);
 
     return { success: true };
   } catch (error) {

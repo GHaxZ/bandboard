@@ -130,6 +130,7 @@ function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
     status: r.status as ProgressStatus,
     speed: r.speed,
     notes: r.notes,
+    scratchpadNotes: r.scratchpadNotes,
     practiceMarkers: markers,
     offsets,
   };
@@ -219,6 +220,45 @@ export async function saveSongProgress(
     return { success: true };
   } catch (error) {
     console.error("Failed to save song progress:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function saveScratchpadNotes(
+  songId: string,
+  notes: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const uuid = await getUserUuid();
+    const existing = await db
+      .select({ id: userSongProgress.id })
+      .from(userSongProgress)
+      .where(
+        and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId))
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      db.update(userSongProgress)
+        .set({ scratchpadNotes: notes, updatedAt: Date.now() })
+        .where(eq(userSongProgress.id, existing[0].id))
+        .run();
+    } else {
+      db.insert(userSongProgress)
+        .values({
+          id: crypto.randomUUID(),
+          userUuid: uuid,
+          songId,
+          status: 'not_started',
+          speed: 100,
+          scratchpadNotes: notes,
+          updatedAt: Date.now(),
+        })
+        .run();
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save scratchpad notes:", error);
     return { success: false, error: String(error) };
   }
 }

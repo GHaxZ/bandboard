@@ -22,6 +22,22 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Song types — cover vs original
+// ---------------------------------------------------------------------------
+export const SONG_TYPES = ['cover', 'original'] as const;
+export type SongType = (typeof SONG_TYPES)[number];
+
+export const SONG_TYPE_LABEL: Record<SongType, string> = {
+  cover: 'Cover',
+  original: 'Original',
+};
+
+export const SONG_TYPE_BADGE: Record<SongType, { text: string; soft: string; border: string }> = {
+  cover: { text: 'text-sky-400', soft: 'bg-sky-950/40', border: 'border-sky-800' },
+  original: { text: 'text-amber-400', soft: 'bg-amber-950/40', border: 'border-amber-800' },
+};
+
+// ---------------------------------------------------------------------------
 // Progress statuses — single source of truth (PLAN §8.1)
 // Emerald/Purple SWAPPED per user request:
 //   Ready to Play = Emerald, Mastered = Purple

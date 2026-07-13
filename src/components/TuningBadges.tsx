@@ -5,7 +5,7 @@ import type { Song } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
 interface TuningBadgesProps {
-  song: Pick<Song, "roleGroups">;
+  song: Pick<Song, "roleGroups" | "tunings" | "songType">;
   highlightRole?: Role | string;
   className?: string;
   size?: "sm" | "xs";

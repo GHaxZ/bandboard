@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, getAlternativeLinks } from "@/lib/utils";
 import {
   updateRoleGroupVideo,
+  updateRoleGroupCustomArtifact,
+  removeRoleGroupCustomArtifact,
   lazyLoadTrackMedia,
   refreshSongMetadata,
 } from "@/app/actions/songs";
@@ -15,7 +16,7 @@ import { getSongProgress } from "@/app/actions/user";
 import { VideoSelector } from "./VideoSelector";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
-import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown, Layers } from "lucide-react";
+import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import { getYouTubeId } from "@/lib/youtube";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import type { Song } from "@/types/models";
@@ -53,6 +54,7 @@ export function SongDashboard({
     type: "backing" | "tab";
     instrumentName: string;
     currentUrl: string | null;
+    currentCustomTrackId: string | null;
   } | null>(null);
 
   const [isLazyLoading, setIsLazyLoading] = useState(false);
@@ -228,8 +230,18 @@ export function SongDashboard({
 
   async function handleSaveVideoLink(url: string | null) {
     if (!videoSelectorState) return;
-    const { trackId, type } = videoSelectorState;
+    const { trackId, type, currentCustomTrackId } = videoSelectorState;
+    if (currentCustomTrackId) {
+      await removeRoleGroupCustomArtifact(trackId, type);
+    }
     const res = await updateRoleGroupVideo(trackId, type, url);
+    if (res.success) onRefresh();
+  }
+
+  async function handleSaveCustomArtifact(customTrackId: string | null) {
+    if (!videoSelectorState) return;
+    const { trackId, type } = videoSelectorState;
+    const res = await updateRoleGroupCustomArtifact(trackId, type, customTrackId);
     if (res.success) onRefresh();
   }
 
@@ -269,19 +281,7 @@ export function SongDashboard({
         </div>
         <div className="flex items-center gap-2 self-start md:self-center">
           {onPractice && <PracticeButton onClick={onPractice} />}
-          <Link
-            href={`/songs/${song.id}/tracks`}
-            className="inline-flex items-center gap-1.5 bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl h-10 px-3 text-xs font-bold transition-all duration-200"
-            title="Custom Tracks"
-          >
-            <Layers className="w-4 h-4" />
-            Custom Tracks
-            {song.customTracks && song.customTracks.length > 0 && (
-              <span className="bg-[#2e4057] text-[#acd1f8] px-1.5 py-0.5 rounded-full text-[9px] font-mono leading-none">
-                {song.customTracks.length}
-              </span>
-            )}
-          </Link>
+
           {onDelete && (
             <Button
               variant="destructive"
@@ -324,6 +324,12 @@ export function SongDashboard({
           {standardRoleGroups.map((roleGroup) => {
             const backingVideoId = getYouTubeId(roleGroup.backingTrackLink);
             const tabVideoId = getYouTubeId(roleGroup.tabVideoLink);
+            const backingCustomTrack = roleGroup.backingCustomTrackId
+              ? song.customTracks?.find((t) => t.id === roleGroup.backingCustomTrackId)
+              : undefined;
+            const tabCustomTrack = roleGroup.tabCustomTrackId
+              ? song.customTracks?.find((t) => t.id === roleGroup.tabCustomTrackId)
+              : undefined;
 
             return (
               <TabsContent
@@ -563,7 +569,6 @@ export function SongDashboard({
                           : "Backing Track"}
                       </span>
                       <Button
-                        variant="ghost"
                         size="sm"
                         onClick={() =>
                           setVideoSelectorState({
@@ -575,15 +580,31 @@ export function SongDashboard({
                               roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
                                 ? null
                                 : roleGroup.backingTrackLink,
+                            currentCustomTrackId: roleGroup.backingCustomTrackId,
                           })
                         }
-                        className="text-[10px] font-bold text-muted-foreground hover:text-foreground h-8 rounded-lg"
+                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
                       >
-                        Change Video
+                        Change
                       </Button>
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {isLazyLoading && roleGroup.backingTrackLink === null ? (
+                      {backingCustomTrack ? (
+                        backingCustomTrack.isVideo ? (
+                          <video
+                            controls
+                            src={`/api/uploads/${backingCustomTrack.id}`}
+                            className="w-full aspect-video rounded-xl border border-border bg-black"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-3 py-8">
+                            <audio controls src={`/api/uploads/${backingCustomTrack.id}`} className="w-full" />
+                            <p className="text-[10px] text-muted-foreground font-medium">
+                              {backingCustomTrack.label}
+                            </p>
+                          </div>
+                        )
+                      ) : isLazyLoading && roleGroup.backingTrackLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
                           <p className="text-xs text-muted-foreground">
@@ -593,7 +614,7 @@ export function SongDashboard({
                       ) : backingVideoId && roleGroup.backingTrackLink !== NO_VIDEO_SENTINEL ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
                           <iframe
-                            src={`https://www.youtube.com/embed/${backingVideoId}`}
+                            src={`https://www.youtube.com/embed/${backingVideoId}?controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
                             title="Backing Track Player"
                             className="w-full h-full border-0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -616,6 +637,7 @@ export function SongDashboard({
                                   roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
                                     ? null
                                     : roleGroup.backingTrackLink,
+                                currentCustomTrackId: roleGroup.backingCustomTrackId,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
@@ -639,7 +661,6 @@ export function SongDashboard({
                             : "Tab Video Lesson"}
                       </span>
                       <Button
-                        variant="ghost"
                         size="sm"
                         onClick={() =>
                           setVideoSelectorState({
@@ -651,15 +672,31 @@ export function SongDashboard({
                               roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
                                 ? null
                                 : roleGroup.tabVideoLink,
+                            currentCustomTrackId: roleGroup.tabCustomTrackId,
                           })
                         }
-                        className="text-[10px] font-bold text-muted-foreground hover:text-foreground h-8 rounded-lg"
+                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
                       >
-                        Change Video
+                        Change
                       </Button>
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {isLazyLoading && roleGroup.tabVideoLink === null ? (
+                      {tabCustomTrack ? (
+                        tabCustomTrack.isVideo ? (
+                          <video
+                            controls
+                            src={`/api/uploads/${tabCustomTrack.id}`}
+                            className="w-full aspect-video rounded-xl border border-border bg-black"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-3 py-8">
+                            <audio controls src={`/api/uploads/${tabCustomTrack.id}`} className="w-full" />
+                            <p className="text-[10px] text-muted-foreground font-medium">
+                              {tabCustomTrack.label}
+                            </p>
+                          </div>
+                        )
+                      ) : isLazyLoading && roleGroup.tabVideoLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
                           <p className="text-xs text-muted-foreground">
@@ -671,7 +708,7 @@ export function SongDashboard({
                       ) : tabVideoId && roleGroup.tabVideoLink !== NO_VIDEO_SENTINEL ? (
                         <div className="w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
                           <iframe
-                            src={`https://www.youtube.com/embed/${tabVideoId}`}
+                            src={`https://www.youtube.com/embed/${tabVideoId}?controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
                             title="Tab Video Player"
                             className="w-full h-full border-0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -696,6 +733,7 @@ export function SongDashboard({
                                   roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
                                     ? null
                                     : roleGroup.tabVideoLink,
+                                currentCustomTrackId: roleGroup.tabCustomTrackId,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
@@ -841,11 +879,14 @@ export function SongDashboard({
               trackId={videoSelectorState.trackId}
               type={videoSelectorState.type}
               role={role}
+              songId={song.id}
               instrumentName={videoSelectorState.instrumentName}
               currentUrl={videoSelectorState.currentUrl}
+              currentCustomTrackId={videoSelectorState.currentCustomTrackId}
               songTitle={song.title}
               songArtist={song.artist}
               onSave={handleSaveVideoLink}
+              onSaveCustom={handleSaveCustomArtifact}
             />
           );
         })()}

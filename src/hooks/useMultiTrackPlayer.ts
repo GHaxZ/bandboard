@@ -241,17 +241,21 @@ export function useMultiTrackPlayer({
     }
   }, [speed]);
 
+  // Use mutedTrackIds/soloTrackIds directly (not via audible ref) to avoid staleness.
   useEffect(() => {
     const vol = usePlayerStore.getState().volume;
     const spd = usePlayerStore.getState().speed;
+    const isPlaying = usePlayerStore.getState().isPlaying;
     for (const track of tracksRef.current) {
       const el = mediaRefs.current.get(track.id);
       if (!el) continue;
-      if (audible(track)) {
+      const isMuted = mutedTrackIds.has(track.id);
+      const isSoloed = soloTrackIds.size > 0 && !soloTrackIds.has(track.id);
+      if (!isMuted && !isSoloed) {
         el.muted = false;
         el.volume = vol / 100;
         el.playbackRate = spd;
-        if (usePlayerStore.getState().isPlaying && el.paused) {
+        if (isPlaying && el.paused) {
           const targetTime = Math.max(0, TRef.current - track.startOffset);
           try {
             el.currentTime = targetTime;
@@ -267,7 +271,7 @@ export function useMultiTrackPlayer({
         el.pause();
       }
     }
-  }, [mutedTrackIds, soloTrackIds, audible]);
+  }, [mutedTrackIds, soloTrackIds]);
 
   useEffect(() => {
     const refs = mediaRefs.current;

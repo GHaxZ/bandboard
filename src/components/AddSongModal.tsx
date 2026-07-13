@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { ingestSongData } from "@/app/actions/songs";
-import { Loader2, Music, Plus } from "lucide-react";
+import { ingestSongData, createOriginalSong } from "@/app/actions/songs";
+import { Loader2, Music, Plus, Compass } from "lucide-react";
+import type { SongType } from "@/lib/constants";
 
 interface AddSongModalProps {
   isOpen: boolean;
@@ -22,6 +24,8 @@ interface AddSongModalProps {
 }
 
 export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) {
+  const router = useRouter();
+  const [mode, setMode] = useState<SongType>("cover");
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -35,14 +39,27 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
     setError(null);
 
     try {
-      const res = await ingestSongData(title, artist);
-      if (res.success) {
-        setTitle("");
-        setArtist("");
-        onSuccess();
-        onClose();
+      if (mode === "cover") {
+        const res = await ingestSongData(title, artist);
+        if (res.success) {
+          setTitle("");
+          setArtist("");
+          onSuccess();
+          onClose();
+        } else {
+          setError(res.error || "An error occurred during ingestion.");
+        }
       } else {
-        setError(res.error || "An error occurred during ingestion.");
+        const res = await createOriginalSong(title, artist);
+        if (res.success && res.songId) {
+          setTitle("");
+          setArtist("");
+          onSuccess();
+          onClose();
+          router.push(`/songs/${res.songId}`);
+        } else {
+          setError(res.error || "Failed to create original song.");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -52,8 +69,17 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
     }
   }
 
+  function handleOpenChange(open: boolean) {
+    if (!open && !isLoading) {
+      onClose();
+      // Reset back to cover mode when the modal closes.
+      setMode("cover");
+      setError(null);
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
@@ -61,10 +87,40 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             Add Song to Library
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Enter details. We will query public sources for notations, tunings, backing tracks,
-            and lesson videos in the background.
+            {mode === "cover"
+              ? "Enter details. We will query public sources for notations, tunings, backing tracks, and lesson videos in the background."
+              : "Create a blank original. You can upload stems, set tunings, and arrange the song in the editor afterward."}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex items-center gap-1 rounded-xl bg-muted/30 border border-border p-1 w-fit">
+          <button
+            type="button"
+            onClick={() => setMode("cover")}
+            disabled={isLoading}
+            className={
+              mode === "cover"
+                ? "px-3 py-1 text-[11px] font-bold rounded-lg bg-btn-bg text-foreground border border-dialog-border flex items-center gap-1.5"
+                : "px-3 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground border border-transparent flex items-center gap-1.5"
+            }
+          >
+            <Music className="w-3.5 h-3.5" />
+            Cover
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("original")}
+            disabled={isLoading}
+            className={
+              mode === "original"
+                ? "px-3 py-1 text-[11px] font-bold rounded-lg bg-btn-bg text-foreground border border-dialog-border flex items-center gap-1.5"
+                : "px-3 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground border border-transparent flex items-center gap-1.5"
+            }
+          >
+            <Compass className="w-3.5 h-3.5" />
+            Original
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
           <div className="space-y-1.5">
@@ -126,11 +182,11 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Ingesting...
+                  <Loader2 className="w-4 h-4 animate-spin" /> {mode === "cover" ? "Ingesting..." : "Creating..."}
                 </>
               ) : (
                 <>
-                  <Plus className="w-4 h-4" /> Add Song
+                  <Plus className="w-4 h-4" /> Add {mode === "cover" ? "Cover" : "Original"}
                 </>
               )}
             </Button>

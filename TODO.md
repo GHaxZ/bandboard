@@ -1,0 +1,12 @@
+- Fix cover for original not showing in kanban board
+- Fix only some songs autoplaying in single song practice mode
+- Original songs should have no start offset, no matter what track, no matter what instrument, in any practice mode they should start from zero
+- Fix flicker when updating original song cover
+- Maybe get rid of leftover youtube HUD elements, if possible
+- Fix top cutoff for "Select instrument" section in practice mode
+- Adding stems should prompt for saving too, currently it auto saves
+- Make save dialogs everywhere more prompinent, for example by displaying a pop up at bottom
+- Support more audio and video formats (such as .wav and so on)
+- Remove custom video save button, should auto apply after uploading a file
+- YouTube videos in song info preview should also have our custom player HUD
+- Fix "Invalid state: Controller is already closed" error

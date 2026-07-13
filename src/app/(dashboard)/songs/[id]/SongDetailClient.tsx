@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SongDashboard } from "@/components/SongDashboard";
+import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
 import { deleteSong, getSongDetails } from "@/app/actions/songs";
 import type { Song } from "@/types/models";
 import type { Role } from "@/lib/constants";
@@ -70,15 +71,26 @@ export function SongDetailClient({
         </div>
       </div>
 
-      <SongDashboard
-        song={song}
-        onRefresh={refreshData}
-        onDelete={handleDeleteSong}
-        onPractice={() => router.push(`/songs/${songId}/practice`)}
-        preferredInstrument={preferredInstrument}
-        activeRole={activeRole}
-        onRoleChange={handleRoleChange}
-      />
+      {song.songType === "original" ? (
+        <OriginalSongDashboard
+          song={song}
+          onRefresh={refreshData}
+          onDelete={handleDeleteSong}
+          onPractice={() => router.push(`/songs/${songId}/practice`)}
+          onEdit={() => router.push(`/songs/${songId}/edit`)}
+          preferredInstrument={preferredInstrument}
+        />
+      ) : (
+        <SongDashboard
+          song={song}
+          onRefresh={refreshData}
+          onDelete={handleDeleteSong}
+          onPractice={() => router.push(`/songs/${songId}/practice`)}
+          preferredInstrument={preferredInstrument}
+          activeRole={activeRole}
+          onRoleChange={handleRoleChange}
+        />
+      )}
     </div>
   );
 }

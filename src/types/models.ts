@@ -1,4 +1,4 @@
-import type { Role, ProgressStatus } from '@/lib/constants';
+import type { Role, ProgressStatus, SongType } from '@/lib/constants';
 
 // ---------------------------------------------------------------------------
 // Plain serializable shapes matching Drizzle rows (with nested relations).
@@ -35,6 +35,8 @@ export interface RoleGroup {
   role: Role;
   backingTrackLink: string | null;
   tabVideoLink: string | null;
+  backingCustomTrackId: string | null;
+  tabCustomTrackId: string | null;
   tracks: Track[];
 }
 
@@ -45,10 +47,22 @@ export interface Song {
   songsterrId: number | null;
   albumArt: string | null;
   lyricsUrl: string | null;
+  songType: SongType;
+  tunings: Record<string, string> | null;
+  coverArtStoredName: string | null;
   createdAt: number;
   roleGroups: RoleGroup[];
   customTracks?: CustomTrack[];
 }
+
+// Discriminated union describing what plays as the "backing track" for a song
+// during practice or setlist autoplay. Phase 0 only declares the shape; later
+// phases populate it.
+export type BackingMedia =
+  | { kind: 'youtube'; videoId: string; offset: number }
+  | { kind: 'custom-file'; customTrackId: string; offset: number }
+  | { kind: 'multistem'; tracks: CustomTrack[]; mutedRole: Role }
+  | { kind: 'none' };
 
 export interface RehearsalSong {
   rehearsalId: string;
@@ -86,6 +100,7 @@ export interface UserProgress {
   status: ProgressStatus;
   speed: number;
   notes: string | null;
+  scratchpadNotes: string | null;
   practiceMarkers: number[] | null;
   // Keyed by role group id. The '__legacy__' key holds pre-split offsets
   // migrated from the old per-song columns; used as a fallback for role
@@ -99,6 +114,7 @@ export const DEFAULT_PROGRESS: UserProgress = {
   status: 'not_started',
   speed: 100,
   notes: null,
+  scratchpadNotes: null,
   practiceMarkers: null,
   offsets: {},
 };

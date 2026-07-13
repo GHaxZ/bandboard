@@ -12,6 +12,8 @@ interface UseYouTubePlayerOpts {
   onEnded?: () => void;
   /** Whether this player is the active (state-syncing) one. */
   isActive?: () => boolean;
+  /** When true, plays the video as soon as the player is ready (used for setlist autostart). */
+  autoplay?: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export function useYouTubePlayer({
   startOffset,
   onEnded,
   isActive,
+  autoplay,
 }: UseYouTubePlayerOpts) {
   const apiLoaded = useYoutubeApi();
   const playerRef = useRef<YTPlayer | null>(null);
@@ -35,12 +38,16 @@ export function useYouTubePlayer({
   // Keep latest values in refs so the one-time YT callbacks read fresh data.
   const onEndedRef = useRef(onEnded);
   const isActiveRef = useRef(isActive);
+  const autoplayRef = useRef(autoplay);
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
+  useEffect(() => {
+    autoplayRef.current = autoplay;
+  }, [autoplay]);
 
   const setPlaying = usePlayerStore((s) => s.setPlaying);
 
@@ -68,6 +75,12 @@ export function useYouTubePlayer({
         playerVars: {
           enablejsapi: 1,
           origin: typeof window !== "undefined" ? window.location.origin : "",
+          controls: 0,
+          disablekb: 1,
+          modestbranding: 1,
+          rel: 0,
+          iv_load_policy: 3,
+          playsinline: 1,
         },
         events: {
           onReady: (event: { target: YTPlayer }) => {
@@ -80,6 +93,13 @@ export function useYouTubePlayer({
             if (startOffset > 0) {
               try {
                 event.target.seekTo(startOffset, true);
+              } catch {
+                // ignore
+              }
+            }
+            if (autoplayRef.current) {
+              try {
+                event.target.playVideo();
               } catch {
                 // ignore
               }

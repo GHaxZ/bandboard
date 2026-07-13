@@ -11,7 +11,7 @@ import { SongCard } from "@/components/SongCard";
 import { getSongs } from "@/app/actions/songs";
 import { getProgressMap } from "@/app/actions/user";
 import type { Song, ProgressMap } from "@/types/models";
-import type { Role } from "@/lib/constants";
+import type { Role, SongType } from "@/lib/constants";
 
 interface LibraryDashboardProps {
   initialSongs: Song[];
@@ -27,6 +27,7 @@ export function LibraryDashboard({
   const router = useRouter();
   const [songsList, setSongsList] = useState<Song[]>(initialSongs);
   const [songSearchQuery, setSongSearchQuery] = useState("");
+  const [songTypeFilter, setSongTypeFilter] = useState<SongType | "all">("all");
   const [isAddSongOpen, setIsAddSongOpen] = useState(false);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
   const [, startTransition] = useTransition();
@@ -40,11 +41,17 @@ export function LibraryDashboard({
     });
   }
 
-  const filteredSongs = songsList.filter(
-    (s) =>
-      s.title.toLowerCase().includes(songSearchQuery.toLowerCase()) ||
-      s.artist.toLowerCase().includes(songSearchQuery.toLowerCase())
-  );
+  const filteredSongs = songsList.filter((s) => {
+    if (songTypeFilter !== "all" && s.songType !== songTypeFilter) return false;
+    const q = songSearchQuery.toLowerCase();
+    return s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+  });
+
+  const typeFilterOptions: { value: SongType | "all"; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "cover", label: "Covers" },
+    { value: "original", label: "Originals" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -64,6 +71,23 @@ export function LibraryDashboard({
         >
           <Plus className="w-4 h-4 mr-1" /> Add New Song
         </Button>
+      </div>
+
+      <div className="flex items-center gap-1 rounded-xl bg-muted/30 border border-border p-1 w-fit">
+        {typeFilterOptions.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setSongTypeFilter(opt.value)}
+            className={
+              songTypeFilter === opt.value
+                ? "px-3 py-1 text-[11px] font-bold rounded-lg bg-btn-bg text-foreground border border-dialog-border"
+                : "px-3 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground border border-transparent"
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       <SearchInput

@@ -12,6 +12,9 @@ export const songs = sqliteTable('songs', {
   songsterrId: integer('songsterr_id'),
   albumArt: text('album_art'),
   lyricsUrl: text('lyrics_url'),
+  songType: text('song_type').$type<'cover' | 'original'>().notNull().default('cover'),
+  tunings: text('tunings'),
+  coverArtStoredName: text('cover_art_stored_name'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -28,6 +31,8 @@ export const roleGroups = sqliteTable(
     role: text('role').$type<Role>().notNull(), // Role union
     backingTrackLink: text('backing_track_link'),
     tabVideoLink: text('tab_video_link'),
+    backingCustomTrackId: text('backing_custom_track_id').references(() => customTracks.id, { onDelete: 'set null' }),
+    tabCustomTrackId: text('tab_custom_track_id').references(() => customTracks.id, { onDelete: 'set null' }),
   },
   (table) => [index('role_groups_song_id_idx').on(table.songId)]
 );
@@ -134,6 +139,7 @@ export const userSongProgress = sqliteTable(
     status: text('status').$type<ProgressStatus>().notNull().default('not_started'), // ProgressStatus
     speed: integer('speed').notNull().default(100),
     notes: text('notes'),
+    scratchpadNotes: text('scratchpad_notes'),
     practiceMarkers: text('practice_markers'), // JSON number[]
     // Per-role-group offsets: { [roleGroupId]: { backing, tab } }. The two
     // legacy columns below remain as the fallback source for offsets saved
