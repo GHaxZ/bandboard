@@ -13,8 +13,11 @@ interface CustomPlaybackHUDProps {
   activeVideoLabel?: string;
   /** When true, hides the custom center play/pause button and sets the root
    * overlay to pointer-events:none so the YouTube iframe beneath receives
-   * clicks. Hover detection uses mouseenter/mouseleave on the parent container
-   * (the iframe swallows mousemove). The bottom bar stays interactive. */
+   * clicks and hover events. A transparent child overlay toggles
+   * pointer-events:auto when the HUD is hidden (capturing mousemove to
+   * re-show it) and pointer-events:none when the HUD is visible (letting
+   * mouse events pass through to the YouTube iframe so its native pause
+   * button appears on hover). The bottom bar stays interactive. */
   youTubeMode?: boolean;
 }
 
@@ -45,6 +48,12 @@ export function CustomPlaybackHUD({
   const rafRef = useRef<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // ponytail: cooldown filters the synthetic mouseenter the browser fires when
+  // the overlay's pointer-events toggles under a stationary cursor. Without it,
+  // the HUD hides → overlay gains pointer-events:auto → synthetic mouseenter →
+  // re-shows → 4s later hides → loop. 150ms is ~9 frames; real mouse movement
+  // arrives seconds after the 4s timeout, so it's never blocked.
+  const lastHidAtRef = useRef(0);
   // Refs to avoid stale closures in the rAF tick and seek callback when the
   // engine prop changes identity every render (inline literal in callers).
   const engineRef = useRef(engine);
@@ -81,12 +90,16 @@ export function CustomPlaybackHUD({
     };
   }, []);
 
-  // Auto-hide controls after 3s of no mouse movement (only when playing)
+  // Auto-hide controls after 4s of no mouse movement (only when playing)
   const resetHideTimer = useCallback(() => {
+    if (Date.now() - lastHidAtRef.current < 150) return;
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     if (isPlayingRef.current) {
-      hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+      hideTimerRef.current = setTimeout(() => {
+        lastHidAtRef.current = Date.now();
+        setShowControls(false);
+      }, 4000);
     }
   }, []);
 
@@ -94,36 +107,24 @@ export function CustomPlaybackHUD({
     if (!isPlaying) {
       setShowControls(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    } else {
+      // Arm the auto-hide countdown when playback begins so the HUD
+      // hides even if no mouse event follows (e.g. play via the YT
+      // iframe, autoplay, or a pause→play toggle with the mouse outside).
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        lastHidAtRef.current = Date.now();
+        setShowControls(false);
+      }, 4000);
     }
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
   }, [isPlaying]);
 
-  // YT mode: attach hover listeners to the parent container (the iframe swallows
-  // mousemove, so we rely on boundary events + the 3s auto-hide timer).
-  useEffect(() => {
-    if (!youTubeMode) return;
-    const parent = rootRef.current?.parentElement;
-    if (!parent) return;
-    const onEnter = () => resetHideTimer();
-    const onLeave = () => {
-      if (isPlayingRef.current) setShowControls(false);
-    };
-    const onMove = () => resetHideTimer();
-    parent.addEventListener("mouseenter", onEnter);
-    parent.addEventListener("mouseleave", onLeave);
-    parent.addEventListener("mousemove", onMove);
-    return () => {
-      parent.removeEventListener("mouseenter", onEnter);
-      parent.removeEventListener("mouseleave", onLeave);
-      parent.removeEventListener("mousemove", onMove);
-    };
-  }, [youTubeMode, resetHideTimer]);
-
   const handleMouseLeave = useCallback(() => {
-    if (isPlayingRef.current) setShowControls(false);
-  }, []);
+    if (isPlayingRef.current) resetHideTimer();
+  }, [resetHideTimer]);
 
   const handlePlayPause = () => engineRef.current.playPause();
 
@@ -175,13 +176,31 @@ export function CustomPlaybackHUD({
         youTubeMode && "pointer-events-none"
       )}
       {...(youTubeMode
-        ? {} // YT: no inline handlers (parent listeners drive hover); no onClick (YT gets the click)
+        ? {} // YT mode: overlay child captures mouse events (see below)
         : {
+            onMouseEnter: () => resetHideTimer(),
             onMouseMove: () => resetHideTimer(),
             onMouseLeave: () => handleMouseLeave(),
             onClick: () => engineRef.current.playPause(),
           })}
     >
+      {/* YT mode: transparent overlay re-enables pointer-events (overriding
+          the root's pointer-events:none) so mousemove is captured directly.
+          The cross-origin YT iframe swallows mousemove at the window level,
+          so the old window-listener approach never fired while the cursor was
+          over the iframe. Rendered before the bottom bar so the bar
+          (pointer-events:auto when visible) sits on top and receives clicks
+          in its area. */}
+      {youTubeMode && (
+        <div
+          className={cn("absolute inset-0", !showControls && "pointer-events-auto")}
+          onMouseEnter={() => resetHideTimer()}
+          onMouseMove={() => resetHideTimer()}
+          onMouseLeave={() => handleMouseLeave()}
+          onClick={() => engineRef.current.playPause()}
+        />
+      )}
+
       {/* Center play/pause button — only for non-YouTube (so YT's own center
           play/pause button is clickable) */}
       {!youTubeMode && (
@@ -210,6 +229,7 @@ export function CustomPlaybackHUD({
       {/* Bottom bar — overlays/blocks YT bottom items when youTubeMode is active */}
       <div
         onClick={(e) => e.stopPropagation()}
+        onMouseMove={() => resetHideTimer()}
         className={cn(
           "bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-10 pb-3 px-4 transition-opacity duration-200",
           showControls || !isPlaying
