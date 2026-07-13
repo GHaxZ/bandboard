@@ -53,6 +53,8 @@ interface PracticeShellProps {
   coverState?: CoverState;
   /** When true, renders CustomPlaybackHUD over the media surface */
   hasCustomMedia?: boolean;
+  /** Passed to CustomPlaybackHUD to hide center button for YouTube embeds */
+  youTubeMode?: boolean;
   /** Original-specific: role selector + stems list */
   activeRole?: Role;
   onActiveRoleChange?: (role: Role) => void;
@@ -73,6 +75,7 @@ export function PracticeShell({
   onToggleVideo,
   coverState,
   hasCustomMedia,
+  youTubeMode = false,
   activeRole,
   onActiveRoleChange,
   availableRoles,
@@ -186,6 +189,7 @@ export function PracticeShell({
                 canToggle={capabilities.canToggle}
                 onToggle={onToggleVideo}
                 activeVideoLabel={coverState?.activeVideo}
+                youTubeMode={youTubeMode}
               />
             )}
 

@@ -15,6 +15,7 @@ import {
 import { getSongProgress } from "@/app/actions/user";
 import { VideoSelector } from "./VideoSelector";
 import { YouTubePreview } from "./YouTubePreview";
+import { CustomMediaPreview } from "./CustomMediaPreview";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
@@ -69,6 +70,10 @@ export function SongDashboard({
       isMountedRef.current = false;
     };
   }, []);
+
+  const coverArtUrl = song.coverArtStoredName
+    ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
+    : song.albumArt || null;
 
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
   const [initialProgress, setInitialProgress] = useState<{
@@ -591,20 +596,12 @@ export function SongDashboard({
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
                       {backingCustomTrack ? (
-                        backingCustomTrack.isVideo ? (
-                          <video
-                            controls
-                            src={`/api/uploads/${backingCustomTrack.id}`}
-                            className="w-full aspect-video rounded-xl border border-border bg-black"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center gap-3 py-8">
-                            <audio controls src={`/api/uploads/${backingCustomTrack.id}`} className="w-full" />
-                            <p className="text-[10px] text-muted-foreground font-medium">
-                              {backingCustomTrack.label}
-                            </p>
-                          </div>
-                        )
+                        <CustomMediaPreview
+                          src={`/api/uploads/${backingCustomTrack.id}`}
+                          isVideo={backingCustomTrack.isVideo}
+                          coverArtUrl={coverArtUrl}
+                          label={backingCustomTrack.label}
+                        />
                       ) : isLazyLoading && roleGroup.backingTrackLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
@@ -675,20 +672,12 @@ export function SongDashboard({
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
                       {tabCustomTrack ? (
-                        tabCustomTrack.isVideo ? (
-                          <video
-                            controls
-                            src={`/api/uploads/${tabCustomTrack.id}`}
-                            className="w-full aspect-video rounded-xl border border-border bg-black"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center gap-3 py-8">
-                            <audio controls src={`/api/uploads/${tabCustomTrack.id}`} className="w-full" />
-                            <p className="text-[10px] text-muted-foreground font-medium">
-                              {tabCustomTrack.label}
-                            </p>
-                          </div>
-                        )
+                        <CustomMediaPreview
+                          src={`/api/uploads/${tabCustomTrack.id}`}
+                          isVideo={tabCustomTrack.isVideo}
+                          coverArtUrl={coverArtUrl}
+                          label={tabCustomTrack.label}
+                        />
                       ) : isLazyLoading && roleGroup.tabVideoLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />

@@ -11,6 +11,11 @@ interface CustomPlaybackHUDProps {
   canToggle?: boolean;
   onToggle?: () => void;
   activeVideoLabel?: string;
+  /** When true, hides the custom center play/pause button and sets the root
+   * overlay to pointer-events:none so the YouTube iframe beneath receives
+   * clicks. Hover detection uses mouseenter/mouseleave on the parent container
+   * (the iframe swallows mousemove). The bottom bar stays interactive. */
+  youTubeMode?: boolean;
 }
 
 function formatTimeHUD(s: number): string {
@@ -26,6 +31,7 @@ export function CustomPlaybackHUD({
   canToggle = false,
   onToggle,
   activeVideoLabel,
+  youTubeMode = false,
 }: CustomPlaybackHUDProps) {
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -38,14 +44,17 @@ export function CustomPlaybackHUD({
   const dragTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   // Refs to avoid stale closures in the rAF tick and seek callback when the
   // engine prop changes identity every render (inline literal in callers).
   const engineRef = useRef(engine);
   const durationRef = useRef(duration);
+  const isPlayingRef = useRef(isPlaying);
   // Keep refs fresh — using effects instead of writing during render to satisfy
   // the react-hooks/refs lint rule.
   useEffect(() => { engineRef.current = engine; });
   useEffect(() => { durationRef.current = duration; });
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { dragTimeRef.current = dragTime; }, [dragTime]);
 
   // Track current time and duration via rAF while HUD is mounted (stable deps).
@@ -73,13 +82,13 @@ export function CustomPlaybackHUD({
   }, []);
 
   // Auto-hide controls after 3s of no mouse movement (only when playing)
-  const resetHideTimer = () => {
+  const resetHideTimer = useCallback(() => {
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -91,10 +100,30 @@ export function CustomPlaybackHUD({
     };
   }, [isPlaying]);
 
-  const handleMouseMove = () => resetHideTimer();
-  const handleMouseLeave = () => {
-    if (isPlaying) setShowControls(false);
-  };
+  // YT mode: attach hover listeners to the parent container (the iframe swallows
+  // mousemove, so we rely on boundary events + the 3s auto-hide timer).
+  useEffect(() => {
+    if (!youTubeMode) return;
+    const parent = rootRef.current?.parentElement;
+    if (!parent) return;
+    const onEnter = () => resetHideTimer();
+    const onLeave = () => {
+      if (isPlayingRef.current) setShowControls(false);
+    };
+    const onMove = () => resetHideTimer();
+    parent.addEventListener("mouseenter", onEnter);
+    parent.addEventListener("mouseleave", onLeave);
+    parent.addEventListener("mousemove", onMove);
+    return () => {
+      parent.removeEventListener("mouseenter", onEnter);
+      parent.removeEventListener("mouseleave", onLeave);
+      parent.removeEventListener("mousemove", onMove);
+    };
+  }, [youTubeMode, resetHideTimer]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPlayingRef.current) setShowControls(false);
+  }, []);
 
   const handlePlayPause = () => engineRef.current.playPause();
 
@@ -140,39 +169,52 @@ export function CustomPlaybackHUD({
 
   return (
     <div
-      className="absolute inset-0 z-20 flex flex-col justify-end"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={handlePlayPause}
+      ref={rootRef}
+      className={cn(
+        "absolute inset-0 z-20 flex flex-col justify-end",
+        youTubeMode && "pointer-events-none"
+      )}
+      {...(youTubeMode
+        ? {} // YT: no inline handlers (parent listeners drive hover); no onClick (YT gets the click)
+        : {
+            onMouseMove: () => resetHideTimer(),
+            onMouseLeave: () => handleMouseLeave(),
+            onClick: () => engineRef.current.playPause(),
+          })}
     >
-      {/* Center play/pause button — visible on hover or when paused */}
-      <div
-        className={cn(
-          "absolute inset-0 flex items-center justify-center transition-opacity duration-200 pointer-events-none",
-          showControls || !isPlaying ? "opacity-100" : "opacity-0"
-        )}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
-          className="w-16 h-16 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-black/80 transition-all cursor-pointer pointer-events-auto"
-          title={isPlaying ? "Pause" : "Play"}
+      {/* Center play/pause button — only for non-YouTube (so YT's own center
+          play/pause button is clickable) */}
+      {!youTubeMode && (
+        <div
+          className={cn(
+            "absolute inset-0 flex items-center justify-center transition-opacity duration-200 pointer-events-none",
+            showControls || !isPlaying ? "opacity-100" : "opacity-0"
+          )}
         >
-          <div className="w-7 h-7 flex items-center justify-center">
-            {isPlaying ? (
-              <Pause className="w-7 h-7 fill-white" />
-            ) : (
-              <Play className="w-7 h-7 fill-white" />
-            )}
-          </div>
-        </button>
-      </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); engineRef.current.playPause(); }}
+            className="w-16 h-16 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-black/80 transition-all cursor-pointer pointer-events-auto"
+            title={isPlaying ? "Pause" : "Play"}
+          >
+            <div className="w-7 h-7 flex items-center justify-center">
+              {isPlaying ? (
+                <Pause className="w-7 h-7 fill-white" />
+              ) : (
+                <Play className="w-7 h-7 fill-white" />
+              )}
+            </div>
+          </button>
+        </div>
+      )}
 
-      {/* Bottom bar */}
+      {/* Bottom bar — overlays/blocks YT bottom items when youTubeMode is active */}
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
           "bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-10 pb-3 px-4 transition-opacity duration-200",
-          showControls || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
+          showControls || !isPlaying
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
         )}
       >
         {/* Progress bar */}

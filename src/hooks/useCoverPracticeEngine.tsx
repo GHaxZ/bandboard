@@ -48,6 +48,7 @@ interface UseCoverPracticeEngineResult {
   coverState: CoverState;
   mediaSurface: React.ReactNode;
   hasCustomMedia: boolean;
+  activeIsYouTube: boolean;
 }
 
 export function useCoverPracticeEngine({
@@ -103,6 +104,10 @@ export function useCoverPracticeEngine({
   const backingReady = !!(backingVideoId || backingCustomSrc);
   const tabReady = !!(tabVideoId || tabCustomSrc);
   const hasBothVideos = !!(backingReady && tabReady);
+  const activeIsYouTube =
+    activeVideo === "backing"
+      ? !!backingVideoId && !backingCustomSrc
+      : !!tabVideoId && !tabCustomSrc;
 
   const prog = progressMap[song.id];
   const activeSavedOffsets = resolveOffsets(prog, activeTrackId);
@@ -273,6 +278,7 @@ export function useCoverPracticeEngine({
     toggleVideo: players.toggleVideo,
     coverState,
     hasCustomMedia,
+    activeIsYouTube,
     mediaSurface: (
       <>
         {backingReady && (

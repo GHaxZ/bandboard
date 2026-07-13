@@ -102,7 +102,7 @@ function CoverPractice({
   onExit,
   onRefresh,
 }: CoverPracticeProps) {
-  const { engine, capabilities, toggleVideo, coverState, mediaSurface, hasCustomMedia } = useCoverPracticeEngine({
+  const { engine, capabilities, toggleVideo, coverState, mediaSurface, hasCustomMedia, activeIsYouTube } = useCoverPracticeEngine({
     song,
     progressMap,
     preferredInstrument,
@@ -123,6 +123,7 @@ function CoverPractice({
       onToggleVideo={toggleVideo}
       coverState={coverState}
       hasCustomMedia={hasCustomMedia}
+      youTubeMode={activeIsYouTube}
     />
   );
 }

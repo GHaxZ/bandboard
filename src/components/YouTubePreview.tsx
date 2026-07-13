@@ -106,7 +106,7 @@ export function YouTubePreview({ videoId }: YouTubePreviewProps) {
   return (
     <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-border bg-black">
       <div id={containerId} className="w-full h-full" />
-      <CustomPlaybackHUD engine={engine} isPlaying={isPlaying} />
+      <CustomPlaybackHUD engine={engine} isPlaying={isPlaying} youTubeMode />
     </div>
   );
 }
