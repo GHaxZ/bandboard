@@ -90,6 +90,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('File serve failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 400 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

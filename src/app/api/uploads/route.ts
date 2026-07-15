@@ -4,8 +4,9 @@ import { songs, customTracks } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { INSTRUMENT_ROLES } from '@/lib/constants';
 import type { Role } from '@/lib/constants';
-import { MAX_UPLOAD_BYTES } from '@/lib/constants';
-import { ensureUploadDir, allowedMime, extForMime, storedPath } from '@/lib/uploads';
+import { UPLOAD_LIMITS } from '@/lib/constants';
+import { ensureUploadDir, allowedMime, extForMime, storedPath, validateMagicBytes } from '@/lib/uploads';
+import { requireAuth, AuthError } from '@/lib/auth';
 import fs from 'fs';
 import type { CustomTrack } from '@/types/models';
 
@@ -15,6 +16,8 @@ const VALID_ROLES = INSTRUMENT_ROLES as readonly string[];
 
 export async function POST(request: Request) {
   try {
+    await requireAuth();
+
     const form = await request.formData();
     const songId = form.get('songId');
     const role = form.get('role');
@@ -37,9 +40,9 @@ export async function POST(request: Request) {
     if (kind === 'stem' && file.type.startsWith('video/')) {
       return NextResponse.json({ error: 'Only audio files are allowed for stems.' }, { status: 400 });
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (file.size > UPLOAD_LIMITS.stem) {
       return NextResponse.json(
-        { error: 'File too large (max 100MB)' },
+        { error: `File too large (max ${UPLOAD_LIMITS.stem / 1024 / 1024}MB)` },
         { status: 400 }
       );
     }
@@ -53,13 +56,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Song not found' }, { status: 400 });
     }
 
+    const buf = Buffer.from(await file.arrayBuffer());
+
+    // Magic-byte validation
+    if (!validateMagicBytes(buf, file.type, 'stem')) {
+      return NextResponse.json({ error: 'File content does not match declared type' }, { status: 400 });
+    }
+
     const finalLabel =
       typeof label === 'string' && label.trim() ? label.trim() : file.name || 'Untitled';
 
     ensureUploadDir();
     const storedName = crypto.randomUUID() + extForMime(file.type);
-    const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(storedPath(storedName), buf);
+    const tmpName = storedName + '.tmp';
+    fs.writeFileSync(storedPath(tmpName), buf);
 
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -78,6 +88,9 @@ export async function POST(request: Request) {
       createdAt: now,
     });
 
+    // Rename temp to final after DB insert succeeds
+    fs.renameSync(storedPath(tmpName), storedPath(storedName));
+
     const track: CustomTrack = {
       id,
       songId,
@@ -95,7 +108,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ track }, { status: 200 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Upload failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 400 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

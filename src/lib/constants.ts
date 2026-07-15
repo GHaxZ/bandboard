@@ -141,6 +141,13 @@ export const ALLOWED_UPLOAD_MIMES = [
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
+/** Unified upload limits for stems, cover art, and the proxy cap. */
+export const UPLOAD_LIMITS = {
+  stem: MAX_UPLOAD_BYTES,
+  coverArt: 5 * 1024 * 1024,
+  proxyCap: '100mb',
+} as const;
+
 export const MULTITRACK_DRIFT_MS = 200;
 
 export const DAW_PX_PER_SEC_DEFAULT = 50;

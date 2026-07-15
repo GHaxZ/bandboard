@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { customTracks } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { deleteStoredFile } from "@/lib/uploads";
+import { requireAuth, AuthError } from "@/lib/auth";
 import type { CustomTrack } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
@@ -35,6 +36,7 @@ export async function updateCustomTrack(
   }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     await db
       .update(customTracks)
       .set({
@@ -46,8 +48,9 @@ export async function updateCustomTrack(
       .where(eq(customTracks.id, trackId));
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to update custom track:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -58,20 +61,22 @@ export async function deleteCustomTrack(
   trackId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const rows = await db
       .select({ storedName: customTracks.storedName })
       .from(customTracks)
       .where(eq(customTracks.id, trackId))
       .limit(1);
 
-    if (rows.length > 0) {
-      deleteStoredFile(rows[0].storedName);
-    }
+    if (rows.length === 0) return { success: true };
 
+    // Delete the DB row first, then the file — so a row-delete failure doesn't orphan a file reference
     await db.delete(customTracks).where(eq(customTracks.id, trackId));
+    deleteStoredFile(rows[0].storedName);
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to delete custom track:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }

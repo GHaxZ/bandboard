@@ -33,7 +33,7 @@ export async function GET(
   try {
     const song = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!song || !song.coverArtStoredName) {
-      return new NextResponse('Not Found', { status: 404 });
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
     }
 
     const filePath = storedPath(song.coverArtStoredName);
@@ -41,7 +41,7 @@ export async function GET(
     try {
       stat = statSync(filePath);
     } catch {
-      return new NextResponse('Not Found', { status: 404 });
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
     }
 
     const total = stat.size;
@@ -51,7 +51,7 @@ export async function GET(
     if (range) {
       const r = parseRange(range, total);
       if (!r) {
-        return new NextResponse('Range Not Satisfiable', {
+        return NextResponse.json({ error: 'Range Not Satisfiable' }, {
           status: 416,
           headers: { 'Content-Range': `bytes */${total}` },
         });
@@ -84,6 +84,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Cover art GET failed:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

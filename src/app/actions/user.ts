@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { userSettings, userSongProgress, songs } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUserUuid } from "@/lib/auth";
+import { getUserUuid, requireAuth, AuthError } from "@/lib/auth";
 import {
   DEFAULT_PROGRESS,
   DEFAULT_USER_SETTINGS,
@@ -52,8 +52,9 @@ export async function saveUserSettings(
     playbackSpeed: number;
   }>
 ): Promise<{ success: boolean; error?: string }> {
-  const uuid = await getUserUuid();
   try {
+    await requireAuth();
+    const uuid = await getUserUuid();
     const now = Date.now();
     await db
       .insert(userSettings)
@@ -89,8 +90,9 @@ export async function saveUserSettings(
       });
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to save user settings:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -136,10 +138,6 @@ function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
   };
 }
 
-/**
- * Single progress query: LEFT JOIN songs → userSongProgress, defaults applied
- * in TS. Never writes (PLAN §7.4).
- */
 export async function getProgressMap(): Promise<ProgressMap> {
   const uuid = await getUserUuid();
   try {
@@ -194,8 +192,9 @@ export async function saveSongProgress(
     notes: string | null;
   }>
 ): Promise<{ success: boolean; error?: string }> {
-  const uuid = await getUserUuid();
   try {
+    await requireAuth();
+    const uuid = await getUserUuid();
     const now = Date.now();
     await db
       .insert(userSongProgress)
@@ -219,8 +218,9 @@ export async function saveSongProgress(
       });
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to save song progress:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -229,6 +229,7 @@ export async function saveScratchpadNotes(
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const uuid = await getUserUuid();
     await db
       .insert(userSongProgress)
@@ -247,8 +248,9 @@ export async function saveScratchpadNotes(
       });
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to save scratchpad notes:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -256,8 +258,9 @@ export async function savePracticeMarkers(
   songId: string,
   markers: number[]
 ): Promise<{ success: boolean; error?: string }> {
-  const uuid = await getUserUuid();
   try {
+    await requireAuth();
+    const uuid = await getUserUuid();
     const now = Date.now();
     const serialized = JSON.stringify(markers);
     await db
@@ -277,8 +280,9 @@ export async function savePracticeMarkers(
       });
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to save practice markers:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -288,12 +292,10 @@ export async function saveStartOffsets(
   backing: number,
   tab: number
 ): Promise<{ success: boolean; error?: string }> {
-  const uuid = await getUserUuid();
   try {
+    await requireAuth();
+    const uuid = await getUserUuid();
     const now = Date.now();
-    // ponytail: read-merge-write. Concurrent offset saves for the same song
-    // could race and one role group's update could clobber another's; single
-    // user manual tuning makes this negligible. Switch to json_set() if it ever bites.
     const existing = await db
       .select({ offsets: userSongProgress.offsets })
       .from(userSongProgress)
@@ -327,8 +329,9 @@ export async function saveStartOffsets(
       });
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to save start offsets:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -336,8 +339,9 @@ export async function saveStartOffsets(
 // Export / Import (PLAN §7.4)
 // ---------------------------------------------------------------------------
 export async function exportUserData() {
-  const uuid = await getUserUuid();
   try {
+    await requireAuth();
+    const uuid = await getUserUuid();
     const settings = await db
       .select()
       .from(userSettings)
@@ -368,24 +372,25 @@ export async function exportUserData() {
           notes: p.notes,
           practiceMarkers: p.practiceMarkers,
           offsets: p.offsets,
+          backingStartOffset: p.backingStartOffset,
+          tabStartOffset: p.tabStartOffset,
         })),
       },
     };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to export user data:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
 export async function importUserData(
-  payload: Record<string, unknown> & { bandboard_uid?: string }
+  payload: Record<string, unknown>
 ) {
-  if (!payload || !payload.bandboard_uid || typeof payload.bandboard_uid !== "string") {
-    return { success: false, error: "Invalid backup format" };
-  }
-  const importUuid = payload.bandboard_uid;
-
   try {
+    await requireAuth();
+    const importUuid = await getUserUuid();
+
     db.transaction((tx) => {
       // Settings
       const s = payload.settings as
@@ -431,6 +436,8 @@ export async function importUserData(
             notes?: string | null;
             practiceMarkers?: string | null;
             offsets?: string | null;
+            backingStartOffset?: number | null;
+            tabStartOffset?: number | null;
           }>
         | null;
       if (Array.isArray(progress)) {
@@ -453,6 +460,8 @@ export async function importUserData(
               notes: p.notes || null,
               practiceMarkers: p.practiceMarkers || null,
               offsets: p.offsets ?? null,
+              backingStartOffset: p.backingStartOffset ?? null,
+              tabStartOffset: p.tabStartOffset ?? null,
               updatedAt: Date.now(),
             })
             .onConflictDoUpdate({
@@ -463,6 +472,8 @@ export async function importUserData(
                 notes: p.notes || null,
                 practiceMarkers: p.practiceMarkers || null,
                 offsets: p.offsets ?? null,
+                backingStartOffset: p.backingStartOffset ?? null,
+                tabStartOffset: p.tabStartOffset ?? null,
                 updatedAt: Date.now(),
               },
             })
@@ -473,7 +484,8 @@ export async function importUserData(
 
     return { success: true, userUuid: importUuid };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to import user data:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }

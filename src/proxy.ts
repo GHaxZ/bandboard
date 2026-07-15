@@ -43,19 +43,6 @@ export async function proxy(req: NextRequest) {
   // --- 2. Shared secret gate (PLAN §5.1.1) ---
   const secret = process.env.BAND_SECRET;
   if (secret) {
-    // Allow ?secret=... on first hit: set cookie + strip param.
-    const paramSecret = req.nextUrl.searchParams.get('secret');
-    if (paramSecret) {
-      res.cookies.set(SECRET_COOKIE, paramSecret, {
-        path: '/',
-        maxAge: TEN_YEARS,
-        sameSite: 'lax',
-      });
-      const cleanUrl = req.nextUrl.clone();
-      cleanUrl.searchParams.delete('secret');
-      return NextResponse.redirect(cleanUrl);
-    }
-
     const provided = req.cookies.get(SECRET_COOKIE)?.value;
     const onUnlock = pathname === '/unlock';
 

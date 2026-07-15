@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { songs, tracks, roleGroups, customTracks } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, not, sql } from "drizzle-orm";
 import { searchYouTube, getYouTubeId } from "@/lib/youtube";
 import { getYouTubeQuery } from "@/lib/youtube-query";
 import {
@@ -13,32 +13,48 @@ import {
 } from "@/lib/songsterr";
 import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
-import { NO_VIDEO_SENTINEL } from "@/lib/constants";
+import { NO_VIDEO_SENTINEL, SPEED_MIN, SPEED_MAX, MAX_MARKERS } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
 import { deleteCustomTrack } from "@/app/actions/customTracks";
+import { requireAuth, AuthError } from "@/lib/auth";
 import type { Song } from "@/types/models";
 import { mapSong } from "@/lib/serialize";
 
 // ---------------------------------------------------------------------------
 // Ingest (PLAN §14)
 // ---------------------------------------------------------------------------
+/** Check for a duplicate song (case-insensitive, by type). */
+async function findDuplicate(
+  title: string,
+  artist: string,
+  songType: "cover" | "original",
+  excludeId?: string,
+): Promise<boolean> {
+  const clause = and(
+    eq(sql`lower(${songs.title})`, title.toLowerCase()),
+    eq(sql`lower(${songs.artist})`, artist.toLowerCase()),
+    eq(songs.songType, songType),
+  );
+  const where = excludeId ? and(clause, not(eq(songs.id, excludeId))) : clause;
+  const row = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(where)
+    .limit(1)
+    .get();
+  return !!row;
+}
+
 export async function ingestSongData(
   title: string,
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
+    await requireAuth();
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
 
-    // Duplicate check (case-insensitive) — covers can coexist with originals
-    const existing = await db.select({ title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
-    const isDuplicate = existing.some(
-      (s) =>
-        s.title.trim().toLowerCase() === formattedTitle.toLowerCase() &&
-        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase() &&
-        s.songType === 'cover'
-    );
-    if (isDuplicate) {
+    if (await findDuplicate(formattedTitle, formattedArtist, 'cover')) {
       return { success: false, error: "This cover song is already in your library." };
     }
 
@@ -121,8 +137,9 @@ export async function ingestSongData(
 
     return { success: true, songId };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Song ingestion failed:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -131,20 +148,14 @@ export async function createOriginalSong(
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
+    await requireAuth();
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
     if (!formattedTitle || !formattedArtist) {
       return { success: false, error: "Title and artist are required." };
     }
 
-    const existing = await db.select({ title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
-    const isDuplicate = existing.some(
-      (s) =>
-        s.title.trim().toLowerCase() === formattedTitle.toLowerCase() &&
-        s.artist.trim().toLowerCase() === formattedArtist.toLowerCase() &&
-        s.songType === 'original'
-    );
-    if (isDuplicate) {
+    if (await findDuplicate(formattedTitle, formattedArtist, 'original')) {
       return { success: false, error: "An original song with this title and artist already exists." };
     }
 
@@ -166,8 +177,9 @@ export async function createOriginalSong(
 
     return { success: true, songId };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to create original song:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -181,21 +193,14 @@ export async function updateOriginalMetadata(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     // When renaming, ensure no duplicate original song with the new name+artist exists.
     if (patch.title !== undefined || patch.artist !== undefined) {
       const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
       if (!current) return { success: false, error: "Song not found." };
       const newTitle = (patch.title ?? current.title).trim();
       const newArtist = (patch.artist ?? current.artist).trim();
-      const allSongs = await db.select({ id: songs.id, title: songs.title, artist: songs.artist, songType: songs.songType }).from(songs);
-      const isDuplicate = allSongs.some(
-        (s) =>
-          s.id !== songId &&
-          s.title.trim().toLowerCase() === newTitle.toLowerCase() &&
-          s.artist.trim().toLowerCase() === newArtist.toLowerCase() &&
-          s.songType === 'original'
-      );
-      if (isDuplicate) {
+      if (await findDuplicate(newTitle, newArtist, 'original', songId)) {
         return { success: false, error: "An original song with this title and artist already exists." };
       }
     }
@@ -212,8 +217,9 @@ export async function updateOriginalMetadata(
     db.update(songs).set(set).where(eq(songs.id, songId)).run();
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to update original metadata:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -223,6 +229,7 @@ export async function updateRoleGroupCustomArtifact(
   customTrackId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const rg = await db.query.roleGroups.findFirst({ where: eq(roleGroups.id, roleGroupId) });
     if (!rg) return { success: false, error: "Role group not found." };
 
@@ -240,8 +247,9 @@ export async function updateRoleGroupCustomArtifact(
     }
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to update role group custom artifact:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -288,6 +296,9 @@ export async function deleteSong(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
+
+    // Collect file references before deleting the row
     const customRows = await db
       .select({ storedName: customTracks.storedName })
       .from(customTracks)
@@ -299,8 +310,10 @@ export async function deleteSong(
       .where(eq(songs.id, songId))
       .limit(1);
 
+    // Delete the DB row first — cascade (now active) handles child cleanup
     await db.delete(songs).where(eq(songs.id, songId));
 
+    // Then clean up files
     for (const row of customRows) {
       deleteStoredFile(row.storedName);
     }
@@ -310,8 +323,9 @@ export async function deleteSong(
 
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to delete song:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -324,6 +338,7 @@ export async function updateRoleGroupVideo(
   videoUrl: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     if (type === "backing") {
       await db
         .update(roleGroups)
@@ -337,8 +352,9 @@ export async function updateRoleGroupVideo(
     }
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to update video link:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -349,6 +365,7 @@ export async function lazyLoadTrackMedia(
   roleGroupId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const roleGroup = await db.query.roleGroups.findFirst({
       where: eq(roleGroups.id, roleGroupId),
       with: { song: true, tracks: true },
@@ -392,8 +409,9 @@ export async function lazyLoadTrackMedia(
 
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to lazy load track media:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
 
@@ -402,9 +420,11 @@ export async function lazyLoadTrackMedia(
 // ---------------------------------------------------------------------------
 export async function searchYouTubeVideosAction(query: string) {
   try {
+    await requireAuth();
     const results = await searchYouTube(query);
     return results.slice(0, 10);
   } catch (error) {
+    if (error instanceof AuthError) return [];
     console.error("Failed to search YouTube videos:", error);
     return [];
   }
@@ -417,6 +437,7 @@ export async function refreshSongMetadata(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const song = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!song) return { success: false, error: "Song not found" };
 
@@ -430,9 +451,8 @@ export async function refreshSongMetadata(
 
     return { success: true };
   } catch (error) {
+    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
     console.error("Failed to refresh song metadata:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: "Something went wrong" };
   }
 }
-
-

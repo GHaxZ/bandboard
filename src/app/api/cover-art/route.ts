@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { songs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { requireAuth, AuthError } from '@/lib/auth';
+import { UPLOAD_LIMITS } from '@/lib/constants';
 import {
   ensureUploadDir,
   storedPath,
   deleteStoredFile,
+  validateMagicBytes,
 } from '@/lib/uploads';
 
 export const dynamic = 'force-dynamic';
@@ -17,8 +20,6 @@ const ALLOWED_IMAGE_MIMES = new Set([
   'image/gif',
 ]);
 
-const MAX_COVER_ART_BYTES = 5 * 1024 * 1024;
-
 const IMAGE_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -28,6 +29,8 @@ const IMAGE_EXT: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAuth();
+
     const formData = await req.formData();
     const songId = formData.get('songId');
     const file = formData.get('file');
@@ -44,9 +47,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (file.size > MAX_COVER_ART_BYTES) {
+    if (file.size > UPLOAD_LIMITS.coverArt) {
       return NextResponse.json(
-        { error: `Cover art must be 5 MB or smaller.` },
+        { error: `Cover art must be ${UPLOAD_LIMITS.coverArt / 1024 / 1024} MB or smaller.` },
         { status: 400 }
       );
     }
@@ -56,26 +59,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Song not found.' }, { status: 400 });
     }
 
+    const buf = Buffer.from(await file.arrayBuffer());
+    if (!validateMagicBytes(buf, file.type, 'image')) {
+      return NextResponse.json({ error: 'File content does not match declared image type' }, { status: 400 });
+    }
+
     await ensureUploadDir();
 
     const ext = IMAGE_EXT[file.type] ?? '';
     const storedName = `cover-${crypto.randomUUID()}${ext}`;
-    const buf = Buffer.from(await file.arrayBuffer());
-    const { writeFileSync } = await import('fs');
-    writeFileSync(storedPath(storedName), buf);
+    const tmpName = storedName + '.tmp';
+    const { writeFileSync, renameSync } = await import('fs');
+    writeFileSync(storedPath(tmpName), buf);
 
-    // Delete the previously-stored cover art blob, if any.
-    if (song.coverArtStoredName) {
-      deleteStoredFile(song.coverArtStoredName);
-    }
-
+    // Insert DB row first, then delete old cover and rename temp
+    const oldCover = song.coverArtStoredName;
     db.update(songs)
       .set({ coverArtStoredName: storedName })
       .where(eq(songs.id, songId))
       .run();
 
+    renameSync(storedPath(tmpName), storedPath(storedName));
+
+    if (oldCover) {
+      deleteStoredFile(oldCover);
+    }
+
     return NextResponse.json({ storedName });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Cover art upload failed:', error);
     return NextResponse.json(
       { error: 'Upload failed.' },

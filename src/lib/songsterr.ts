@@ -141,29 +141,28 @@ export async function fetchSongsterr(
   const formattedTitle = title.trim();
   const formattedArtist = artist.trim();
 
-  let response: Response | undefined;
   try {
-    response = await fetch(
+    const response = await fetch(
       `https://www.songsterr.com/api/songs?pattern=${encodeURIComponent(formattedTitle)}+${encodeURIComponent(
         formattedArtist
       )}`,
       { signal: AbortSignal.timeout(3000) }
     );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const bestMatch = data[0];
+        return {
+          songsterrId: bestMatch.songId ?? null,
+          verifiedTitle: bestMatch.title || formattedTitle,
+          verifiedArtist: bestMatch.artist || formattedArtist,
+          rawTracks: bestMatch.tracks || [],
+        };
+      }
+    }
   } catch (e) {
     console.error('Songsterr API lookup failed/timed out:', e);
-  }
-
-  if (response && response.ok) {
-    const data = await response.json().catch(() => null);
-    if (Array.isArray(data) && data.length > 0) {
-      const bestMatch = data[0];
-      return {
-        songsterrId: bestMatch.songId ?? null,
-        verifiedTitle: bestMatch.title || formattedTitle,
-        verifiedArtist: bestMatch.artist || formattedArtist,
-        rawTracks: bestMatch.tracks || [],
-      };
-    }
   }
 
   return {
