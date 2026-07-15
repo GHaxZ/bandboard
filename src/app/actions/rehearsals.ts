@@ -126,6 +126,7 @@ export async function addSongToRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     db.transaction((tx) => {
       const duplicate = tx
         .select({ id: rehearsalSongs.songId })
@@ -157,6 +158,7 @@ export async function removeSongFromRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     // Transaction: delete + shift subsequent sortOrders (PLAN §7.3)
     db.transaction((tx) => {
       const row = tx
@@ -198,6 +200,7 @@ export async function reorderRehearsalSongs(
   songIdsInOrder: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     db.transaction((tx) => {
       // Validate that every id belongs to this rehearsal
       const memberRow = tx

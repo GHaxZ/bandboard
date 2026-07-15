@@ -21,25 +21,20 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
     const handleKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement;
       const tag = active?.tagName;
-      const role = active?.getAttribute("role");
-      // Skip when focus is inside a form control or a button
+      // Skip when focus is inside a form control (Tab still switches video
+      // everywhere else — this is the intended "at all times" behavior).
       if (
         active &&
         (tag === "INPUT" ||
           tag === "TEXTAREA" ||
           tag === "SELECT" ||
-          role === "button" ||
           (active as HTMLElement)?.isContentEditable)
       ) {
         return;
       }
 
       if (e.key === "Tab") {
-        // Only hijack Tab for video-toggle when focus is inside the media
-        // surface, allowing normal focus traversal elsewhere in the UI.
         if (configRef.current.onToggleVideo) {
-          const mediaSurface = active?.closest("[data-media-surface]");
-          if (!mediaSurface) return; // normal Tab outside media area
           e.preventDefault();
           e.stopPropagation();
           configRef.current.onToggleVideo();

@@ -241,7 +241,7 @@ export function RehearsalAutoplay({
   const dashOffset = circumference - ((countdown ?? 0) / totalForRing) * circumference;
 
   return (
-    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden" data-media-surface>
+    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden">
       <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
           <Button

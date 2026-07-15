@@ -145,7 +145,7 @@ export function PracticeShell({
   const activeRoleGroup = coverState?.activeRoleGroup;
 
   return (
-    <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden" data-media-surface>
+    <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <header className="flex items-center justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Button
