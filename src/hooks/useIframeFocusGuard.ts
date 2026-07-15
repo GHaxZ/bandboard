@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Restore window focus after the user clicks inside a YouTube iframe so the
@@ -10,9 +10,11 @@ import { useEffect } from "react";
  * toggle buttons (PLAN §3.3).
  */
 export function useIframeFocusGuard() {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const handleBlur = () => {
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         const active = document.activeElement;
         if (active && active.tagName === "IFRAME") {
           try {
@@ -26,6 +28,9 @@ export function useIframeFocusGuard() {
     };
 
     window.addEventListener("blur", handleBlur);
-    return () => window.removeEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 }

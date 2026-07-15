@@ -10,7 +10,29 @@ function getAudioContext(): AudioContext | null {
 }
 
 const PEAK_RESOLUTION = 4000;
+
+// ponytail: bounded cache — 50 entries max, simple FIFO eviction.
+// Switch to LRU if waveform browsing patterns show hot/cold reuse.
+const MAX_CACHE = 50;
 const peakCache = new Map<string, { peaks: Float32Array; duration: number }>();
+
+function cacheSet(key: string, value: { peaks: Float32Array; duration: number }) {
+  if (peakCache.size >= MAX_CACHE) {
+    const first = peakCache.keys().next().value;
+    if (first !== undefined) peakCache.delete(first);
+  }
+  peakCache.set(key, value);
+}
+
+// Close AudioContext on page unload to free the audio hardware lock.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+  });
+}
 
 // ponytail: fetches full file for decode. Fine for local band stems (3-10MB).
 // Switch to Range-fetch + progressive decode if large files cause latency.
@@ -46,7 +68,7 @@ export async function getWaveformPeaks(
     }
 
     const result = { peaks, duration: audioBuffer.duration };
-    peakCache.set(trackId, result);
+    cacheSet(trackId, result);
     return result;
   } catch {
     return null;
