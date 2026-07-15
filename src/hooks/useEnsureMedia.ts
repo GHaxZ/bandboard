@@ -40,11 +40,11 @@ export function useEnsureMedia({
     const needsTab = tabVideoLink === null;
     if ((!needsBacking && !needsTab) || attempted.has(roleGroupId)) return;
 
-    attempted.add(roleGroupId);
     let mounted = true;
     lazyLoadTrackMedia(roleGroupId)
       .then((res) => {
         if (!mounted) return;
+        attempted.add(roleGroupId);
         if (res.success) onLoaded();
       })
       .catch((err) => {
@@ -58,4 +58,4 @@ export function useEnsureMedia({
   }, [roleGroupId, role, backingTrackLink, tabVideoLink]);
 }
 
-export { NO_VIDEO_SENTINEL };
+

@@ -64,7 +64,7 @@ export function usePracticeControls(
   useEffect(() => {
     if (!hydratedRef.current) return;
     const t = setTimeout(() => {
-      void saveUserSettings({ volume });
+      saveUserSettings({ volume }).catch((e) => console.error("saveUserSettings(volume) failed:", e));
     }, 500);
     return () => clearTimeout(t);
   }, [volume]);
@@ -72,7 +72,7 @@ export function usePracticeControls(
   useEffect(() => {
     if (!hydratedRef.current) return;
     const t = setTimeout(() => {
-      void saveUserSettings({ playbackSpeed: speed });
+      saveUserSettings({ playbackSpeed: speed }).catch((e) => console.error("saveUserSettings(speed) failed:", e));
     }, 500);
     return () => clearTimeout(t);
   }, [speed]);

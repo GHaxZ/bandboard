@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Play,
   Pause,
@@ -84,22 +84,20 @@ export function RehearsalAutoplay({
 
   const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
 
-  // Load autoplay settings from DB once
+  // Load autoplay settings from DB, then bootstrap countdown
   useEffect(() => {
-    async function loadSettings() {
-      const s = await getUserSettings();
+    const settingsPromise = getUserSettings().then((s) => {
       setAutoplayEnabled(s.autoplayEnabled);
       setTransitionTimeout(s.autoplayTimeout);
-    }
-    loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Bootstrap initial countdown on mount
-  useEffect(() => {
-    if (!sessionStarted && countdown === null && !finished) {
-      startCountdown();
-    }
+    });
+    settingsPromise.then(() => {
+      if (!sessionStarted && countdown === null && !finished) {
+        startCountdown();
+      }
+    });
+    return () => {
+      if (skipOverlayTimeoutRef.current) clearTimeout(skipOverlayTimeoutRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,9 +185,11 @@ export function RehearsalAutoplay({
   });
 
   // Skip overlay helper
+  const skipOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerSkipOverlay = (type: "back" | "forward") => {
+    if (skipOverlayTimeoutRef.current) clearTimeout(skipOverlayTimeoutRef.current);
     setSkipOverlay({ type, key: Date.now() });
-    setTimeout(() => setSkipOverlay(null), 600);
+    skipOverlayTimeoutRef.current = setTimeout(() => setSkipOverlay(null), 600);
   };
 
   // Keyboard
@@ -241,7 +241,7 @@ export function RehearsalAutoplay({
   const dashOffset = circumference - ((countdown ?? 0) / totalForRing) * circumference;
 
   return (
-    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden" data-media-surface>
       <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3">
           <Button

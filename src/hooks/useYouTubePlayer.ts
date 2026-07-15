@@ -89,7 +89,6 @@ export function useYouTubePlayer({
     const makePlayer = () => {
       // Increment generation so any callbacks from a previous player are skipped.
       const gen = ++genRef.current;
-      const { volume, speed } = usePlayerStore.getState();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const PlayerCtor = (window as any).YT.Player;
       playerRef.current = new PlayerCtor(containerId, {
@@ -109,8 +108,9 @@ export function useYouTubePlayer({
             // Guard: skip if this player is no longer current (destroyed in Strict Mode, etc.)
             if (gen !== generationRef.current) return;
             try {
-              event.target.setVolume(volume);
-              event.target.setPlaybackRate(speed);
+              const currentSettings = usePlayerStore.getState();
+              event.target.setVolume(currentSettings.volume);
+              event.target.setPlaybackRate(currentSettings.speed);
             } catch {
               // ignore
             }
@@ -198,6 +198,16 @@ export function useYouTubePlayer({
     };
 
     if (playerRef.current && typeof playerRef.current.loadVideoById === "function") {
+      // If the video hasn't changed but the offset has, just seek instead of reloading.
+      if (videoId && playerRef.current.getDuration() > 0) {
+        try {
+          playerRef.current.seekTo(startOffset, true);
+          applySettings();
+          return;
+        } catch {
+          // fall through to loadVideoById
+        }
+      }
       try {
         playerRef.current.loadVideoById({ videoId, startSeconds: startOffset });
         applySettings();
@@ -233,7 +243,7 @@ export function useYouTubePlayer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiLoaded, videoId, containerId]);
+  }, [apiLoaded, videoId, containerId, startOffset]);
 
   // Sync volume / speed changes to the live player.
   const volume = usePlayerStore((s) => s.volume);

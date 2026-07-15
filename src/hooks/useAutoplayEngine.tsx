@@ -222,6 +222,7 @@ export function useAutoplayEngine({
       const p = yt.playerRef?.current;
       if (!p) return;
       try {
+        usePlayerStore.getState().registerSeek(target);
         p.seekTo(target, true);
       } catch {
         // ignore
@@ -229,6 +230,7 @@ export function useAutoplayEngine({
     } else if (media.kind === "custom-file") {
       const el = customMediaRef.current;
       if (!el) return;
+      usePlayerStore.getState().registerSeek(target);
       el.currentTime = Math.max(0, Math.min(target, el.duration || 0));
     } else if (media.kind === "multistem") {
       mt.seekTo(target);

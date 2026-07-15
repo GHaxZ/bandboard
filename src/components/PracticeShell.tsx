@@ -126,12 +126,15 @@ export function PracticeShell({
   // Focus guard (safe to call unconditionally — checks for iframe presence)
   useIframeFocusGuard();
 
-  // Reset store on mount (always start paused) and unmount
+  // Reset store on unmount only (mount-side reset would wipe markers that
+  // usePracticeControls just hydrated). See engine-audit finding E1.
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const reset = usePlayerStore((s) => s.reset);
   useEffect(() => {
-    reset();
-    return () => reset();
+    return () => {
+      reset();
+      if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -142,7 +145,7 @@ export function PracticeShell({
   const activeRoleGroup = coverState?.activeRoleGroup;
 
   return (
-    <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden">
+    <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden" data-media-surface>
       <header className="flex items-center justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Button

@@ -51,7 +51,6 @@ interface PlayerStore {
   setVolume: (v: number) => void;
   setSpeed: (v: number) => void;
   registerSeek: (target: number) => void;
-  consumeSeek: () => number | null;
 
   setActiveVideo: (v: ActiveVideo) => void;
   setMarkers: (m: number[]) => void;
@@ -77,7 +76,7 @@ interface PlayerStore {
   reset: () => void;
 }
 
-export const usePlayerStore = create<PlayerStore>((set, get) => ({
+export const usePlayerStore = create<PlayerStore>((set) => ({
   isPlaying: false,
   volume: 100,
   speed: 1.0,
@@ -102,11 +101,6 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setVolume: (v) => set({ volume: v }),
   setSpeed: (v) => set({ speed: v }),
   registerSeek: (target) => set({ seekTarget: target, lastSeekAt: Date.now() }),
-  consumeSeek: () => {
-    const { seekTarget } = get();
-    set({ seekTarget: null });
-    return seekTarget;
-  },
 
   setActiveVideo: (v) => set({ activeVideo: v }),
   setMarkers: (m) => set({ markers: m }),

@@ -20,17 +20,26 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement;
+      const tag = active?.tagName;
+      const role = active?.getAttribute("role");
+      // Skip when focus is inside a form control or a button
       if (
         active &&
-        (active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          active.tagName === "SELECT")
+        (tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          role === "button" ||
+          (active as HTMLElement)?.isContentEditable)
       ) {
         return;
       }
 
       if (e.key === "Tab") {
+        // Only hijack Tab for video-toggle when focus is inside the media
+        // surface, allowing normal focus traversal elsewhere in the UI.
         if (configRef.current.onToggleVideo) {
+          const mediaSurface = active?.closest("[data-media-surface]");
+          if (!mediaSurface) return; // normal Tab outside media area
           e.preventDefault();
           e.stopPropagation();
           configRef.current.onToggleVideo();
@@ -72,6 +81,8 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
       }
       if (e.key >= "1" && e.key <= "9") {
         if (configRef.current.onMarkerJump) {
+          e.preventDefault();
+          e.stopPropagation();
           const index = parseInt(e.key, 10) - 1;
           configRef.current.onMarkerJump(index);
         }

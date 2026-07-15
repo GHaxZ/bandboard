@@ -21,7 +21,7 @@ function loadYoutubeApi(): Promise<void> {
   }
   if (apiPromise) return apiPromise;
 
-  apiPromise = new Promise<void>((resolve) => {
+  apiPromise = new Promise<void>((resolve, reject) => {
     // Inject the script once.
     let script = document.getElementById("youtube-iframe-api") as HTMLScriptElement | null;
     if (!script) {
@@ -36,14 +36,21 @@ function loadYoutubeApi(): Promise<void> {
     const previous = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       previous?.();
+      clearInterval(interval);
       resolve();
     };
 
     // Poll fallback (some setups don't fire the callback reliably).
+    let attempts = 0;
+    const maxAttempts = 300; // 30s
     const interval = setInterval(() => {
       if (window.YT && window.YT.Player) {
         clearInterval(interval);
         resolve();
+      }
+      if (++attempts >= maxAttempts) {
+        clearInterval(interval);
+        reject(new Error("YouTube API load timed out"));
       }
     }, 100);
   });
@@ -68,4 +75,4 @@ export function useYoutubeApi(): boolean {
   return loaded;
 }
 
-export { loadYoutubeApi };
+
