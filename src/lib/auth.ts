@@ -1,12 +1,21 @@
 import { cookies } from 'next/headers';
+import { randomUUID } from 'node:crypto';
 
 /**
- * Read the anonymous device UUID from the `bandboard_uid` cookie.
+ * Read or mint the anonymous device UUID from the `bandboard_uid` cookie.
  *
- * Middleware guarantees this cookie exists on every request, so this never
- * returns a fallback. All per-user state is keyed off this value.
+ * All per-user state is keyed off this value.
  */
 export async function getUserUuid(): Promise<string> {
   const cookieStore = await cookies();
-  return cookieStore.get('bandboard_uid')!.value;
+  const existing = cookieStore.get('bandboard_uid');
+  if (existing?.value) return existing.value;
+  const uuid = randomUUID();
+  cookieStore.set('bandboard_uid', uuid, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365 * 10,
+  });
+  return uuid;
 }

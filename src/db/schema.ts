@@ -171,6 +171,16 @@ export const roleGroupsRelations = relations(roleGroups, ({ one, many }) => ({
     references: [songs.id],
   }),
   tracks: many(tracks),
+  backingCustomTrack: one(customTracks, {
+    fields: [roleGroups.backingCustomTrackId],
+    references: [customTracks.id],
+    relationName: 'backingRoleGroups',
+  }),
+  tabCustomTrack: one(customTracks, {
+    fields: [roleGroups.tabCustomTrackId],
+    references: [customTracks.id],
+    relationName: 'tabRoleGroups',
+  }),
 }));
 
 export const tracksRelations = relations(tracks, ({ one }) => ({
@@ -180,11 +190,13 @@ export const tracksRelations = relations(tracks, ({ one }) => ({
   }),
 }));
 
-export const customTracksRelations = relations(customTracks, ({ one }) => ({
+export const customTracksRelations = relations(customTracks, ({ one, many }) => ({
   song: one(songs, {
     fields: [customTracks.songId],
     references: [songs.id],
   }),
+  backingRoleGroups: many(roleGroups, { relationName: 'backingRoleGroups' }),
+  tabRoleGroups: many(roleGroups, { relationName: 'tabRoleGroups' }),
 }));
 
 export const rehearsalsRelations = relations(rehearsals, ({ many }) => ({

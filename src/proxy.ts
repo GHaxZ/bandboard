@@ -4,8 +4,6 @@ const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
 const UID_COOKIE = 'bandboard_uid';
 const SECRET_COOKIE = 'bandboard_secret';
 
-const PUBLIC_PATHS = ['/unlock'];
-
 function isStaticAsset(pathname: string): boolean {
   return (
     pathname.startsWith('/_next') ||
@@ -79,8 +77,6 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
-  // Public paths that aren't /unlock (none currently) pass through.
-  void PUBLIC_PATHS;
   return res;
 }
 

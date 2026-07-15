@@ -119,19 +119,24 @@ export async function addSongToRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const duplicate = await db.query.rehearsalSongs.findFirst({
-      where: and(eq(rehearsalSongs.rehearsalId, rehearsalId), eq(rehearsalSongs.songId, songId)),
+    db.transaction((tx) => {
+      const duplicate = tx
+        .select({ id: rehearsalSongs.songId })
+        .from(rehearsalSongs)
+        .where(and(eq(rehearsalSongs.rehearsalId, rehearsalId), eq(rehearsalSongs.songId, songId)))
+        .get();
+      if (duplicate) return;
+
+      // next sortOrder = max(existing) + 1, or 0
+      const maxRow = tx
+        .select({ max: sql<number>`MAX(${rehearsalSongs.sortOrder})` })
+        .from(rehearsalSongs)
+        .where(eq(rehearsalSongs.rehearsalId, rehearsalId))
+        .get();
+      const nextOrder = (maxRow?.max ?? -1) + 1;
+
+      tx.insert(rehearsalSongs).values({ rehearsalId, songId, sortOrder: nextOrder }).run();
     });
-    if (duplicate) return { success: true };
-
-    // next sortOrder = max(existing) + 1, or 0
-    const maxRow = await db
-      .select({ max: sql<number>`MAX(${rehearsalSongs.sortOrder})` })
-      .from(rehearsalSongs)
-      .where(eq(rehearsalSongs.rehearsalId, rehearsalId));
-    const nextOrder = (maxRow[0]?.max ?? -1) + 1;
-
-    await db.insert(rehearsalSongs).values({ rehearsalId, songId, sortOrder: nextOrder });
     return { success: true };
   } catch (error) {
     console.error("Failed to add song to rehearsal setlist:", error);
@@ -184,8 +189,22 @@ export async function reorderRehearsalSongs(
   songIdsInOrder: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Single transaction rewriting all sortOrders (PLAN §7.3)
     db.transaction((tx) => {
+      // Validate that every id belongs to this rehearsal
+      const memberRow = tx
+        .select({ songId: rehearsalSongs.songId })
+        .from(rehearsalSongs)
+        .where(eq(rehearsalSongs.rehearsalId, rehearsalId))
+        .all();
+      const memberIds = new Set(memberRow.map((r) => r.songId));
+      const inputIds = new Set(songIdsInOrder);
+      if (
+        memberIds.size !== inputIds.size ||
+        ![...memberIds].every((id) => inputIds.has(id))
+      ) {
+        throw new Error("Song list does not match rehearsal setlist");
+      }
+
       for (let i = 0; i < songIdsInOrder.length; i++) {
         tx.update(rehearsalSongs)
           .set({ sortOrder: i })

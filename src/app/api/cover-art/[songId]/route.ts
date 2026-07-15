@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { storedPath } from '@/lib/uploads';
 import { statSync, createReadStream } from 'fs';
 import { Readable } from 'stream';
+import { parseRange } from '@/lib/http-range';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,31 +23,6 @@ function inferMime(storedName: string): string {
     if (lower.endsWith(ext)) return mime;
   }
   return 'application/octet-stream';
-}
-
-function parseRange(range: string | null, total: number): { start: number; end: number } | null {
-  if (!range || !range.startsWith('bytes=')) return null;
-  const spec = range.slice(6).split('-');
-  const startRaw = spec[0];
-  const endRaw = spec[1];
-  let start: number;
-  let end: number;
-  if (startRaw === '') {
-    const suffix = parseInt(endRaw, 10);
-    if (Number.isNaN(suffix) || suffix <= 0) return null;
-    start = Math.max(0, total - suffix);
-    end = total - 1;
-  } else {
-    start = parseInt(startRaw, 10);
-    if (Number.isNaN(start) || start < 0 || start >= total) return null;
-    if (endRaw === '') {
-      end = total - 1;
-    } else {
-      end = parseInt(endRaw, 10);
-      if (Number.isNaN(end) || end < start || end >= total) return null;
-    }
-  }
-  return { start, end };
 }
 
 export async function GET(

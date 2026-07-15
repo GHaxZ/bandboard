@@ -230,32 +230,21 @@ export async function saveScratchpadNotes(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const uuid = await getUserUuid();
-    const existing = await db
-      .select({ id: userSongProgress.id })
-      .from(userSongProgress)
-      .where(
-        and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId))
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
-      db.update(userSongProgress)
-        .set({ scratchpadNotes: notes, updatedAt: Date.now() })
-        .where(eq(userSongProgress.id, existing[0].id))
-        .run();
-    } else {
-      db.insert(userSongProgress)
-        .values({
-          id: crypto.randomUUID(),
-          userUuid: uuid,
-          songId,
-          status: 'not_started',
-          speed: 100,
-          scratchpadNotes: notes,
-          updatedAt: Date.now(),
-        })
-        .run();
-    }
+    await db
+      .insert(userSongProgress)
+      .values({
+        id: crypto.randomUUID(),
+        userUuid: uuid,
+        songId,
+        status: 'not_started',
+        speed: 100,
+        scratchpadNotes: notes,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: [userSongProgress.userUuid, userSongProgress.songId],
+        set: { scratchpadNotes: notes, updatedAt: Date.now() },
+      });
     return { success: true };
   } catch (error) {
     console.error("Failed to save scratchpad notes:", error);
@@ -397,7 +386,7 @@ export async function importUserData(
   const importUuid = payload.bandboard_uid;
 
   try {
-    db.transaction(async (tx) => {
+    db.transaction((tx) => {
       // Settings
       const s = payload.settings as
         | {
@@ -409,8 +398,7 @@ export async function importUserData(
           }
         | null;
       if (s) {
-        await tx
-          .insert(userSettings)
+        tx.insert(userSettings)
           .values({
             userUuid: importUuid,
             preferredInstrument: (s.preferredInstrument as Role) || "Guitar",
@@ -430,7 +418,8 @@ export async function importUserData(
               playbackSpeed: s.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed,
               updatedAt: Date.now(),
             },
-          });
+          })
+          .run();
       }
 
       // Progress
@@ -446,15 +435,15 @@ export async function importUserData(
         | null;
       if (Array.isArray(progress)) {
         for (const p of progress) {
-          const exists = await tx
+          const exists = tx
             .select({ id: songs.id })
             .from(songs)
             .where(eq(songs.id, p.songId))
-            .limit(1);
-          if (exists.length === 0) continue;
+            .limit(1)
+            .get();
+          if (!exists) continue;
 
-          await tx
-            .insert(userSongProgress)
+          tx.insert(userSongProgress)
             .values({
               id: crypto.randomUUID(),
               userUuid: importUuid,
@@ -476,7 +465,8 @@ export async function importUserData(
                 offsets: p.offsets ?? null,
                 updatedAt: Date.now(),
               },
-            });
+            })
+            .run();
         }
       }
     });

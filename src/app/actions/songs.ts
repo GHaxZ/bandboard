@@ -10,8 +10,8 @@ import {
   groupTracksByRole,
   parseTuning,
   buildTabLink,
-  slugify,
 } from "@/lib/songsterr";
+import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
@@ -435,5 +435,4 @@ export async function refreshSongMetadata(
   }
 }
 
-// re-export for convenience (used by some client components)
-export { getYouTubeId };
+

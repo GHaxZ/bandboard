@@ -6,45 +6,12 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import { storedPath, mimeForExt } from '@/lib/uploads';
 import { ALLOWED_UPLOAD_MIMES } from '@/lib/constants';
+import { parseRange } from '@/lib/http-range';
 
 export const dynamic = 'force-dynamic';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-function parseRange(
-  rangeHeader: string,
-  totalSize: number
-): { start: number; end: number } | null {
-  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
-  if (!match) return null;
-  const startStr = match[1];
-  const endStr = match[2];
-  let start: number;
-  let end: number;
-
-  if (startStr === '' && endStr === '') return null;
-
-  if (startStr === '') {
-    const suffix = parseInt(endStr, 10);
-    if (isNaN(suffix) || suffix <= 0) return null;
-    start = Math.max(0, totalSize - suffix);
-    end = totalSize - 1;
-  } else {
-    start = parseInt(startStr, 10);
-    if (isNaN(start)) return null;
-    if (endStr === '') {
-      end = totalSize - 1;
-    } else {
-      end = parseInt(endStr, 10);
-      if (isNaN(end)) return null;
-    }
-  }
-
-  if (start > end || start >= totalSize) return null;
-  if (end >= totalSize) end = totalSize - 1;
-  return { start, end };
 }
 
 export async function GET(_request: Request, { params }: RouteParams) {
