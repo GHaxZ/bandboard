@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { lazyLoadTrackMedia } from "@/app/actions/songs";
-import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 
 // Module-scoped attempt log: lazy-load at most once per roleGroup per session.
 const attempted = new Set<string>();

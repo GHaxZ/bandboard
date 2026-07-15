@@ -83,6 +83,7 @@ export function RehearsalAutoplay({
   const [instrumentPreference, setInstrumentPreference] = useState<Role>(preferredInstrument);
 
   const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
+  const skipOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load autoplay settings from DB, then bootstrap countdown
   useEffect(() => {
@@ -185,7 +186,6 @@ export function RehearsalAutoplay({
   });
 
   // Skip overlay helper
-  const skipOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerSkipOverlay = (type: "back" | "forward") => {
     if (skipOverlayTimeoutRef.current) clearTimeout(skipOverlayTimeoutRef.current);
     setSkipOverlay({ type, key: Date.now() });

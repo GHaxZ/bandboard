@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { songs, tracks, roleGroups, customTracks } from "@/db/schema";
 import { eq, asc, and, not, sql } from "drizzle-orm";
-import { searchYouTube, getYouTubeId } from "@/lib/youtube";
+import { searchYouTube } from "@/lib/youtube";
 import { getYouTubeQuery } from "@/lib/youtube-query";
 import {
   fetchSongsterr,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/songsterr";
 import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
-import { NO_VIDEO_SENTINEL, SPEED_MIN, SPEED_MAX, MAX_MARKERS } from "@/lib/constants";
+import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
 import { deleteCustomTrack } from "@/app/actions/customTracks";
 import { requireAuth, AuthError } from "@/lib/auth";

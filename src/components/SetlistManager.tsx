@@ -10,13 +10,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   addSongToRehearsalSetlist,
   removeSongFromRehearsalSetlist,
   reorderRehearsalSongs,
 } from "@/app/actions/rehearsals";
-import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown, Trash2, Plus, Music, ListMusic, Play } from "lucide-react";
 import { SearchInput } from "./SearchInput";
 import { PracticeButton } from "./PracticeButton";

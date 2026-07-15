@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ALLOWED_UPLOAD_MIMES, UPLOAD_LIMITS } from './constants';
+import { ALLOWED_UPLOAD_MIMES } from './constants';
 
 export const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 

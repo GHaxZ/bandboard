@@ -9,7 +9,6 @@ import { SongTypeBadge } from "@/components/SongTypeBadge";
 import { TuningBadges } from "@/components/TuningBadges";
 import { CoverArt } from "@/components/CoverArt";
 import { Eyebrow } from "@/components/Eyebrow";
-import { cn } from "@/lib/utils";
 import type { Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
 

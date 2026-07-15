@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RehearsalAutoplay } from "@/components/RehearsalAutoplay";
 import type { RehearsalDetails, ProgressMap } from "@/types/models";
