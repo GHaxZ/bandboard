@@ -9,6 +9,7 @@ services:
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
+      PORT: ${PORT:-3000}
       DATABASE_PATH: /app/data/sqlite.db
       UPLOAD_DIR: /app/uploads
       MIGRATE_ON_BOOT: "1"

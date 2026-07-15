@@ -38,7 +38,5 @@ COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 VOLUME ["/app/data", "/app/uploads"]
-ARG PORT=3000
-EXPOSE ${PORT}
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "server.js"]
