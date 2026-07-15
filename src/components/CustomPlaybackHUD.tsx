@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 import { Play, Pause } from "lucide-react";
 import type { PlaybackEngine } from "@/lib/media-controller";
 
@@ -19,13 +19,6 @@ interface CustomPlaybackHUDProps {
    * mouse events pass through to the YouTube iframe so its native pause
    * button appears on hover). The bottom bar stays interactive. */
   youTubeMode?: boolean;
-}
-
-function formatTimeHUD(s: number): string {
-  if (!isFinite(s) || s < 0) s = 0;
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
 export function CustomPlaybackHUD({
@@ -270,7 +263,7 @@ export function CustomPlaybackHUD({
 
             {/* Time display */}
             <span className="text-[11px] font-mono text-white/80 select-none">
-              {formatTimeHUD(displayTime)} / {formatTimeHUD(duration)}
+              {formatTime(displayTime)} / {formatTime(duration)}
             </span>
           </div>
 

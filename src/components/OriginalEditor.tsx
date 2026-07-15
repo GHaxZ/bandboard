@@ -29,7 +29,8 @@ import {
 } from "lucide-react";
 import { useMultiTrackPlayer } from "@/hooks/useMultiTrackPlayer";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
-import { TrackLanes, formatTime } from "./TrackLanes";
+import { formatTime } from "@/lib/utils";
+import { TrackLanes } from "./TrackLanes";
 import { UploadTrackDialog } from "./UploadTrackDialog";
 import { EmptyState } from "./EmptyState";
 import { updateOriginalMetadata } from "@/app/actions/songs";

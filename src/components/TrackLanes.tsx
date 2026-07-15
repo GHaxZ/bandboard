@@ -1,18 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 import { ROLE_COLORS, DAW_PX_PER_SEC_MIN, DAW_PX_PER_SEC_MAX } from "@/lib/constants";
 import { Volume2, VolumeX, Headphones } from "lucide-react";
 import { WaveformDisplay } from "./WaveformDisplay";
 import type { CustomTrack } from "@/types/models";
-
-export function formatTime(s: number): string {
-  if (!isFinite(s) || s < 0) s = 0;
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${String(sec).padStart(2, "0")}`;
-}
 
 const TICK_INTERVALS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
