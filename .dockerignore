@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env*
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+uploads
+data
+backups
+*.tsbuildinfo
+npm-debug.log*

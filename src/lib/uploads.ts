@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ALLOWED_UPLOAD_MIMES } from './constants';
 
-export const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+export const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads');
 
 export function ensureUploadDir(): void {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
