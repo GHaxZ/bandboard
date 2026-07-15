@@ -11,9 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { createRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { FormError } from "@/components/FormError";
+import { cn } from "@/lib/utils";
 
 interface AddRehearsalModalProps {
   isOpen: boolean;
@@ -30,6 +34,8 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isReady = title.trim().length > 0 && dateStr.length > 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !dateStr) return;
@@ -43,6 +49,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
 
       const res = await createRehearsal(title, timestamp, notes);
       if (res.success && res.rehearsalId) {
+        toast.success("Rehearsal created");
         setTitle("");
         setDateStr("");
         setHourStr("19");
@@ -90,7 +97,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
               placeholder="e.g. Rehearsal Prep - June 24"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
             />
           </div>
 
@@ -109,7 +116,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                 disabled={isLoading}
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
+                className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl w-full"
               />
             </div>
 
@@ -122,7 +129,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                   disabled={isLoading}
                   value={hourStr}
                   onChange={(e) => setHourStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 24 }).map((_, i) => {
                     const h = String(i).padStart(2, "0");
@@ -138,7 +145,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                   disabled={isLoading}
                   value={minuteStr}
                   onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-background border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 12 }).map((_, i) => {
                     const m = String(i * 5).padStart(2, "0");
@@ -160,22 +167,17 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             >
               Notes / Location (Optional)
             </Label>
-            <textarea
+            <Textarea
               id="rehearsalNotes"
               disabled={isLoading}
               rows={3}
               placeholder="e.g. Studio Room B. Focus on transitions."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-background border border-border text-foreground focus-visible:ring-ring rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder-[#555860]"
             />
           </div>
 
-          {error && (
-            <div className="text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 rounded-xl p-3 leading-relaxed">
-              {error}
-            </div>
-          )}
+          <FormError>{error}</FormError>
 
           <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
@@ -189,8 +191,13 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !dateStr}
-              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
+              disabled={isLoading || !isReady}
+              className={cn(
+                "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
+                isReady && !isLoading
+                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse motion-reduce:animate-none"
+                  : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+              )}
             >
               {isLoading ? (
                 <>

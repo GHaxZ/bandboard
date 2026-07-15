@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ingestSongData, createOriginalSong } from "@/app/actions/songs";
 import { Loader2, Music, Plus, Compass } from "lucide-react";
+import { toast } from "sonner";
+import { FormError } from "@/components/FormError";
+import { cn } from "@/lib/utils";
 import type { SongType } from "@/lib/constants";
 
 interface AddSongModalProps {
@@ -31,6 +34,8 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isReady = title.trim().length > 0 && artist.trim().length > 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !artist.trim()) return;
@@ -42,6 +47,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
       if (mode === "cover") {
         const res = await ingestSongData(title, artist);
         if (res.success) {
+          toast.success("Cover song added");
           setTitle("");
           setArtist("");
           onSuccess();
@@ -52,6 +58,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
       } else {
         const res = await createOriginalSong(title, artist);
         if (res.success && res.songId) {
+          toast.success("Original song created");
           setTitle("");
           setArtist("");
           onSuccess();
@@ -72,7 +79,6 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
   function handleOpenChange(open: boolean) {
     if (!open && !isLoading) {
       onClose();
-      // Reset back to cover mode when the modal closes.
       setMode("cover");
       setError(null);
     }
@@ -137,7 +143,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Plush"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
             />
           </div>
 
@@ -155,15 +161,11 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Stone Temple Pilots"
               value={artist}
               onChange={(e) => setArtist(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
             />
           </div>
 
-          {error && (
-            <div className="text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 rounded-xl p-3 leading-relaxed">
-              {error}
-            </div>
-          )}
+          <FormError>{error}</FormError>
 
           <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
@@ -177,8 +179,13 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !artist.trim()}
-              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
+              disabled={isLoading || !isReady}
+              className={cn(
+                "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
+                isReady && !isLoading
+                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse motion-reduce:animate-none"
+                  : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+              )}
             >
               {isLoading ? (
                 <>

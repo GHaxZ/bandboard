@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { updateRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Save } from "lucide-react";
+import { toast } from "sonner";
+import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
 
 interface EditRehearsalModalProps {
@@ -28,6 +31,19 @@ interface EditRehearsalModalProps {
   onSuccess: () => void;
 }
 
+function computeDateParts(ts: number) {
+  const d = new Date(ts);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const rawMins = d.getMinutes();
+  const roundedMins = Math.round(rawMins / 5) * 5;
+  const finalMins = roundedMins >= 60 ? 55 : roundedMins;
+  const minutes = String(finalMins).padStart(2, "0");
+  return { year, month, day, hours, minutes, dateStr: `${year}-${month}-${day}` };
+}
+
 export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: EditRehearsalModalProps) {
   const [title, setTitle] = useState(rehearsal.title);
   const [dateStr, setDateStr] = useState("");
@@ -37,40 +53,37 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-compute the "original" snapshot for dirty detection (runs once per open)
+  const original = useMemo(() => {
+    if (!isOpen || !rehearsal) return null;
+    return {
+      title: rehearsal.title,
+      notes: rehearsal.notes || "",
+      ...computeDateParts(rehearsal.date),
+    };
+  }, [isOpen, rehearsal]);
+
   useEffect(() => {
     if (isOpen && rehearsal) {
       setTitle(rehearsal.title);
       setNotes(rehearsal.notes || "");
-      const d = new Date(rehearsal.date);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      const rawMins = d.getMinutes();
-      const roundedMins = Math.round(rawMins / 5) * 5;
-      const finalMins = roundedMins >= 60 ? 55 : roundedMins;
-      const minutes = String(finalMins).padStart(2, "0");
-      setDateStr(`${year}-${month}-${day}`);
-      setHourStr(hours);
-      setMinuteStr(minutes);
+      const parts = computeDateParts(rehearsal.date);
+      setDateStr(parts.dateStr);
+      setHourStr(parts.hours);
+      setMinuteStr(parts.minutes);
     }
   }, [isOpen, rehearsal]);
 
-  const d = new Date(rehearsal?.date || 0);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
-  const rawMins = d.getMinutes();
-  const roundedMins = Math.round(rawMins / 5) * 5;
-  const finalMins = roundedMins >= 60 ? 55 : roundedMins;
-  const minutes = String(finalMins).padStart(2, "0");
-  const hasUnsavedChanges =
-    title !== rehearsal.title ||
-    notes !== (rehearsal.notes || "") ||
-    dateStr !== `${year}-${month}-${day}` ||
-    hourStr !== hours ||
-    minuteStr !== minutes;
+  const hasUnsavedChanges = useMemo(() => {
+    if (!original) return false;
+    return (
+      title !== original.title ||
+      notes !== original.notes ||
+      dateStr !== original.dateStr ||
+      hourStr !== original.hours ||
+      minuteStr !== original.minutes
+    );
+  }, [title, notes, dateStr, hourStr, minuteStr, original]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,6 +97,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
       const res = await updateRehearsal(rehearsal.id, title, timestamp, notes);
       if (res.success) {
+        toast.success("Rehearsal updated");
         onSuccess();
         onClose();
       } else {
@@ -125,7 +139,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               placeholder="e.g. Rehearsal Prep - June 24"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
             />
           </div>
 
@@ -144,7 +158,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                 disabled={isLoading}
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
+                className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl w-full"
               />
             </div>
 
@@ -157,7 +171,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                   disabled={isLoading}
                   value={hourStr}
                   onChange={(e) => setHourStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 24 }).map((_, i) => {
                     const h = String(i).padStart(2, "0");
@@ -173,7 +187,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
                   disabled={isLoading}
                   value={minuteStr}
                   onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
+                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
                 >
                   {Array.from({ length: 12 }).map((_, i) => {
                     const m = String(i * 5).padStart(2, "0");
@@ -195,22 +209,17 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             >
               Notes / Location (Optional)
             </Label>
-            <textarea
+            <Textarea
               id="editRehearsalNotes"
               disabled={isLoading}
               rows={3}
               placeholder="e.g. Studio Room B. Focus on transitions."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-background border border-border text-foreground focus-visible:ring-ring rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder-[#555860]"
             />
           </div>
 
-          {error && (
-            <div className="text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 rounded-xl p-3 leading-relaxed">
-              {error}
-            </div>
-          )}
+          <FormError>{error}</FormError>
 
           <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
@@ -228,7 +237,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
                 hasUnsavedChanges && !isLoading
-                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse motion-reduce:animate-none"
                   : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}
             >

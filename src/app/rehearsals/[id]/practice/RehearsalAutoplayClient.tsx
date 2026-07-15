@@ -18,7 +18,7 @@ export function RehearsalAutoplayClient({
   initialProgressMap,
 }: RehearsalAutoplayClientProps) {
   const router = useRouter();
-  const [rehearsalId] = useState(initialDetails.id);
+  const rehearsalId = initialDetails.id;
   return (
     <RehearsalAutoplay
       rehearsal={initialDetails}

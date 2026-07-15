@@ -96,7 +96,7 @@ export function SetlistManager({
         </h3>
         <div className="flex items-center gap-2">
           {rehearsalSongs.length > 0 && onStartAutoplay && (
-            <PracticeButton onClick={onStartAutoplay} size="h-9" />
+            <PracticeButton onClick={onStartAutoplay} className="h-9 px-4" />
           )}
           <Button
             onClick={() => {
@@ -273,6 +273,4 @@ export function SetlistManager({
   );
 }
 
-// Badge import kept for potential future use; suppress unused warning.
-void Badge;
-void cn;
+

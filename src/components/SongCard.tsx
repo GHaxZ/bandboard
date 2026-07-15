@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Play, Music } from "lucide-react";
+import { Play } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressBadge } from "@/components/ProgressBadge";
 import { SongTypeBadge } from "@/components/SongTypeBadge";
 import { TuningBadges } from "@/components/TuningBadges";
+import { CoverArt } from "@/components/CoverArt";
+import { Eyebrow } from "@/components/Eyebrow";
 import { cn } from "@/lib/utils";
 import type { Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
@@ -35,33 +37,15 @@ export function SongCard({
     ? new Set((song.customTracks ?? []).map((t) => t.role)).size
     : song.roleGroups?.length ?? 0;
   const roleCaption = `${roleCount} instrument role${roleCount === 1 ? "" : "s"}`;
-  const coverArtSrc = song.albumArt
-    ? song.albumArt
-    : song.coverArtStoredName
-      ? `/api/cover-art/${song.id}`
-      : null;
 
   return (
     <Link href={`/songs/${song.id}`} className="block h-full">
       <Card className="border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0 h-full flex flex-col justify-between">
         <CardHeader className="p-5 flex flex-row items-center gap-4">
-          {coverArtSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={coverArtSrc}
-              alt=""
-              className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-xl border border-border flex-shrink-0 flex items-center justify-center bg-muted/30">
-              <Music className="w-5 h-5 text-muted-foreground" />
-            </div>
-          )}
+          <CoverArt song={song} size="md" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
-                {trackCaption}
-              </span>
+              <Eyebrow>{trackCaption}</Eyebrow>
               <div className="flex items-center gap-1.5">
                 <SongTypeBadge songType={song.songType} />
                 <ProgressBadge status={progStatus} />
@@ -84,15 +68,12 @@ export function SongCard({
           </span>
           <Button
             size="sm"
+            variant="practice"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onPractice(song.id);
             }}
-            className={cn(
-              "bg-[#2e4057] hover:bg-[#344b67] border border-[#446285] text-[#acd1f8] hover:text-[#cde3fa]",
-              "font-bold text-xs rounded-xl flex items-center gap-1.5 h-8 px-3 shadow cursor-pointer transition-all"
-            )}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             Practice

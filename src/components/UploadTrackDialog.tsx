@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
+import { toast } from "sonner";
+import { FormError } from "@/components/FormError";
+import { cn } from "@/lib/utils";
 import {
   INSTRUMENT_ROLES,
   ROLE_LABEL,
@@ -79,6 +82,7 @@ export function UploadTrackDialog({
       setError("File too large (max 100MB).");
       return;
     }
+    toast.success("Track added to draft");
     onUploaded(file, role, label.trim() || file.name);
     onClose();
   }
@@ -123,7 +127,7 @@ export function UploadTrackDialog({
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as Role)}
-              className="w-full bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-xl p-2 text-sm focus:outline-none h-10"
+              className="w-full bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm focus:outline-none h-10"
             >
               {INSTRUMENT_ROLES.map((r) => (
                 <option key={r} value={r} className="bg-card">
@@ -141,15 +145,11 @@ export function UploadTrackDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Bass stem, Rhythm guitar..."
-              className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
             />
           </div>
 
-          {error && (
-            <div className="text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 rounded-xl p-3 leading-relaxed">
-              {error}
-            </div>
-          )}
+          <FormError>{error}</FormError>
 
           <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
             <Button
@@ -163,7 +163,12 @@ export function UploadTrackDialog({
             <Button
               type="submit"
               disabled={!file}
-              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
+              className={cn(
+                "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
+                file
+                  ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse motion-reduce:animate-none"
+                  : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+              )}
             >
               <Upload className="w-4 h-4" /> Add to Draft
             </Button>
