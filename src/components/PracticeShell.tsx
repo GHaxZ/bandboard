@@ -146,24 +146,24 @@ export function PracticeShell({
 
   return (
     <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            onClick={onExit}
-            className="text-muted-foreground hover:text-foreground rounded-xl border border-border bg-card/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Exit Practice Mode
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-foreground truncate sm:max-w-xs">
-              {song.title}
-            </h1>
-            <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
-          </div>
+      <header className="flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center md:flex-nowrap md:flex-row md:items-center border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
+        <Button
+          variant="ghost"
+          onClick={onExit}
+          className="order-1 self-start min-[400px]:self-auto text-muted-foreground hover:text-foreground rounded-xl border border-border bg-card/40 h-10 px-3 flex items-center gap-1.5 flex-shrink-0"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Exit Practice Mode
+        </Button>
+
+        <div className="order-3 min-[400px]:basis-full md:order-2 md:basis-auto md:mr-auto min-w-0">
+          <h1 className="text-sm font-bold text-foreground truncate sm:max-w-xs">
+            {song.title}
+          </h1>
+          <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
         </div>
-        <div className="flex items-center flex-shrink-0 self-end md:self-auto">
+
+        <div className="order-2 self-end min-[400px]:self-auto min-[400px]:ml-auto md:ml-0 md:order-3 flex items-center flex-shrink-0">
           <PrivateIndicator
             text="Settings synced only for you"
             tooltip="All settings, offsets, and markers in Practice Mode are private to your device."
