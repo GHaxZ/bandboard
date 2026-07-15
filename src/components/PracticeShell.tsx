@@ -146,7 +146,7 @@ export function PracticeShell({
 
   return (
     <div className="fixed inset-0 z-50 h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="flex items-center justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-border px-4 md:px-6 py-4 mb-6 bg-card/10 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
@@ -157,13 +157,13 @@ export function PracticeShell({
             Exit Practice Mode
           </Button>
           <div className="min-w-0">
-            <h1 className="text-sm font-bold text-foreground truncate max-w-[200px] sm:max-w-xs">
+            <h1 className="text-sm font-bold text-foreground truncate sm:max-w-xs">
               {song.title}
             </h1>
             <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
           </div>
         </div>
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center flex-shrink-0 self-end md:self-auto">
           <PrivateIndicator
             text="Settings synced only for you"
             tooltip="All settings, offsets, and markers in Practice Mode are private to your device."
@@ -313,7 +313,7 @@ export function PracticeShell({
                 </div>
 
                 {/* Col 2: markers */}
-                <div className="space-y-2.5 pt-3 md:pt-0 md:px-3">
+                <div className="space-y-2.5 pt-3 pb-3 md:pt-0 md:pb-0 md:px-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
@@ -510,17 +510,19 @@ export function PracticeShell({
                   }}
                   className="w-full"
                 >
-                  <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-full">
-                    {coverState.standardRoleGroups.map((rg) => (
-                      <TabsTrigger
-                        key={rg.id}
-                        value={rg.id}
-                        className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer flex-1 text-center"
-                      >
-                        {rg.role}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                  <div className="overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
+                    <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-max min-w-full">
+                      {coverState.standardRoleGroups.map((rg) => (
+                        <TabsTrigger
+                          key={rg.id}
+                          value={rg.id}
+                          className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer"
+                        >
+                          {rg.role}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
                 </Tabs>
               </CardContent>
             </Card>
@@ -540,17 +542,19 @@ export function PracticeShell({
                     onValueChange={(val) => onActiveRoleChange(val as Role)}
                     className="w-full"
                   >
-                    <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-full">
-                      {availableRoles.map((role) => (
-                        <TabsTrigger
-                          key={role}
-                          value={role}
-                          className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer flex-1 text-center"
-                        >
-                          {role === "Piano/Keyboard" ? "Keys" : role}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
+                    <div className="overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
+                      <TabsList className="bg-background border border-border p-1 rounded-xl h-auto flex w-max min-w-full">
+                        {availableRoles.map((role) => (
+                          <TabsTrigger
+                            key={role}
+                            value={role}
+                            className="px-3 py-2 text-xs font-bold rounded-xl data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground border border-transparent data-[state=active]:border-dialog-border hover:text-foreground transition-all cursor-pointer"
+                          >
+                            {role === "Piano/Keyboard" ? "Keys" : role}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </div>
                   </Tabs>
                   <p className="text-[10px] text-muted-foreground mt-2">
                     Tracks matching your instrument are muted. All others play.

@@ -143,18 +143,21 @@ export function SetlistManager({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <p
-                        className={`text-sm font-bold truncate ${
+                        className={`text-sm font-bold truncate min-w-0 ${
                           isSelected ? "text-foreground" : "text-[#d1d1d6]"
                         }`}
                       >
                         {rs.song.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate font-medium w-full sm:hidden">
+                        {rs.song.artist}
                       </p>
                       <ProgressBadge
                         status={progressMap?.[rs.songId]?.status || "not_started"}
                       />
                       <TuningBadges song={rs.song} highlightRole={preferredInstrument} size="xs" />
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
+                    <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium hidden sm:block">
                       {rs.song.artist}
                     </p>
                   </div>

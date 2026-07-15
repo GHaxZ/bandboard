@@ -69,13 +69,13 @@ export function KanbanBoard({
       <SearchInput placeholder="Search setlist songs..." value={searchQuery} onChange={setSearchQuery} />
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x scroll-smooth w-full flex-grow">
+        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 w-full flex-grow">
           {PROGRESS_STATUSES.map((column) => {
             const columnSongs = getSongsByStatus(column.id);
             return (
               <div
                 key={column.id}
-                className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] snap-start flex-1 shadow-md h-[calc(100dvh-280px)] min-h-[480px]"
+                className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] flex-1 shadow-md h-[calc(100dvh-280px)] min-h-[480px]"
               >
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60 flex-shrink-0">
                   <div className="flex items-center gap-2">

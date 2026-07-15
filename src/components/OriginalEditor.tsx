@@ -171,6 +171,17 @@ export function OriginalEditor({
     },
   });
 
+  const getStreamUrlForTrack = useCallback((id: string) => {
+    const file = pendingFilesRef.current.get(id);
+    if (file) {
+      if (!blobUrlsRef.current.has(id)) {
+        blobUrlsRef.current.set(id, URL.createObjectURL(file));
+      }
+      return blobUrlsRef.current.get(id)!;
+    }
+    return `/api/uploads/${id}`;
+  }, []);
+
   usePracticeKeyboard({
     onPlayPause: () => player.playPause(),
     onSeekBackward: () => player.seekBy(-SEEK_STEP_S),
@@ -780,7 +791,7 @@ export function OriginalEditor({
               onZoomChange={setPxPerSec}
               onTrackMetadata={handleTrackMetadata}
               registerRef={player.registerRef}
-              getStreamUrl={(id) => `/api/uploads/${id}`}
+              getStreamUrl={getStreamUrlForTrack}
             />
             <p className="text-[10px] text-muted-foreground">
               Drag clips left/right to align. Click or drag the ruler to seek. Ctrl+scroll to zoom. Changes are draft until Save All.

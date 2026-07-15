@@ -83,7 +83,12 @@ export function UploadTrackDialog({
       return;
     }
     toast.success("Track added to draft");
-    onUploaded(file, role, label.trim() || file.name);
+    try {
+      onUploaded(file, role, label.trim() || file.name);
+    } catch (err) {
+      console.error("UploadTrackDialog onUploaded failed:", err);
+      toast.error("Failed to add stem to draft: " + String(err));
+    }
     onClose();
   }
 

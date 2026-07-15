@@ -7,6 +7,7 @@ import { Volume2, VolumeX, Headphones } from "lucide-react";
 import { WaveformDisplay } from "./WaveformDisplay";
 import type { CustomTrack } from "@/types/models";
 
+const DRAG_THRESHOLD_PX = 5;
 const TICK_INTERVALS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
 function computeTickSec(pxPerSec: number): number {
@@ -60,6 +61,7 @@ export function TrackLanes({
     startOffsetAtDown: number;
     pointerXAtDown: number;
     currentOffset: number;
+    active: boolean;
   } | null>(null);
 
   const [rulerDragging, setRulerDragging] = useState(false);
@@ -129,11 +131,16 @@ export function TrackLanes({
       startOffsetAtDown: track.startOffset,
       pointerXAtDown: e.clientX,
       currentOffset: track.startOffset,
+      active: false,
     });
   }
 
   function handlePointerMove(e: React.PointerEvent) {
     if (!dragState) return;
+    if (!dragState.active) {
+      if (Math.abs(e.clientX - dragState.pointerXAtDown) < DRAG_THRESHOLD_PX) return;
+      setDragState((prev) => (prev ? { ...prev, active: true } : null));
+    }
     const deltaSec = (e.clientX - dragState.pointerXAtDown) / pxPerSec;
     const newOffset = Math.max(0, dragState.startOffsetAtDown + deltaSec);
     setDragState((prev) => (prev ? { ...prev, currentOffset: newOffset } : null));
@@ -141,7 +148,9 @@ export function TrackLanes({
 
   function handlePointerUp(e: React.PointerEvent) {
     if (dragState) {
-      onDragEnd?.(dragState.trackId, Math.round(dragState.currentOffset * 1000) / 1000);
+      if (dragState.active) {
+        onDragEnd?.(dragState.trackId, Math.round(dragState.currentOffset * 1000) / 1000);
+      }
       setDragState(null);
     }
     try {
@@ -274,12 +283,12 @@ export function TrackLanes({
               >
                 <div
                   className={cn(
-                    "absolute top-1 bottom-1 rounded-lg overflow-hidden border border-border/60",
+                    "absolute top-1 bottom-1 rounded-lg overflow-hidden border border-border/60 select-none",
                     interactive && "cursor-grab active:cursor-grabbing",
                     ROLE_COLORS[track.role],
                     isDimmed ? "opacity-40" : "opacity-80"
                   )}
-                  style={{ left: clipLeft, width: clipWidth }}
+                  style={{ left: clipLeft, width: clipWidth, touchAction: "none" }}
                   onPointerDown={interactive ? (e) => handlePointerDown(e, track) : undefined}
                   onPointerMove={interactive ? handlePointerMove : undefined}
                   onPointerUp={interactive ? handlePointerUp : undefined}
