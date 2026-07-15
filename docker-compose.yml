@@ -5,7 +5,7 @@ services:
     container_name: bandboard
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-3000}:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
@@ -19,7 +19,7 @@ services:
       - bandboard_db:/app/data
       - bandboard_uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:'+process.env.PORT+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
