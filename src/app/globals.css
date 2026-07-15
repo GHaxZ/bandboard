@@ -28,6 +28,16 @@
   --color-btn-bg: var(--btn-bg);
   --color-btn-hover: var(--btn-hover);
   --color-dialog-border: var(--dialog-border);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-text: var(--accent-text);
+  --color-accent-text-strong: var(--accent-text-strong);
+  --color-role-guitar: var(--role-guitar);
+  --color-role-bass: var(--role-bass);
+  --color-role-drums: var(--role-drums);
+  --color-role-vocals: var(--role-vocals);
+  --color-role-keys: var(--role-keys);
+  --color-role-other: var(--role-other);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -59,6 +69,16 @@
   --btn-bg: #24272c;
   --btn-hover: #2d3137;
   --dialog-border: #3b3e45;
+  --accent-soft: #e8f0fa;
+  --accent-strong: #c5d9f0;
+  --accent-text: #1a497a;
+  --accent-text-strong: #0d2d52;
+  --role-guitar: #5b80a5;
+  --role-bass: #4ea388;
+  --role-drums: #cf73b5;
+  --role-vocals: #cf9c73;
+  --role-keys: #73a2cf;
+  --role-other: #9ebbcf;
   --radius: 0.625rem;
 }
 
@@ -84,6 +104,16 @@
   --btn-bg: #24272c;
   --btn-hover: #2d3137;
   --dialog-border: #3b3e45;
+  --accent-soft: #2e4057;
+  --accent-strong: #344b67;
+  --accent-text: #acd1f8;
+  --accent-text-strong: #cde3fa;
+  --role-guitar: #5b80a5;
+  --role-bass: #4ea388;
+  --role-drums: #cf73b5;
+  --role-vocals: #cf9c73;
+  --role-keys: #73a2cf;
+  --role-other: #9ebbcf;
 }
 
 @layer base {
@@ -95,6 +125,13 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Native date inputs should use dark color scheme in dark mode */
+  input[type="date"] {
+    color-scheme: light;
+  }
+  .dark input[type="date"] {
+    color-scheme: dark;
   }
 }
 
@@ -119,4 +156,12 @@
 
 .animate-skip-alert {
   animation: skipAlert 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-ping,
+  .animate-skip-alert {
+    animation: none;
+  }
 }
