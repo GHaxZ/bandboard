@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
+import { cn, uuid } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Play,
@@ -870,7 +870,7 @@ export function OriginalEditor({
         isOpen={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onUploaded={(file, role, label) => {
-          const tempId = `pending-${crypto.randomUUID()}`;
+          const tempId = `pending-${uuid()}`;
           const now = Date.now();
           const draftTrack: CustomTrack = {
             id: tempId,
