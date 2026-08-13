@@ -109,7 +109,7 @@ export function RehearsalAutoplay({
       if (!sessionStarted) {
         startSession();
       } else {
-        setCurrentIndex(Math.min(currentIndex + 1, queue.length - 1));
+        skipCountdown(queue.length);
       }
       return;
     }
