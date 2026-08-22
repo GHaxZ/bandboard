@@ -171,6 +171,17 @@ export function OriginalEditor({
     return `/api/uploads/${id}`;
   }, []);
 
+  // Revoke any leftover pending-stem blob URLs on unmount (leaving via Back
+  // skips the Discard/Save cleanup paths). Consuming paths delete entries as
+  // they use them, so this only sees genuinely unreleased URLs.
+  useEffect(() => {
+    const urls = blobUrlsRef.current; // same Map instance for the component's lifetime
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
+
   usePracticeKeyboard({
     onPlayPause: () => player.playPause(),
     onSeekBackward: () => player.seekBy(-SEEK_STEP_S),
@@ -418,8 +429,11 @@ export function OriginalEditor({
         form.append("file", file);
         form.append("kind", "stem");
         const res = await fetch("/api/uploads", { method: "POST", body: form });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Stem upload failed (${res.status})`);
+        }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Stem upload failed");
         const realTrack = data.track as CustomTrack;
         // Replace pending ID with real track ID in drafts
         setStemDrafts((prev) =>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   Music as MusicIcon,
   FileText,
@@ -54,8 +55,14 @@ export function RehearsalDetailClient({
 
   async function handleDeleteRehearsal() {
     if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
-      const res = await deleteRehearsal(rehearsalId);
-      if (res.success) router.push("/rehearsals");
+      try {
+        const res = await deleteRehearsal(rehearsalId);
+        if (res.success) router.push("/rehearsals");
+        else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to delete rehearsal");
+      }
     }
   }
 

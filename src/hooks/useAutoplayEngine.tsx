@@ -96,9 +96,14 @@ export function useAutoplayEngine({
   // unknown DB durations, where `mt.duration` is 0 and a time-based check
   // would never fire.
   const multistemEndedRef = useRef(false);
+  // Key the latch reset on the track list, not the `media` object: changing
+  // instrumentPreference mid-transition produces a new `media` wrapper (same
+  // `tracks` reference) and previously reset the latch, letting the poll see
+  // isEnded() === true again and fire onEnded a second time.
+  const mediaTracks = media.kind === "multistem" ? media.tracks : null;
   useEffect(() => {
     multistemEndedRef.current = false;
-  }, [media]);
+  }, [mediaTracks]);
 
   useEffect(() => {
     if (media.kind !== "multistem" || !sessionStarted) return;

@@ -174,7 +174,11 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               type="button"
               variant="ghost"
               disabled={isLoading}
-              onClick={onClose}
+              onClick={() => {
+                onClose();
+                setMode("cover");
+                setError(null);
+              }}
               className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
             >
               Cancel

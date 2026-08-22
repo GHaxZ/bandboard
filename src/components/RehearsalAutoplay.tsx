@@ -149,7 +149,7 @@ export function RehearsalAutoplay({
       // treat as ended
       if (currentIndex >= queue.length - 1) {
         finish();
-      } else if (autoplayEnabled) {
+      } else if (usePlayerStore.getState().autoplayEnabled) {
         startCountdown();
       } else {
         setPlaying(false);
@@ -159,7 +159,10 @@ export function RehearsalAutoplay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStarted, finished, backingMedia.kind, skipReason, currentIndex, queue.length]);
 
-  // Detect no-video on song change once session started
+  // Detect no-video on song change once session started. skipReason is a dep:
+  // when the countdown advances to the next (also media-less) song it resets
+  // skipReason to null without changing backingMedia.kind — without this dep
+  // the re-trigger never fires and the session stalls on the overlay.
   useEffect(() => {
     if (!sessionStarted || finished) return;
     if (backingMedia.kind === "none" && skipReason !== "no_video") {
@@ -168,7 +171,7 @@ export function RehearsalAutoplay({
       clearSkipReason();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backingMedia.kind, sessionStarted]);
+  }, [backingMedia.kind, sessionStarted, skipReason]);
 
   // Multistem autostart: play when session starts or song changes (but don't force-play after a user pause)
   useEffect(() => {
@@ -232,13 +235,25 @@ export function RehearsalAutoplay({
 
   const handleAutoplayEnabledChange = async (val: boolean) => {
     setAutoplayEnabled(val);
-    await saveUserSettings({ autoplayEnabled: val });
-    toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
+    try {
+      const res = await saveUserSettings({ autoplayEnabled: val });
+      if (!res.success) throw new Error(res.error);
+      toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save autoplay setting");
+    }
   };
 
   const handleTimeoutChange = async (val: number) => {
     setTransitionTimeout(val);
-    await saveUserSettings({ autoplayTimeout: val, autoplayEnabled });
+    try {
+      const res = await saveUserSettings({ autoplayTimeout: val, autoplayEnabled });
+      if (!res.success) throw new Error(res.error);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save transition timer");
+    }
   };
 
   // Circular countdown

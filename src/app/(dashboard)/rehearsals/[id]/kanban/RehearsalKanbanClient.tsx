@@ -50,8 +50,14 @@ export function RehearsalKanbanClient({
 
   async function handleDeleteRehearsal() {
     if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
-      const res = await deleteRehearsal(rehearsalId);
-      if (res.success) router.push("/rehearsals");
+      try {
+        const res = await deleteRehearsal(rehearsalId);
+        if (res.success) router.push("/rehearsals");
+        else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to delete rehearsal");
+      }
     }
   }
 
@@ -91,11 +97,20 @@ export function RehearsalKanbanClient({
               ...prev,
               [songId]: { ...oldProgress, status: status as ProgressStatus },
             }));
-            const res = await saveSongProgress(songId, { status: status as ProgressStatus });
-            if (!res.success) {
-              toast.error("Failed to save progress: " + res.error);
-              // Explicit rollback (the refetch below would mask it only if it
-              // succeeds).
+            try {
+              const res = await saveSongProgress(songId, { status: status as ProgressStatus });
+              if (!res.success) {
+                toast.error("Failed to save progress: " + res.error);
+                // Explicit rollback (the refetch below would mask it only if it
+                // succeeds).
+                setProgressMap((prev) => ({ ...prev, [songId]: oldProgress }));
+              }
+            } catch (err) {
+              // Server-action RPC failure rejects rather than returning
+              // {success:false} — roll back here too or the optimistic state
+              // sticks and persistStatus's saving-lock never sees the error.
+              console.error(err);
+              toast.error("Failed to save progress");
               setProgressMap((prev) => ({ ...prev, [songId]: oldProgress }));
             }
             refreshData();

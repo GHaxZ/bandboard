@@ -212,12 +212,23 @@ export function SongDashboard({
 
   async function handleSaveVideoLink(url: string | null) {
     if (!videoSelectorState) return;
-    const { trackId, type, currentCustomTrackId } = videoSelectorState;
-    if (currentCustomTrackId) {
+    const { trackId, type } = videoSelectorState;
+    // Save the URL first; unlink the old custom file only on success so a
+    // rejected URL can't silently drop the bound file.
+    const res = await updateRoleGroupVideo(trackId, type, url);
+    if (!res.success) {
+      throw new Error(res.error || "Failed to save video link");
+    }
+    const rg = song.roleGroups.find((g) => g.id === trackId);
+    const boundId = rg
+      ? type === "backing"
+        ? rg.backingCustomTrackId
+        : rg.tabCustomTrackId
+      : null;
+    if (boundId) {
       await removeRoleGroupCustomArtifact(trackId, type);
     }
-    const res = await updateRoleGroupVideo(trackId, type, url);
-    if (res.success) onRefresh();
+    onRefresh();
   }
 
   async function handleSaveCustomArtifact(customTrackId: string | null) {

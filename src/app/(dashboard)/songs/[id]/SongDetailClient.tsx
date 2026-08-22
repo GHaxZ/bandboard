@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { SongDashboard } from "@/components/SongDashboard";
 import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
@@ -41,8 +42,14 @@ export function SongDetailClient({
         "Are you sure you want to delete this song and all its associated notation/media tracks?"
       )
     ) {
-      const res = await deleteSong(songId);
-      if (res.success) router.push("/library");
+      try {
+        const res = await deleteSong(songId);
+        if (res.success) router.push("/library");
+        else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to delete song");
+      }
     }
   }
 

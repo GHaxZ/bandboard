@@ -110,7 +110,7 @@ export function VideoSelector({
       await onSave(url);
       onClose();
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setIsSaving(false);
     }
@@ -123,7 +123,7 @@ export function VideoSelector({
       await onSave(url);
       onClose();
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setIsSaving(false);
     }
@@ -160,8 +160,11 @@ export function VideoSelector({
       form.append("file", file);
       form.append("kind", "artifact");
       const res = await fetch("/api/uploads", { method: "POST", body: form });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed (${res.status})`);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
       toast.success("Custom file uploaded!");
       setUploadedId(data.track.id);
       await onSaveCustom(data.track.id);
@@ -182,7 +185,7 @@ export function VideoSelector({
       await onSaveCustom(null);
       onClose();
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to remove");
     } finally {
       setIsSaving(false);
     }

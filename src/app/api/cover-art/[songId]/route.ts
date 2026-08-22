@@ -6,6 +6,7 @@ import { storedPath, mimeForExt } from '@/lib/uploads';
 import { statSync, createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { parseRange } from '@/lib/http-range';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export async function GET(
 ) {
   const { songId } = await params;
   try {
+    await requireAuth(); // Defense-in-depth behind the proxy gate (no-op when BAND_SECRET is unset)
     const song = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!song || !song.coverArtStoredName) {
       return NextResponse.json({ error: 'Not Found' }, { status: 404 });
@@ -69,6 +71,9 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Cover art GET failed:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

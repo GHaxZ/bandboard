@@ -40,13 +40,17 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
 
   async function handleInstrumentChange(val: Role) {
     if (savingInstrument) return;
+    const prev = instrument;
     setInstrument(val);
     setSavingInstrument(true);
     try {
-      await saveUserSettings({ preferredInstrument: val });
+      const res = await saveUserSettings({ preferredInstrument: val });
+      if (!res.success) throw new Error(res.error);
       toast.success(`Role updated to ${ROLE_LABEL[val]}`);
     } catch (err) {
       console.error(err);
+      setInstrument(prev);
+      toast.error("Failed to update role. Please try again.");
     } finally {
       setSavingInstrument(false);
     }
@@ -54,10 +58,14 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
 
   function handleCopyId() {
     if (typeof navigator !== "undefined" && userUuid) {
-      navigator.clipboard.writeText(userUuid);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-      toast.success("Device ID copied to clipboard!");
+      navigator.clipboard
+        .writeText(userUuid)
+        .then(() => {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+          toast.success("Device ID copied to clipboard!");
+        })
+        .catch(() => toast.error("Couldn't access the clipboard."));
     }
   }
 
@@ -83,18 +91,23 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
   }
 
   async function handleExportProfile() {
-    const result = await exportUserData();
-    if (result.success && result.data) {
-      const dataStr = JSON.stringify(result.data, null, 2);
-      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-      const fileName = `bandboard_profile_${userUuid.substring(0, 8)}.json`;
-      const link = document.createElement("a");
-      link.setAttribute("href", dataUri);
-      link.setAttribute("download", fileName);
-      link.click();
-      toast.success("Profile exported successfully!");
-    } else {
-      toast.error("Export failed: " + (result.error || "Unknown error"));
+    try {
+      const result = await exportUserData();
+      if (result.success && result.data) {
+        const dataStr = JSON.stringify(result.data, null, 2);
+        const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+        const fileName = `bandboard_profile_${userUuid.substring(0, 8)}.json`;
+        const link = document.createElement("a");
+        link.setAttribute("href", dataUri);
+        link.setAttribute("download", fileName);
+        link.click();
+        toast.success("Profile exported successfully!");
+      } else {
+        toast.error("Export failed: " + (result.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Export failed. Please try again.");
     }
   }
 
@@ -104,6 +117,7 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
     e.target.value = "";
     if (!file) return;
     const fileReader = new FileReader();
+    fileReader.onerror = () => toast.error("Failed to read file.");
     fileReader.readAsText(file, "UTF-8");
     fileReader.onload = async (event) => {
       try {
