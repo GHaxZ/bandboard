@@ -12,7 +12,7 @@ const FLAT_TO_SHARP: Record<string, string> = {
 
 /** Normalize a single note: capitalize, lowercase 'b' (flat), convert flats to
  *  sharps to match the auto-fetched Songsterr convention. Returns null if invalid. */
-export function normalizeNote(input: string): string | null {
+function normalizeNote(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   // Handle flat notation: "Eb" or "eb" or "EB" or "eB"

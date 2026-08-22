@@ -135,6 +135,14 @@ export function resolveOffsets(
   return progress.offsets['__legacy__'] ?? ZERO_OFFSETS;
 }
 
+/** IDs of every track with the given role — the "mute my instrument" set. */
+export function trackIdsWithRole(
+  tracks: CustomTrack[],
+  role: Role
+): Set<string> {
+  return new Set(tracks.filter((t) => t.role === role).map((t) => t.id));
+}
+
 export interface UserSettings {
   preferredInstrument: Role;
   autoplayEnabled: boolean;

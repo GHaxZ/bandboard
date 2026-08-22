@@ -159,7 +159,6 @@ function OriginalPractice({
     setActiveRole,
     availableRoles,
     stemTracks,
-    registerRef,
     mutedTrackIds,
     mediaSurface,
     hasMedia,
@@ -180,7 +179,6 @@ function OriginalPractice({
       onActiveRoleChange={setActiveRole}
       availableRoles={availableRoles}
       stemTracks={stemTracks}
-      registerRef={registerRef}
       mutedTrackIds={mutedTrackIds}
       hasMedia={hasMedia}
     />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Calendar as CalendarIcon, Music as MusicIcon, Plus, Clock } from "lucide-react";
@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AddRehearsalModal } from "@/components/AddRehearsalModal";
 import { ClientDate } from "@/components/ClientDate";
 import { EmptyState } from "@/components/EmptyState";
-import { getRehearsals } from "@/app/actions/rehearsals";
 import type { Rehearsal } from "@/types/models";
 
 interface RehearsalsDashboardProps {
@@ -18,16 +17,7 @@ interface RehearsalsDashboardProps {
 
 export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardProps) {
   const router = useRouter();
-  const [rehearsalsList, setRehearsalsList] = useState<Rehearsal[]>(initialRehearsals);
   const [isAddRehearsalOpen, setIsAddRehearsalOpen] = useState(false);
-  const [, startTransition] = useTransition();
-
-  async function refreshData() {
-    startTransition(async () => {
-      const updated = await getRehearsals();
-      setRehearsalsList(updated);
-    });
-  }
 
   return (
     <div className="space-y-4">
@@ -49,7 +39,7 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
         </Button>
       </div>
 
-      {rehearsalsList.length === 0 ? (
+      {initialRehearsals.length === 0 ? (
         <EmptyState
           icon={CalendarIcon}
           title="No Rehearsals Scheduled"
@@ -65,7 +55,7 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rehearsalsList.map((reh) => {
+          {initialRehearsals.map((reh) => {
             return (
               <Link key={reh.id} href={`/rehearsals/${reh.id}`} className="block">
                 <Card className="border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0 h-full flex flex-col justify-between">
@@ -103,7 +93,8 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
         isOpen={isAddRehearsalOpen}
         onClose={() => setIsAddRehearsalOpen(false)}
         onSuccess={(id) => {
-          refreshData();
+          // No refreshData() here — we navigate away immediately, so the
+          // refetch's result could never render.
           router.push(`/rehearsals/${id}`);
         }}
       />

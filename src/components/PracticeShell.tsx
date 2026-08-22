@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { usePracticeControls } from "@/hooks/usePracticeControls";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
-import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
+import { useIframeFocusGuard, blurActiveIframe } from "@/hooks/useIframeFocusGuard";
 import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
 import { SEEK_STEP_S } from "@/lib/constants";
@@ -61,7 +61,6 @@ interface PracticeShellProps {
   onActiveRoleChange?: (role: Role) => void;
   availableRoles?: Role[];
   stemTracks?: CustomTrack[];
-  registerRef?: (trackId: string) => (el: HTMLMediaElement | null) => void;
   mutedTrackIds?: Set<string>;
 }
 
@@ -171,12 +170,7 @@ export function PracticeShell({
         <div className="lg:col-span-8 flex flex-col space-y-4">
           <div
             className="relative aspect-video w-full rounded-2xl overflow-hidden border border-border bg-black shadow-2xl flex flex-col items-center justify-center"
-            onMouseLeave={() => {
-              if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-                (document.activeElement as HTMLElement).blur();
-                window.focus();
-              }
-            }}
+            onMouseLeave={blurActiveIframe}
           >
             {mediaSurface}
 

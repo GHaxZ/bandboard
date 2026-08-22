@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useYoutubeApi } from "./useYoutubeApi";
 import { usePlayerStore, type YTPlayer } from "@/stores/player-store";
 
@@ -70,18 +70,6 @@ export function useYouTubePlayer({
   const primingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setPlaying = usePlayerStore((s) => s.setPlaying);
-
-  const applySettings = useCallback(() => {
-    const p = playerRef.current;
-    if (!p) return;
-    const { volume, speed } = usePlayerStore.getState();
-    try {
-      p.setVolume(volume);
-      p.setPlaybackRate(speed);
-    } catch {
-      // ignore before ready
-    }
-  }, []);
 
   // Generation counter for guarding against stale YT player callbacks.
   // Stored in a ref (stable identity) so it doesn't need to be in the deps array.
@@ -205,25 +193,9 @@ export function useYouTubePlayer({
     };
 
     // The effect only re-runs when apiLoaded/videoId/containerId change, and
-    // its cleanup destroys the previous player first, so on entry the ref is
-    // usually null. Keep loadVideoById as a defensive fast path.
-    if (playerRef.current && typeof playerRef.current.loadVideoById === "function") {
-      try {
-        playerRef.current.loadVideoById({ videoId, startSeconds: startOffsetRef.current });
-        applySettings();
-      } catch {
-        // fall back to recreate
-        try {
-          playerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        playerRef.current = null;
-        makePlayer();
-      }
-    } else {
-      makePlayer();
-    }
+    // its cleanup below always destroys the previous player first, so on entry
+    // the ref is always null — a fresh player is created every time.
+    makePlayer();
 
     return () => {
       // Invalidate any pending callbacks from this player.
@@ -281,5 +253,5 @@ export function useYouTubePlayer({
     }
   }, [speed]);
 
-  return { playerRef, applySettings };
+  return { playerRef };
 }

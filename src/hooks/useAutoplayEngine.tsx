@@ -5,6 +5,7 @@ import { useYouTubePlayer } from "./useYouTubePlayer";
 import { useMultiTrackPlayer } from "./useMultiTrackPlayer";
 import { usePlayerStore } from "@/stores/player-store";
 import { StemMediaPool } from "@/components/StemMediaPool";
+import { trackIdsWithRole } from "@/types/models";
 import type { BackingMedia, CustomTrack } from "@/types/models";
 
 interface UseAutoplayEngineOpts {
@@ -38,9 +39,7 @@ export function useAutoplayEngine({
   // Unconditional: multi-stem player with empty tracks when not multistem
   const mutedTrackIds = useMemo(() => {
     if (media.kind !== "multistem") return new Set<string>();
-    return new Set(
-      media.tracks.filter((t) => t.role === media.mutedRole).map((t) => t.id)
-    );
+    return trackIdsWithRole(media.tracks, media.mutedRole);
   }, [media]);
   const mt = useMultiTrackPlayer({
     tracks: media.kind === "multistem" ? media.tracks : [],
@@ -101,6 +100,7 @@ export function useAutoplayEngine({
   // `tracks` reference) and previously reset the latch, letting the poll see
   // isEnded() === true again and fire onEnded a second time.
   const mediaTracks = media.kind === "multistem" ? media.tracks : null;
+  const mediaCustomTrackId = media.kind === "custom-file" ? media.customTrackId : null;
   useEffect(() => {
     multistemEndedRef.current = false;
   }, [mediaTracks]);
@@ -202,8 +202,14 @@ export function useAutoplayEngine({
         />
       );
     }
+    // `mt` is a fresh object every render; depend on its stable pieces instead
+    // so this memo actually memoizes.
+    // `mt` is a fresh object every render; depend on its stable pieces instead
+    // so this memo actually memoizes. mediaCustomTrackId/mediaTracks stand in
+    // for the union-only properties the lint rule can't see through.
     return null;
-  }, [media, customTrack, customRefCallback, mt, coverArtUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media.kind, mediaCustomTrackId, mediaTracks, customTrack, customRefCallback, mt.registerRef, coverArtUrl]);
 
   const seekTo = (target: number) => {
     if (media.kind === "youtube") {

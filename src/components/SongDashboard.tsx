@@ -18,6 +18,7 @@ import { YouTubePreview } from "./YouTubePreview";
 import { CustomMediaPreview } from "./CustomMediaPreview";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
+import { getCoverArtUrl } from "./CoverArt";
 import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
 import { getYouTubeId } from "@/lib/youtube";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
@@ -52,8 +53,6 @@ export function SongDashboard({
     trackId: string;
     type: "backing" | "tab";
     instrumentName: string;
-    currentUrl: string | null;
-    currentCustomTrackId: string | null;
   } | null>(null);
 
   const [isLazyLoading, setIsLazyLoading] = useState(false);
@@ -68,9 +67,7 @@ export function SongDashboard({
     };
   }, []);
 
-  const coverArtUrl = song.coverArtStoredName
-    ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-    : song.albumArt || null;
+  const coverArtUrl = getCoverArtUrl(song);
 
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
   const { progress: initialProgress, reload: reloadProgress } = useSongProgress(song.id);
@@ -569,11 +566,6 @@ export function SongDashboard({
                             trackId: roleGroup.id,
                             type: "backing",
                             instrumentName: roleGroup.role,
-                            currentUrl:
-                              roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
-                                ? null
-                                : roleGroup.backingTrackLink,
-                            currentCustomTrackId: roleGroup.backingCustomTrackId,
                           })
                         }
                         className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
@@ -610,11 +602,6 @@ export function SongDashboard({
                                 trackId: roleGroup.id,
                                 type: "backing",
                                 instrumentName: roleGroup.role,
-                                currentUrl:
-                                  roleGroup.backingTrackLink === NO_VIDEO_SENTINEL
-                                    ? null
-                                    : roleGroup.backingTrackLink,
-                                currentCustomTrackId: roleGroup.backingCustomTrackId,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
@@ -645,11 +632,6 @@ export function SongDashboard({
                             trackId: roleGroup.id,
                             type: "tab",
                             instrumentName: roleGroup.role,
-                            currentUrl:
-                              roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
-                                ? null
-                                : roleGroup.tabVideoLink,
-                            currentCustomTrackId: roleGroup.tabCustomTrackId,
                           })
                         }
                         className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
@@ -690,11 +672,6 @@ export function SongDashboard({
                                 trackId: roleGroup.id,
                                 type: "tab",
                                 instrumentName: roleGroup.role,
-                                currentUrl:
-                                  roleGroup.tabVideoLink === NO_VIDEO_SENTINEL
-                                    ? null
-                                    : roleGroup.tabVideoLink,
-                                currentCustomTrackId: roleGroup.tabCustomTrackId,
                               })
                             }
                             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"

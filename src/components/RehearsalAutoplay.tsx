@@ -30,7 +30,7 @@ import { getUserSettings, saveUserSettings } from "@/app/actions/user";
 import type { RehearsalDetails, ProgressMap } from "@/types/models";
 import { resolveBackingMedia } from "@/lib/backing-media";
 import { useAutoplayEngine } from "@/hooks/useAutoplayEngine";
-import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
+import { useIframeFocusGuard, blurActiveIframe } from "@/hooks/useIframeFocusGuard";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
@@ -302,12 +302,7 @@ export function RehearsalAutoplay({
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
             <div
               className="w-full aspect-video bg-black border border-border rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
-              onMouseLeave={() => {
-                if (document.activeElement && document.activeElement.tagName === "IFRAME") {
-                  (document.activeElement as HTMLElement).blur();
-                  window.focus();
-                }
-              }}
+              onMouseLeave={blurActiveIframe}
             >
               <div
                 id="autoplay-player-div"
@@ -724,9 +719,7 @@ export function RehearsalAutoplay({
                         {index + 1}.
                       </span>
                       {(() => {
-                        const art = rs.song.coverArtStoredName
-                          ? `/api/cover-art/${rs.song.id}?v=${rs.song.coverArtStoredName}`
-                          : rs.song.albumArt;
+                        const art = getCoverArtUrl(rs.song);
                         return art ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={art} alt="" className="w-8 h-8 rounded-lg object-cover border border-border flex-shrink-0" />

@@ -3,6 +3,24 @@
 import { useEffect, useRef } from "react";
 
 /**
+ * Blur a focused YouTube iframe and restore window focus. Shared by the blur
+ * listener below and the onMouseLeave handlers on the player surfaces — both
+ * exist so page-level keyboard shortcuts (usePracticeKeyboard) keep firing
+ * after the user interacts with an embed.
+ */
+export function blurActiveIframe() {
+  const active = document.activeElement;
+  if (active && active.tagName === "IFRAME") {
+    try {
+      (active as HTMLElement).blur();
+    } catch {
+      // ignore
+    }
+    window.focus();
+  }
+}
+
+/**
  * Restore window focus after the user clicks inside a YouTube iframe so the
  * page-level keyboard shortcuts (usePracticeKeyboard) keep firing. We blur the
  * iframe and re-focus the window on every blur; we do NOT dispatch a synthetic
@@ -18,17 +36,7 @@ export function useIframeFocusGuard() {
       // otherwise stack timers (harmless since the handler is idempotent,
       // but it leaks closures until they fire).
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        const active = document.activeElement;
-        if (active && active.tagName === "IFRAME") {
-          try {
-            (active as HTMLElement).blur();
-          } catch {
-            // ignore
-          }
-          window.focus();
-        }
-      }, 50);
+      timeoutRef.current = setTimeout(blurActiveIframe, 50);
     };
 
     window.addEventListener("blur", handleBlur);

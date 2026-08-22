@@ -33,6 +33,7 @@ import { formatTime } from "@/lib/utils";
 import { TrackLanes } from "./TrackLanes";
 import { UploadTrackDialog } from "./UploadTrackDialog";
 import { EmptyState } from "./EmptyState";
+import { getCoverArtUrl } from "./CoverArt";
 import { updateOriginalMetadata } from "@/app/actions/songs";
 import { updateCustomTrack, deleteCustomTrack } from "@/app/actions/customTracks";
 import { saveScratchpadNotes } from "@/app/actions/user";
@@ -234,11 +235,7 @@ export function OriginalEditor({
     ? coverArtBlobUrl
     : coverArtMarkedForRemoval
       ? null
-      : song.coverArtStoredName
-        ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-        : song.albumArt
-          ? song.albumArt
-          : null;
+      : getCoverArtUrl(song);
 
   // --- Handlers ---
   const handleDragEnd = useCallback((trackId: string, newStartOffset: number) => {

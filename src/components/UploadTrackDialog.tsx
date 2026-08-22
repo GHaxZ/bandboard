@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +42,6 @@ export function UploadTrackDialog({
   const [role, setRole] = useState<Role>(defaultRole);
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -112,7 +111,6 @@ export function UploadTrackDialog({
               File
             </Label>
             <input
-              ref={fileInputRef}
               type="file"
               accept="audio/*"
               onChange={handleFileChange}

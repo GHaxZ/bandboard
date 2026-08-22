@@ -7,6 +7,7 @@ import { StemMediaPool } from "@/components/StemMediaPool";
 import { cn } from "@/lib/utils";
 import { INSTRUMENT_ROLES } from "@/lib/constants";
 import type { PlaybackEngine } from "@/lib/media-controller";
+import { trackIdsWithRole } from "@/types/models";
 import type { CustomTrack } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
@@ -47,7 +48,7 @@ export function useMultiStemPracticeEngine({
   const reset = usePlayerStore((s) => s.reset);
 
   const mutedTrackIds = useMemo(
-    () => new Set(tracks.filter((t) => t.role === activeRole).map((t) => t.id)),
+    () => trackIdsWithRole(tracks, activeRole),
     [tracks, activeRole]
   );
 

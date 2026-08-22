@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { getSongTunings } from "@/lib/tunings";
 import { SearchInput } from "./SearchInput";
+import { getCoverArtUrl } from "./CoverArt";
 import { PROGRESS_STATUSES } from "@/lib/constants";
 import type { RehearsalSong, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
@@ -143,15 +144,9 @@ export function KanbanBoard({
                                 >
                                   <div className="flex items-center gap-3">
                                     {(() => {
-                                      // Prefer the user-uploaded cover over the
-                                      // fetched album art — matches getCoverArtUrl
-                                      // everywhere else (the Kanban previously had
-                                      // the priority reversed).
-                                      const coverSrc = song.coverArtStoredName
-                                        ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-                                        : song.albumArt
-                                          ? song.albumArt
-                                          : null;
+                                      // Single source of truth: user-uploaded
+                                      // cover wins over fetched album art.
+                                      const coverSrc = getCoverArtUrl(song);
                                       return coverSrc ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img

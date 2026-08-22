@@ -22,7 +22,7 @@ export interface SlotRoleGroup {
  * continue down the ladder. Previously hand-mirrored in `resolveBackingMedia`
  * and `getBackingVideoId` (youtube.ts), which had drifted apart.
  */
-export function resolveSlotLadder<T>(
+function resolveSlotLadder<T>(
   roleGroups: SlotRoleGroup[],
   preferredRole: string | undefined,
   resolve: (rg: SlotRoleGroup, type: 'backing' | 'tab') => T | null
