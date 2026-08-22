@@ -63,32 +63,57 @@ export function usePracticeControls(
   // Debounced persistence of volume / speed back to userSettings. Skip the
   // first run per setting: the hydration effect above sets hydratedRef in the
   // same commit, so without a skip the mount would schedule a redundant
-  // saveUserSettings 500ms after every practice mount.
+  // saveUserSettings 500ms after every practice mount. The pending value is
+  // flushed on unmount so a change made <500ms before exiting isn't dropped.
   const volumeSkipFirst = useRef(true);
+  const pendingVolumeRef = useRef<number | null>(null);
   useEffect(() => {
     if (volumeSkipFirst.current) {
       volumeSkipFirst.current = false;
       return;
     }
     if (!hydratedRef.current) return;
+    pendingVolumeRef.current = volume;
     const t = setTimeout(() => {
+      pendingVolumeRef.current = null;
       saveUserSettings({ volume }).catch((e) => console.error("saveUserSettings(volume) failed:", e));
     }, 500);
     return () => clearTimeout(t);
   }, [volume]);
+  useEffect(() => {
+    return () => {
+      if (pendingVolumeRef.current !== null) {
+        saveUserSettings({ volume: pendingVolumeRef.current }).catch((e) =>
+          console.error("saveUserSettings(volume) flush failed:", e)
+        );
+      }
+    };
+  }, []);
 
   const speedSkipFirst = useRef(true);
+  const pendingSpeedRef = useRef<number | null>(null);
   useEffect(() => {
     if (speedSkipFirst.current) {
       speedSkipFirst.current = false;
       return;
     }
     if (!hydratedRef.current) return;
+    pendingSpeedRef.current = speed;
     const t = setTimeout(() => {
+      pendingSpeedRef.current = null;
       saveUserSettings({ playbackSpeed: speed }).catch((e) => console.error("saveUserSettings(speed) failed:", e));
     }, 500);
     return () => clearTimeout(t);
   }, [speed]);
+  useEffect(() => {
+    return () => {
+      if (pendingSpeedRef.current !== null) {
+        saveUserSettings({ playbackSpeed: pendingSpeedRef.current }).catch((e) =>
+          console.error("saveUserSettings(speed) flush failed:", e)
+        );
+      }
+    };
+  }, []);
 
   const handleSaveMarker = useCallback(
     async (newTime: number) => {
@@ -101,9 +126,11 @@ export function usePracticeControls(
       const updated = Array.from(new Set([...markers, newTime])).sort(
         (a, b) => a - b
       );
-      setMarkers(updated);
       try {
         await savePracticeMarkers(songId, updated);
+        // Only reflect in the store after the save succeeded — a failed save
+        // must not leave a phantom marker that vanishes on next hydration.
+        setMarkers(updated);
         toast.success("Marker saved successfully!");
         onRefresh();
       } catch (err) {
@@ -124,9 +151,11 @@ export function usePracticeControls(
   const handleDeleteMarker = useCallback(
     async (indexToDelete: number) => {
       const updated = markers.filter((_, idx) => idx !== indexToDelete);
-      setMarkers(updated);
       try {
         await savePracticeMarkers(songId, updated);
+        // Apply only after the save succeeded — otherwise a failed delete
+        // would drop the marker from the UI while the DB still has it.
+        setMarkers(updated);
         onRefresh();
       } catch (err) {
         console.error(err);

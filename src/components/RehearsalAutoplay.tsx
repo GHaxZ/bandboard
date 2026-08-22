@@ -95,6 +95,10 @@ export function RehearsalAutoplay({
       .then((s) => {
         setAutoplayEnabled(s.autoplayEnabled);
         setTransitionTimeout(s.autoplayTimeout);
+        // Hydrate saved volume/speed like song practice does — otherwise a
+        // fresh load silently plays at store defaults until a slider is touched.
+        setVolume(s.volume);
+        setSpeed(s.playbackSpeed);
       })
       .catch(() => {})
       .finally(() => {
