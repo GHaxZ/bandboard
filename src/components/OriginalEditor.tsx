@@ -15,11 +15,8 @@ import {
   Square,
   Plus,
   Trash2,
-  Volume2,
-  VolumeX,
   ArrowLeft,
   Music,
-  Gauge,
   ZoomIn,
   Save,
   RotateCcw,
@@ -34,6 +31,7 @@ import { TrackLanes } from "./TrackLanes";
 import { UploadTrackDialog } from "./UploadTrackDialog";
 import { EmptyState } from "./EmptyState";
 import { getCoverArtUrl } from "./CoverArt";
+import { VolumeSpeedControls } from "./VolumeSpeedControls";
 import { updateOriginalMetadata } from "@/app/actions/songs";
 import { updateCustomTrack, deleteCustomTrack } from "@/app/actions/customTracks";
 import { saveScratchpadNotes } from "@/app/actions/user";
@@ -834,48 +832,13 @@ export function OriginalEditor({
 
             {/* Sliders */}
             <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-border">
-              <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl flex-1 min-w-[160px]">
-                <button
-                  onClick={() => setVolume(volume === 0 ? 100 : 0)}
-                  className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
-                >
-                  {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                </button>
-                <div className="flex flex-col flex-1">
-                  <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
-                    <span>Volume</span>
-                    <span className="text-[#acd1f8] font-mono">{volume}%</span>
-                  </div>
-                  <Slider
-                    value={[volume]}
-                    onValueChange={(val) => setVolume(Array.isArray(val) ? val[0] : val)}
-                    min={0}
-                    max={100}
-                    step={1}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl flex-1 min-w-[160px]">
-                <span className="text-[#acd1f8] flex items-center">
-                  <Gauge className="w-3.5 h-3.5" />
-                </span>
-                <div className="flex flex-col flex-1">
-                  <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
-                    <span>Speed</span>
-                    <span className="text-[#acd1f8] font-mono">{speed.toFixed(2)}x</span>
-                  </div>
-                  <Slider
-                    value={[speed]}
-                    onValueChange={(val) => setSpeed(Array.isArray(val) ? val[0] : val)}
-                    min={0.5}
-                    max={2.0}
-                    step={0.05}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+              <VolumeSpeedControls
+                volume={volume}
+                onVolumeChange={setVolume}
+                speed={speed}
+                onSpeedChange={setSpeed}
+                blockClassName="flex-1 min-w-[160px]"
+              />
 
               <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl flex-1 min-w-[160px]">
                 <span className="text-[#acd1f8] flex items-center">

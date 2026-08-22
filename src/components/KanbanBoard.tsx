@@ -4,10 +4,9 @@ import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { ChevronLeft, ChevronRight, Music, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { getSongTunings } from "@/lib/tunings";
 import { SearchInput } from "./SearchInput";
 import { getCoverArtUrl } from "./CoverArt";
+import { TuningBadges } from "./TuningBadges";
 import { PROGRESS_STATUSES } from "@/lib/constants";
 import type { RehearsalSong, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
@@ -170,32 +169,12 @@ export function KanbanBoard({
                                     </div>
                                   </div>
 
-                                  {(() => {
-                                    const tunings = getSongTunings(song);
-                                    if (tunings.length === 0) return null;
-                                    return (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {tunings.map((ind) => {
-                                          const isHighlighted =
-                                            ind.role.toLowerCase() ===
-                                            preferredInstrument.toLowerCase();
-                                          return (
-                                            <Badge
-                                              key={`${ind.role}-${ind.tuning}`}
-                                              className={cn(
-                                                "text-[8px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0",
-                                                isHighlighted
-                                                  ? "bg-[#2e4057]/45 border-[#446285]/55 text-[#acd1f8]"
-                                                  : "bg-card/40 border-border text-[#6c727a]"
-                                              )}
-                                            >
-                                              {ind.tuning}
-                                            </Badge>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  })()}
+                                  <TuningBadges
+                                    song={song}
+                                    highlightRole={preferredInstrument}
+                                    variant="solid"
+                                    className="mt-1 text-[8px]"
+                                  />
 
                                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60 flex-shrink-0">
                                     {leftStatus ? (

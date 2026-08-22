@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, getAlternativeLinks } from "@/lib/utils";
-import { Slider } from "@/components/ui/slider";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { CustomPlaybackHUD } from "./CustomPlaybackHUD";
@@ -14,9 +13,7 @@ import {
   Music,
   ArrowLeft,
   Sliders,
-  Volume2,
   VolumeX,
-  Gauge,
   Save,
   Trash2,
   Settings,
@@ -31,6 +28,7 @@ import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { useIframeFocusGuard, blurActiveIframe } from "@/hooks/useIframeFocusGuard";
 import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
+import { VolumeSpeedControls } from "./VolumeSpeedControls";
 import { SEEK_STEP_S } from "@/lib/constants";
 import type { PlaybackEngine } from "@/lib/media-controller";
 import type { Song, ProgressMap, CustomTrack } from "@/types/models";
@@ -251,54 +249,12 @@ export function PracticeShell({
                     </p>
                   ) : null}
 
-                  {/* Volume */}
-                  <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl">
-                    <button
-                      onClick={() => setVolume(volume === 0 ? 100 : 0)}
-                      className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
-                    >
-                      {volume === 0 ? (
-                        <VolumeX className="w-3.5 h-3.5" />
-                      ) : (
-                        <Volume2 className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <div className="flex flex-col flex-1">
-                      <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
-                        <span>Volume</span>
-                        <span className="text-[#acd1f8] font-mono">{volume}%</span>
-                      </div>
-                      <Slider
-                        value={[volume]}
-                        onValueChange={(val) => setVolume(Array.isArray(val) ? val[0] : val)}
-                        min={0}
-                        max={100}
-                        step={1}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Speed */}
-                  <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl">
-                    <span className="text-[#acd1f8] flex items-center">
-                      <Gauge className="w-3.5 h-3.5" />
-                    </span>
-                    <div className="flex flex-col flex-1">
-                      <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
-                        <span>Speed</span>
-                        <span className="text-[#acd1f8] font-mono">{speed.toFixed(2)}x</span>
-                      </div>
-                      <Slider
-                        value={[speed]}
-                        onValueChange={(val) => setSpeed(Array.isArray(val) ? val[0] : val)}
-                        min={0.5}
-                        max={2.0}
-                        step={0.05}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
+                  <VolumeSpeedControls
+                    volume={volume}
+                    onVolumeChange={setVolume}
+                    speed={speed}
+                    onSpeedChange={setSpeed}
+                  />
                 </div>
 
                 {/* Col 2: markers */}

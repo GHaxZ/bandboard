@@ -275,6 +275,9 @@ export function useMultiTrackPlayer({
     }
   }, [isPlaying, play, pause]);
 
+  // ponytail: not using useMediaStoreSync here — the volume push-down is
+  // audible-track-filtered and the speed change must also recompute clockStart
+  // so the rAF clock stays aligned with the elements.
   useEffect(() => {
     for (const track of tracksRef.current) {
       const el = mediaRefs.current.get(track.id);

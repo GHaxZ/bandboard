@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "@/stores/player-store";
 import { YT_SYNC_DRIFT_MS, YT_SYNC_INTERVAL_MS, SEEK_DEBOUNCE_MS } from "@/lib/constants";
-import type { MediaController } from "@/lib/media-controller";
+import { togglePlayPause, type MediaController } from "@/lib/media-controller";
 
 interface UseDualSyncedEngineOpts {
   backing: MediaController | null;
@@ -187,6 +187,18 @@ export function useDualSyncedEngine({
     setActiveVideo(next);
   };
 
+  // Mirror a seek on the active controller over to the inactive one, keeping
+  // the two slots aligned through their (possibly different) offsets.
+  const mirrorToInactive = (target: number, active: MediaController, inactive: MediaController) => {
+    const { backing: bOff, tab: tOff } = offsetsRef.current;
+    const activeOffset =
+      usePlayerStore.getState().activeVideo === "backing" ? bOff : tOff;
+    const inactiveOffset =
+      usePlayerStore.getState().activeVideo === "backing" ? tOff : bOff;
+    const expected = target - activeOffset + inactiveOffset;
+    if (expected >= 0) inactive.seekTo(expected, true);
+  };
+
   const seekBy = (deltaSeconds: number) => {
     const active = getActive();
     const inactive = getInactive();
@@ -198,15 +210,7 @@ export function useDualSyncedEngine({
       if (duration && target > duration) target = duration;
       registerSeek(target);
       active.seekTo(target, true);
-      if (inactive) {
-        const { backing: bOff, tab: tOff } = offsetsRef.current;
-        const activeOffset =
-          usePlayerStore.getState().activeVideo === "backing" ? bOff : tOff;
-        const inactiveOffset =
-          usePlayerStore.getState().activeVideo === "backing" ? tOff : bOff;
-        const expected = target - activeOffset + inactiveOffset;
-        if (expected >= 0) inactive.seekTo(expected, true);
-      }
+      if (inactive) mirrorToInactive(target, active, inactive);
     } catch {
       // ignore
     }
@@ -219,15 +223,7 @@ export function useDualSyncedEngine({
     try {
       registerSeek(time);
       active.seekTo(time, true);
-      if (inactive) {
-        const { backing: bOff, tab: tOff } = offsetsRef.current;
-        const activeOffset =
-          usePlayerStore.getState().activeVideo === "backing" ? bOff : tOff;
-        const inactiveOffset =
-          usePlayerStore.getState().activeVideo === "backing" ? tOff : bOff;
-        const expected = time - activeOffset + inactiveOffset;
-        if (expected >= 0) inactive.seekTo(expected, true);
-      }
+      if (inactive) mirrorToInactive(time, active, inactive);
     } catch {
       // ignore
     }
@@ -237,12 +233,7 @@ export function useDualSyncedEngine({
     const active = getActive();
     if (!active) return;
     try {
-      const state = active.getState();
-      // 1 = playing, 3 = buffering — both mean "currently advancing,
-      // should pause". Treating BUFFERING as playing lets the user
-      // cancel a stuck YouTube buffer by clicking pause.
-      if (state === 1 || state === 3) active.pause();
-      else active.play();
+      togglePlayPause(active);
     } catch {
       // ignore
     }

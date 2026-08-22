@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export type SkipOverlay = { type: "back" | "forward"; key: number } | null;
 
@@ -22,6 +22,13 @@ export function useSkipOverlay(durationMs = 600) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = null;
   }, []);
+
+  // The hook owns its timer lifecycle — consumers no longer have to remember
+  // clearSkipOverlayTimer() in their own unmount cleanup (kept exported for
+  // explicit early clears).
+  useEffect(() => {
+    return clearSkipOverlayTimer;
+  }, [clearSkipOverlayTimer]);
 
   return { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer };
 }

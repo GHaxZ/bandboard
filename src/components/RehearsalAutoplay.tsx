@@ -18,10 +18,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
-import { getSongTunings } from "@/lib/tunings";
+import { TuningBadges } from "./TuningBadges";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { CustomPlaybackHUD } from "./CustomPlaybackHUD";
 import { ClientDate } from "./ClientDate";
@@ -483,27 +482,14 @@ export function RehearsalAutoplay({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  {(() => {
-                    const tunings = getSongTunings(currentSong);
-                    if (tunings.length === 0) return null;
-                    return (
-                      <div className="flex flex-wrap gap-1">
-                        {tunings.map((ind) => (
-                          <Badge
-                            key={`${ind.role}-${ind.tuning}`}
-                            className={cn(
-                              "text-[8px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0",
-                              ind.role.toLowerCase() === instrumentPreference.toLowerCase()
-                                ? "bg-[#2e4057]/45 border-[#446285]/55 text-[#acd1f8]"
-                                : "bg-card/40 border-border text-[#6c727a]"
-                            )}
-                          >
-                            {ind.tuning}
-                          </Badge>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                  {currentSong && (
+                    <TuningBadges
+                      song={currentSong}
+                      highlightRole={instrumentPreference}
+                      variant="solid"
+                      className="text-[8px]"
+                    />
+                  )}
 
                   <div className="flex items-center gap-1.5 border-l border-border pl-3.5">
                     <Button
@@ -755,31 +741,12 @@ export function RehearsalAutoplay({
                     </div>
                   </div>
 
-                  {(() => {
-                    const tunings = getSongTunings(rs.song);
-                    if (tunings.length === 0) return null;
-                    return (
-                      <div className="flex flex-wrap gap-1.5 pl-8 mt-0.5">
-                        {tunings.map((ind) => {
-                          const isMatch =
-                            ind.role.toLowerCase() === instrumentPreference.toLowerCase();
-                          return (
-                            <Badge
-                              key={`${ind.role}-${ind.tuning}`}
-                              className={cn(
-                                "text-[7.5px] font-mono tracking-wide px-1.5 py-0.5 border shrink-0 bg-transparent leading-none",
-                                isMatch
-                                  ? "border-[#446285] text-[#acd1f8] font-bold"
-                                  : "border-border text-[#6c727a]"
-                              )}
-                            >
-                              {ind.tuning}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                  <TuningBadges
+                    song={rs.song}
+                    highlightRole={instrumentPreference}
+                    size="xs"
+                    className="gap-1.5 pl-8 mt-0.5"
+                  />
                 </div>
               );
             })}

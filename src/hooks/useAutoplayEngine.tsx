@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useYouTubePlayer } from "./useYouTubePlayer";
 import { useMultiTrackPlayer } from "./useMultiTrackPlayer";
+import { useMediaStoreSync } from "./useMediaStoreSync";
 import { usePlayerStore } from "@/stores/player-store";
 import { StemMediaPool } from "@/components/StemMediaPool";
+import { togglePlayPause } from "@/lib/media-controller";
 import { trackIdsWithRole } from "@/types/models";
 import type { BackingMedia, CustomTrack } from "@/types/models";
 
@@ -53,12 +55,15 @@ export function useAutoplayEngine({
     onEndedRef.current = onEnded;
   }, [onEnded]);
 
-  // Custom-file element management
+  // Custom-file element management. `customEl` is a state mirror of the ref so
+  // the volume/speed sync re-applies when React swaps the element instance.
   const customMediaRef = useRef<HTMLMediaElement | null>(null);
+  const [customEl, setCustomEl] = useState<HTMLMediaElement | null>(null);
 
   const customRefCallback = useCallback(
     (el: HTMLMediaElement | null) => {
       customMediaRef.current = el;
+      setCustomEl(el);
       if (el) {
         el.onended = () => onEndedRef.current?.();
         el.onplaying = () => setPlaying(true);
@@ -70,16 +75,7 @@ export function useAutoplayEngine({
 
   // Custom-file media must also honour the store's volume/speed (previously
   // the sidebar sliders did nothing for uploaded files in rehearsal autoplay).
-  const volume = usePlayerStore((s) => s.volume);
-  const speed = usePlayerStore((s) => s.speed);
-  useEffect(() => {
-    const el = customMediaRef.current;
-    if (el) el.volume = Math.max(0, Math.min(1, volume / 100));
-  }, [volume]);
-  useEffect(() => {
-    const el = customMediaRef.current;
-    if (el) el.playbackRate = speed;
-  }, [speed]);
+  useMediaStoreSync(() => [customEl], [customEl]);
 
   // Auto-play custom-file when session starts
   useEffect(() => {
@@ -122,11 +118,11 @@ export function useAutoplayEngine({
       const p = yt.playerRef?.current;
       if (!p) return;
       try {
-        const state = p.getPlayerState();
-        // Buffering (3) still counts as "playing" — pausing during a stuck
-        // buffer should stop, not restart.
-        if (state === 1 || state === 3) p.pauseVideo();
-        else p.playVideo();
+        togglePlayPause({
+          getState: () => p.getPlayerState(),
+          play: () => p.playVideo(),
+          pause: () => p.pauseVideo(),
+        });
       } catch {
         // ignore
       }

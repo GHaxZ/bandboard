@@ -2,6 +2,7 @@
 
 import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { useYouTubePlayer } from "./useYouTubePlayer";
+import { useMediaStoreSync } from "./useMediaStoreSync";
 import { usePlayerStore } from "@/stores/player-store";
 import type { MediaController } from "@/lib/media-controller";
 
@@ -69,25 +70,12 @@ export function useSlotMediaController(
   }, [opts.isActive]);
 
   const setPlaying = usePlayerStore((s) => s.setPlaying);
-  const volume = usePlayerStore((s) => s.volume);
-  const speed = usePlayerStore((s) => s.speed);
 
   // Apply volume/speed from the store to the HTML media element whenever they
   // change (mirrors useYouTubePlayer's YT push-down behaviour). `mediaEl` is a
-  // dep so these re-apply when the element instance is replaced; the DOM
-  // mutation goes through the ref to keep the react-hooks lint rule happy.
-  useEffect(() => {
-    const el = mediaElRef.current;
-    if (el) {
-      el.volume = Math.max(0, Math.min(1, volume / 100));
-    }
-  }, [volume, mediaEl]);
-  useEffect(() => {
-    const el = mediaElRef.current;
-    if (el) {
-      el.playbackRate = speed;
-    }
-  }, [speed, mediaEl]);
+  // state mirror so these re-apply when the element instance is replaced; the
+  // DOM mutation goes through the ref to keep the react-hooks lint rule happy.
+  useMediaStoreSync(() => [mediaElRef.current], [mediaEl]);
 
   // Set start offset once the custom media element mounts.
   useEffect(() => {

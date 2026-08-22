@@ -29,3 +29,19 @@ export interface PlaybackEngine {
   readonly duration: number;
   readonly isPlaying: boolean;
 }
+
+/**
+ * Shared play/pause decision for YouTube-state players: states 1 (playing)
+ * and 3 (buffering) both mean "currently advancing" and should pause —
+ * treating buffering as playing lets the user cancel a stuck YouTube buffer
+ * by clicking pause.
+ */
+export function togglePlayPause(p: {
+  getState(): number;
+  play(): void;
+  pause(): void;
+}): void {
+  const state = p.getState();
+  if (state === 1 || state === 3) p.pause();
+  else p.play();
+}
