@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/db";
-import { customTracks } from "@/db/schema";
+import { customTracks, roleGroups } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { deleteStoredFile } from "@/lib/uploads";
 import { requireAuth, AuthError } from "@/lib/auth";
 import type { CustomTrack } from "@/types/models";
-import type { Role } from "@/lib/constants";
+import { INSTRUMENT_ROLES, type Role } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -37,11 +37,26 @@ export async function updateCustomTrack(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    if (
+      patch.role !== undefined &&
+      !(INSTRUMENT_ROLES as readonly string[]).includes(patch.role)
+    ) {
+      return { success: false, error: "Invalid role." };
+    }
+    if (patch.label !== undefined && !patch.label.trim()) {
+      return { success: false, error: "Label is required." };
+    }
+    if (
+      (patch.startOffset !== undefined && !Number.isFinite(patch.startOffset)) ||
+      (patch.duration !== undefined && !Number.isFinite(patch.duration))
+    ) {
+      return { success: false, error: "Invalid numeric value." };
+    }
     await db
       .update(customTracks)
       .set({
         ...(patch.role !== undefined && { role: patch.role }),
-        ...(patch.label !== undefined && { label: patch.label }),
+        ...(patch.label !== undefined && { label: patch.label.trim() }),
         ...(patch.startOffset !== undefined && { startOffset: patch.startOffset }),
         ...(patch.duration !== undefined && { duration: patch.duration }),
       })
@@ -70,8 +85,20 @@ export async function deleteCustomTrack(
 
     if (rows.length === 0) return { success: true };
 
-    // Delete the DB row first, then the file — so a row-delete failure doesn't orphan a file reference
-    await db.delete(customTracks).where(eq(customTracks.id, trackId));
+    db.transaction((tx) => {
+      // Clear any role-group slot references before deleting the row. With the
+      // ON DELETE SET NULL FK (migration 0005) this is redundant, but it keeps
+      // deletes working on DBs that never ran the migration.
+      tx.update(roleGroups)
+        .set({ backingCustomTrackId: null })
+        .where(eq(roleGroups.backingCustomTrackId, trackId))
+        .run();
+      tx.update(roleGroups)
+        .set({ tabCustomTrackId: null })
+        .where(eq(roleGroups.tabCustomTrackId, trackId))
+        .run();
+      tx.delete(customTracks).where(eq(customTracks.id, trackId)).run();
+    });
     deleteStoredFile(rows[0].storedName);
     return { success: true };
   } catch (error) {

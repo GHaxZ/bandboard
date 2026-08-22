@@ -40,7 +40,6 @@ export function CustomPlaybackHUD({
   const dragTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
   // ponytail: cooldown filters the synthetic mouseenter the browser fires when
   // the overlay's pointer-events toggles under a stationary cursor. Without it,
   // the HUD hides → overlay gains pointer-events:auto → synthetic mouseenter →
@@ -163,7 +162,6 @@ export function CustomPlaybackHUD({
 
   return (
     <div
-      ref={rootRef}
       className={cn(
         "absolute inset-0 z-20 flex flex-col justify-end",
         youTubeMode && "pointer-events-none"

@@ -14,6 +14,10 @@ export function useIframeFocusGuard() {
 
   useEffect(() => {
     const handleBlur = () => {
+      // Clear any pending timeout first — rapid successive blurs would
+      // otherwise stack timers (harmless since the handler is idempotent,
+      // but it leaks closures until they fire).
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         const active = document.activeElement;
         if (active && active.tagName === "IFRAME") {

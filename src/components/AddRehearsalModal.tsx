@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RehearsalDateTimeFields, toTimestamp } from "./RehearsalDateTimeFields";
 import { createRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -44,7 +45,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
     setError(null);
 
     try {
-      const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
+      const timestamp = toTimestamp(dateStr, hourStr, minuteStr);
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
 
       const res = await createRehearsal(title, timestamp, notes);
@@ -101,64 +102,15 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="rehearsalDate"
-                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-              >
-                Select Date
-              </Label>
-              <Input
-                id="rehearsalDate"
-                type="date"
-                required
-                disabled={isLoading}
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl w-full"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                Select Time
-              </Label>
-              <div className="flex items-center gap-1.5">
-                <select
-                  disabled={isLoading}
-                  value={hourStr}
-                  onChange={(e) => setHourStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
-                >
-                  {Array.from({ length: 24 }).map((_, i) => {
-                    const h = String(i).padStart(2, "0");
-                    return (
-                      <option key={h} value={h} className="bg-card">
-                        {h}
-                      </option>
-                    );
-                  })}
-                </select>
-                <span className="text-muted-foreground font-bold">:</span>
-                <select
-                  disabled={isLoading}
-                  value={minuteStr}
-                  onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
-                >
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const m = String(i * 5).padStart(2, "0");
-                    return (
-                      <option key={m} value={m} className="bg-card">
-                        {m}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-          </div>
+          <RehearsalDateTimeFields
+            dateStr={dateStr}
+            setDateStr={setDateStr}
+            hourStr={hourStr}
+            setHourStr={setHourStr}
+            minuteStr={minuteStr}
+            setMinuteStr={setMinuteStr}
+            disabled={isLoading}
+          />
 
           <div className="space-y-1.5">
             <Label

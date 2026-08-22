@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { rehearsals, rehearsalSongs } from "@/db/schema";
 import { eq, asc, and, gt, sql } from "drizzle-orm";
 import { requireAuth, AuthError } from "@/lib/auth";
+import { validateRehearsal } from "@/lib/validation";
 import type { Rehearsal, RehearsalDetails } from "@/types/models";
 import { mapSong } from "@/lib/serialize";
 
@@ -17,6 +18,8 @@ export async function createRehearsal(
 ): Promise<{ success: boolean; error?: string; rehearsalId?: string }> {
   try {
     await requireAuth();
+    const err = validateRehearsal({ title, date });
+    if (err) return { success: false, error: err };
     const id = crypto.randomUUID();
     await db.insert(rehearsals).values({
       id,
@@ -40,6 +43,8 @@ export async function updateRehearsal(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const err = validateRehearsal({ title, date });
+    if (err) return { success: false, error: err };
     await db
       .update(rehearsals)
       .set({

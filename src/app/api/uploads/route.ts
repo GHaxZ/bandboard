@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { INSTRUMENT_ROLES } from '@/lib/constants';
 import type { Role } from '@/lib/constants';
 import { UPLOAD_LIMITS } from '@/lib/constants';
-import { ensureUploadDir, allowedMime, extForMime, storedPath, validateMagicBytes } from '@/lib/uploads';
+import { ensureUploadDir, allowedMime, extForMime, storedPath, validateMagicBytes, deleteStoredFile } from '@/lib/uploads';
 import { requireAuth, AuthError } from '@/lib/auth';
 import fs from 'fs';
 import type { CustomTrack } from '@/types/models';
@@ -17,6 +17,19 @@ const VALID_ROLES = INSTRUMENT_ROLES as readonly string[];
 export async function POST(request: Request) {
   try {
     await requireAuth();
+
+    // Reject oversized uploads before buffering the body into memory. The
+    // proxy cap is '100mb'; formData() would otherwise buffer it fully.
+    const contentLength = Number(request.headers.get('content-length') ?? 0);
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > UPLOAD_LIMITS.stem
+    ) {
+      return NextResponse.json(
+        { error: `File too large (max ${UPLOAD_LIMITS.stem / 1024 / 1024}MB)` },
+        { status: 400 }
+      );
+    }
 
     const form = await request.formData();
     const songId = form.get('songId');
@@ -71,25 +84,32 @@ export async function POST(request: Request) {
     const tmpName = storedName + '.tmp';
     fs.writeFileSync(storedPath(tmpName), buf);
 
+    // Rename to the final name BEFORE the DB insert, and unlink on insert
+    // failure. The old order (insert → rename) left a dangling DB row when the
+    // rename failed, and an orphaned .tmp when the insert failed.
+    fs.renameSync(storedPath(tmpName), storedPath(storedName));
+
     const id = crypto.randomUUID();
     const now = Date.now();
-    await db.insert(customTracks).values({
-      id,
-      songId,
-      role: role as Role,
-      label: finalLabel,
-      fileName: file.name,
-      storedName,
-      mimeType: file.type,
-      sizeBytes: file.size,
-      duration: null,
-      startOffset: 0,
-      isVideo: file.type.startsWith('video/'),
-      createdAt: now,
-    });
-
-    // Rename temp to final after DB insert succeeds
-    fs.renameSync(storedPath(tmpName), storedPath(storedName));
+    try {
+      await db.insert(customTracks).values({
+        id,
+        songId,
+        role: role as Role,
+        label: finalLabel,
+        fileName: file.name,
+        storedName,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        duration: null,
+        startOffset: 0,
+        isVideo: file.type.startsWith('video/'),
+        createdAt: now,
+      });
+    } catch (insertError) {
+      deleteStoredFile(storedName);
+      throw insertError;
+    }
 
     const track: CustomTrack = {
       id,

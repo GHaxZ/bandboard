@@ -36,6 +36,13 @@
       "when": 1783875582798,
       "tag": "0004_good_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784500000000,
+      "tag": "0005_tidy_heron",
+      "breakpoints": true
     }
   ]
 }

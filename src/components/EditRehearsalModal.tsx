@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RehearsalDateTimeFields, toTimestamp } from "./RehearsalDateTimeFields";
 import { updateRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -36,12 +37,18 @@ function computeDateParts(ts: number) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
+  let hours = d.getHours();
   const rawMins = d.getMinutes();
-  const roundedMins = Math.round(rawMins / 5) * 5;
-  const finalMins = roundedMins >= 60 ? 55 : roundedMins;
-  const minutes = String(finalMins).padStart(2, "0");
-  return { year, month, day, hours, minutes, dateStr: `${year}-${month}-${day}` };
+  let roundedMins = Math.round(rawMins / 5) * 5;
+  if (roundedMins === 60) {
+    // e.g. 19:58 → 20:00, not a clamped 19:55 (the old code snapped
+    // backwards and could never pre-fill :00 of the next hour).
+    roundedMins = 0;
+    hours = (hours + 1) % 24;
+  }
+  const hourStr = String(hours).padStart(2, "0");
+  const minutes = String(roundedMins).padStart(2, "0");
+  return { year, month, day, hours: hourStr, minutes, dateStr: `${year}-${month}-${day}` };
 }
 
 export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: EditRehearsalModalProps) {
@@ -93,7 +100,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
     setError(null);
 
     try {
-      const timestamp = new Date(`${dateStr}T${hourStr}:${minuteStr}:00`).getTime();
+      const timestamp = toTimestamp(dateStr, hourStr, minuteStr);
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
       const res = await updateRehearsal(rehearsal.id, title, timestamp, notes);
       if (res.success) {
@@ -143,64 +150,15 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="editRehearsalDate"
-                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-              >
-                Select Date
-              </Label>
-              <Input
-                id="editRehearsalDate"
-                type="date"
-                required
-                disabled={isLoading}
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl w-full"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                Select Time
-              </Label>
-              <div className="flex items-center gap-1.5">
-                <select
-                  disabled={isLoading}
-                  value={hourStr}
-                  onChange={(e) => setHourStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
-                >
-                  {Array.from({ length: 24 }).map((_, i) => {
-                    const h = String(i).padStart(2, "0");
-                    return (
-                      <option key={h} value={h} className="bg-card">
-                        {h}
-                      </option>
-                    );
-                  })}
-                </select>
-                <span className="text-muted-foreground font-bold">:</span>
-                <select
-                  disabled={isLoading}
-                  value={minuteStr}
-                  onChange={(e) => setMinuteStr(e.target.value)}
-                  className="bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm flex-1 focus:outline-none h-10"
-                >
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const m = String(i * 5).padStart(2, "0");
-                    return (
-                      <option key={m} value={m} className="bg-card">
-                        {m}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-          </div>
+          <RehearsalDateTimeFields
+            dateStr={dateStr}
+            setDateStr={setDateStr}
+            hourStr={hourStr}
+            setHourStr={setHourStr}
+            minuteStr={minuteStr}
+            setMinuteStr={setMinuteStr}
+            disabled={isLoading}
+          />
 
           <div className="space-y-1.5">
             <Label

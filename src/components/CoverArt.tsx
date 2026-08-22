@@ -15,10 +15,12 @@ const ICON_SIZE_MAP = {
   lg: "w-6 h-6",
 } as const;
 
+/** Single source of truth for cover-art URLs: user-uploaded cover wins over
+ *  fetched album art, with a `?v=` cache buster tied to the stored name. */
 export function getCoverArtUrl(
   song: { id: string; coverArtStoredName: string | null; albumArt: string | null },
 ): string | null {
-  if (song.coverArtStoredName) return `/api/cover-art/${song.id}`;
+  if (song.coverArtStoredName) return `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`;
   if (song.albumArt) return song.albumArt;
   return null;
 }

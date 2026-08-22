@@ -6,11 +6,6 @@ import { lazyLoadTrackMedia } from "@/app/actions/songs";
 // Module-scoped attempt log: lazy-load at most once per roleGroup per session.
 const attempted = new Set<string>();
 
-/** Clear the attempt log (call on route change). */
-export function clearAttemptedMedia() {
-  attempted.clear();
-}
-
 interface UseEnsureMediaOpts {
   roleGroupId: string | null;
   role: string;
@@ -43,8 +38,13 @@ export function useEnsureMedia({
     lazyLoadTrackMedia(roleGroupId)
       .then((res) => {
         if (!mounted) return;
-        attempted.add(roleGroupId);
-        if (res.success) onLoaded();
+        // Only record a completed attempt on success — a transient failure
+        // (network hiccup) should not permanently disable lazy-loading for
+        // this role group for the whole session.
+        if (res.success) {
+          attempted.add(roleGroupId);
+          onLoaded();
+        }
       })
       .catch((err) => {
         console.error("useEnsureMedia failed:", err);

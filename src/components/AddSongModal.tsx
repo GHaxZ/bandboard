@@ -50,6 +50,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           toast.success("Cover song added");
           setTitle("");
           setArtist("");
+          setMode("cover"); // reset even though onClose() skips handleOpenChange
           onSuccess();
           onClose();
         } else {
@@ -61,6 +62,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           toast.success("Original song created");
           setTitle("");
           setArtist("");
+          setMode("cover"); // reset even though onClose() skips handleOpenChange
           onSuccess();
           onClose();
           router.push(`/songs/${res.songId}`);

@@ -9,7 +9,9 @@ import {
   storedPath,
   deleteStoredFile,
   validateMagicBytes,
+  extForMime,
 } from '@/lib/uploads';
+import fs from 'fs';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,13 +21,6 @@ const ALLOWED_IMAGE_MIMES = new Set([
   'image/webp',
   'image/gif',
 ]);
-
-const IMAGE_EXT: Record<string, string> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-};
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,24 +59,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File content does not match declared image type' }, { status: 400 });
     }
 
-    await ensureUploadDir();
+    ensureUploadDir();
 
-    const ext = IMAGE_EXT[file.type] ?? '';
+    const ext = extForMime(file.type);
     const storedName = `cover-${crypto.randomUUID()}${ext}`;
     const tmpName = storedName + '.tmp';
-    const { writeFileSync, renameSync } = await import('fs');
-    writeFileSync(storedPath(tmpName), buf);
+    fs.writeFileSync(storedPath(tmpName), buf);
 
-    // Insert DB row first, then delete old cover and rename temp
+    // Rename to the final name BEFORE the DB update, and clean up on failure —
+    // the old order left the DB pointing at a missing file if the rename threw,
+    // and orphaned the tmp if the update threw. Crash-window behavior for the
+    // client (a 200 only after both steps) is unchanged.
+    fs.renameSync(storedPath(tmpName), storedPath(storedName));
+
     const oldCover = song.coverArtStoredName;
-    db.update(songs)
-      .set({ coverArtStoredName: storedName })
-      .where(eq(songs.id, songId))
-      .run();
+    try {
+      db.update(songs)
+        .set({ coverArtStoredName: storedName })
+        .where(eq(songs.id, songId))
+        .run();
+    } catch (updateError) {
+      deleteStoredFile(storedName);
+      throw updateError;
+    }
 
-    renameSync(storedPath(tmpName), storedPath(storedName));
-
-    if (oldCover) {
+    if (oldCover && oldCover !== storedName) {
       deleteStoredFile(oldCover);
     }
 

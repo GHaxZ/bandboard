@@ -60,8 +60,16 @@ export function usePracticeControls(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced persistence of volume / speed back to userSettings.
+  // Debounced persistence of volume / speed back to userSettings. Skip the
+  // first run per setting: the hydration effect above sets hydratedRef in the
+  // same commit, so without a skip the mount would schedule a redundant
+  // saveUserSettings 500ms after every practice mount.
+  const volumeSkipFirst = useRef(true);
   useEffect(() => {
+    if (volumeSkipFirst.current) {
+      volumeSkipFirst.current = false;
+      return;
+    }
     if (!hydratedRef.current) return;
     const t = setTimeout(() => {
       saveUserSettings({ volume }).catch((e) => console.error("saveUserSettings(volume) failed:", e));
@@ -69,7 +77,12 @@ export function usePracticeControls(
     return () => clearTimeout(t);
   }, [volume]);
 
+  const speedSkipFirst = useRef(true);
   useEffect(() => {
+    if (speedSkipFirst.current) {
+      speedSkipFirst.current = false;
+      return;
+    }
     if (!hydratedRef.current) return;
     const t = setTimeout(() => {
       saveUserSettings({ playbackSpeed: speed }).catch((e) => console.error("saveUserSettings(speed) failed:", e));
@@ -117,6 +130,9 @@ export function usePracticeControls(
         onRefresh();
       } catch (err) {
         console.error(err);
+        // Don't leave the user with a silently-dropped marker — it would
+        // reappear on reload.
+        toast.error("Failed to delete marker: " + String(err));
       }
     },
     [markers, setMarkers, songId, onRefresh]

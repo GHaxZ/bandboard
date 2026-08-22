@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useEffect } from "react";
+import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { useYouTubePlayer } from "./useYouTubePlayer";
 import { usePlayerStore } from "@/stores/player-store";
 import type { MediaController } from "@/lib/media-controller";
@@ -47,8 +47,14 @@ export function useSlotMediaController(
   });
 
   const mediaElRef = useRef<HTMLMediaElement | null>(null);
+  // State mirror of the element: the listener/offset/volume effects key off
+  // this so they re-run when React replaces the element instance (e.g. an
+  // <audio>↔<video> swap) even when customSrc stays the same. A ref alone
+  // can't trigger effects.
+  const [mediaEl, setMediaEl] = useState<HTMLMediaElement | null>(null);
   const registerRef = useCallback((el: HTMLMediaElement | null) => {
     mediaElRef.current = el;
+    setMediaEl(el);
   }, []);
 
   // Fresh callback refs (the listeners read these so identity churn is fine).
@@ -67,17 +73,21 @@ export function useSlotMediaController(
   const speed = usePlayerStore((s) => s.speed);
 
   // Apply volume/speed from the store to the HTML media element whenever they
-  // change (mirrors useYouTubePlayer's YT push-down behaviour).
+  // change (mirrors useYouTubePlayer's YT push-down behaviour). `mediaEl` is a
+  // dep so these re-apply when the element instance is replaced; the DOM
+  // mutation goes through the ref to keep the react-hooks lint rule happy.
   useEffect(() => {
-    if (mediaElRef.current) {
-      mediaElRef.current.volume = Math.max(0, Math.min(1, volume / 100));
+    const el = mediaElRef.current;
+    if (el) {
+      el.volume = Math.max(0, Math.min(1, volume / 100));
     }
-  }, [volume]);
+  }, [volume, mediaEl]);
   useEffect(() => {
-    if (mediaElRef.current) {
-      mediaElRef.current.playbackRate = speed;
+    const el = mediaElRef.current;
+    if (el) {
+      el.playbackRate = speed;
     }
-  }, [speed]);
+  }, [speed, mediaEl]);
 
   // Set start offset once the custom media element mounts.
   useEffect(() => {
@@ -85,25 +95,32 @@ export function useSlotMediaController(
     if (el && opts.startOffset > 0) {
       el.currentTime = opts.startOffset;
     }
-  }, [opts.customSrc, opts.startOffset]);
+  }, [opts.customSrc, opts.startOffset, mediaEl]);
 
   // Wire DOM state-change events to the store (when this slot is active) and
-  // forward ENDED to the external onEnded callback. Re-binds on src change.
+  // forward ENDED to the external onEnded callback. Re-binds whenever the
+  // element instance changes (not just on src change).
   useEffect(() => {
-    const el = mediaElRef.current;
-    if (!el || !opts.customSrc) return;
+    if (!mediaEl || !opts.customSrc) return;
     const handlers: Record<string, () => void> = {
       play: () => {
-        if (isActiveRef.current?.() ?? false) setPlaying(true);
+        if (isActiveRef.current?.() ?? true) setPlaying(true);
       },
       pause: () => {
-        if (isActiveRef.current?.() ?? false) setPlaying(false);
+        if (isActiveRef.current?.() ?? true) setPlaying(false);
       },
       ended: () => {
-        if (isActiveRef.current?.() ?? false) setPlaying(false);
-        onEndedRef.current?.();
+        // Only the active slot may end playback. In dual-sync the inactive
+        // slot mirrors playback and can reach its end first (shorter
+        // offset) — without this gate it would pause the store mid-song
+        // while audio is still playing.
+        if (isActiveRef.current?.() ?? true) {
+          setPlaying(false);
+          onEndedRef.current?.();
+        }
       },
     };
+    const el = mediaEl;
     el.addEventListener("play", handlers.play);
     el.addEventListener("pause", handlers.pause);
     el.addEventListener("ended", handlers.ended);
@@ -113,7 +130,7 @@ export function useSlotMediaController(
       el.removeEventListener("ended", handlers.ended);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.customSrc]);
+  }, [opts.customSrc, mediaEl]);
 
   // Build the controller. The methods read through refs at call-time so the
   // memo only needs to re-create when the type (custom vs YT) changes.

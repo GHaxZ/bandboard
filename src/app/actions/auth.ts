@@ -2,12 +2,23 @@
 
 import { cookies } from 'next/headers';
 import { requireAuth, AuthError } from '@/lib/auth';
-
-const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
-const UID_COOKIE = 'bandboard_uid';
-const SECRET_COOKIE = 'bandboard_secret';
+import { TEN_YEARS, UID_COOKIE, SECRET_COOKIE } from '@/lib/constants';
+import { safeEqual } from '@/lib/utils';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Brute-force guard for the shared-secret oracle: per-device failure counter
+// with an escalating fixed delay. In-memory (single-process LAN app);
+// ponytail: swap for a persistent/IP-based limiter if the app is ever
+// exposed beyond the band's network.
+const MAX_FAILURES = 5;
+const FAILURE_WINDOW_MS = 5 * 60 * 1000;
+const BASE_DELAY_MS = 300;
+const failures = new Map<string, { count: number; lastAt: number }>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function checkSecret(
   provided: string
@@ -16,7 +27,29 @@ export async function checkSecret(
   if (!secret) {
     return { isValid: true, isRequired: false };
   }
-  return { isValid: secret === provided, isRequired: true };
+
+  // Fixed delay on every attempt (correct or not) so online brute force can't
+  // run faster than ~3 guesses/second per device.
+  await sleep(BASE_DELAY_MS);
+
+  const cookieStore = await cookies();
+  const uid = cookieStore.get(UID_COOKIE)?.value ?? 'unknown';
+  const rec = failures.get(uid);
+  if (rec && rec.count >= MAX_FAILURES && Date.now() - rec.lastAt < FAILURE_WINDOW_MS) {
+    return { isValid: false, isRequired: true };
+  }
+
+  if (safeEqual(secret, provided)) {
+    failures.delete(uid);
+    return { isValid: true, isRequired: true };
+  }
+
+  const withinWindow = rec && Date.now() - rec.lastAt < FAILURE_WINDOW_MS;
+  failures.set(uid, {
+    count: withinWindow ? rec.count + 1 : 1,
+    lastAt: Date.now(),
+  });
+  return { isValid: false, isRequired: true };
 }
 
 export async function isSecretRequired(): Promise<boolean> {
@@ -47,6 +80,7 @@ export async function syncDeviceId(
       path: '/',
       maxAge: TEN_YEARS,
       sameSite: 'lax',
+      httpOnly: true,
     });
     return { success: true };
   } catch (error) {
@@ -66,6 +100,7 @@ export async function setSecretCookie(secret: string): Promise<{ success: boolea
       path: '/',
       maxAge: TEN_YEARS,
       sameSite: 'lax',
+      httpOnly: true,
     });
     return { success: true };
   } catch (error) {

@@ -52,7 +52,10 @@ export async function fetchGeniusLyricsUrl(
     );
     if (songSection && Array.isArray(songSection.hits) && songSection.hits.length > 0) {
       const url = songSection.hits[0].result?.url;
-      if (typeof url === 'string') return url;
+      // Only persist Genius URLs — the value ends up in an <a href> rendered
+      // from server data, and a poisoned upstream response carrying another
+      // scheme (e.g. javascript:) would otherwise be rendered unescaped.
+      if (typeof url === 'string' && /^https:\/\/(www\.)?genius\.com\//.test(url)) return url;
     }
   } catch (e) {
     console.error('Genius search lookup failed:', e);

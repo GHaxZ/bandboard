@@ -9,7 +9,6 @@ interface UseMultiTrackPlayerOpts {
   tracks: CustomTrack[];
   mutedTrackIds: Set<string>;
   soloTrackIds: Set<string>;
-  getStreamUrl: (id: string) => string;
 }
 
 // ponytail: rAF-driven currentT state updates every frame. Fine for 5–8 tracks
@@ -30,6 +29,11 @@ export function useMultiTrackPlayer({
   const rafRef = useRef<number | null>(null);
   const clockStartRef = useRef(0);
   const TRef = useRef(0);
+  // Set when the tick's stop condition fires (DB-duration-based OR derived
+  // from loaded elements when DB durations are unknown). Consumers like the
+  // autoplay end-detector poll this instead of `duration`, which is 0 for
+  // unprobed stems.
+  const endedRef = useRef(false);
 
   const tracksRef = useRef(tracks);
   const mutedRef = useRef(mutedTrackIds);
@@ -71,6 +75,7 @@ export function useMultiTrackPlayer({
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
+    endedRef.current = false;
     const spd = usePlayerStore.getState().speed;
     const vol = usePlayerStore.getState().volume;
     clockStartRef.current = performance.now() - (TRef.current / spd) * 1000;
@@ -131,18 +136,38 @@ export function useMultiTrackPlayer({
           } catch {
             // ignore
           }
+        } else if (T >= trackEnd) {
+          // Trimmed track: the file outlives its timeline window — pause it so
+          // audio doesn't bleed past the track's end.
+          if (!el.paused) el.pause();
         }
       }
 
       setCurrentT(T);
 
-      if (dur > 0 && T >= dur) {
-        TRef.current = dur;
-        setCurrentT(dur);
+      // Effective end time. When DB durations are unknown (dur === 0) the old
+      // code never stopped: the rAF loop spun forever and the drift-corrector
+      // re-seeked already-ended elements. Fall back to the longest loaded
+      // element duration instead.
+      let endTime = dur;
+      if (endTime <= 0) {
+        for (const track of tracksRef.current) {
+          const el = mediaRefs.current.get(track.id);
+          if (el && isFinite(el.duration) && el.duration > 0) {
+            const end = track.startOffset + el.duration;
+            if (end > endTime) endTime = end;
+          }
+        }
+      }
+
+      if (endTime > 0 && T >= endTime) {
+        TRef.current = endTime;
+        setCurrentT(endTime);
         for (const track of tracksRef.current) {
           const el = mediaRefs.current.get(track.id);
           if (el && !el.paused) el.pause();
         }
+        endedRef.current = true;
         setPlaying(false);
         rafRef.current = null;
         return;
@@ -165,6 +190,7 @@ export function useMultiTrackPlayer({
     }
     TRef.current = 0;
     setCurrentT(0);
+    endedRef.current = false;
     for (const [, el] of mediaRefs.current) {
       if (!el.paused) el.pause();
     }
@@ -236,6 +262,10 @@ export function useMultiTrackPlayer({
   }, [setPlaying]);
 
   const getCurrentT = useCallback(() => TRef.current, []);
+
+  /** True once the tick's stop condition fired (works even when DB durations
+   *  are unknown and `duration` is therefore 0). */
+  const isEnded = useCallback(() => endedRef.current, []);
 
   useEffect(() => {
     if (isPlaying) {
@@ -334,6 +364,7 @@ export function useMultiTrackPlayer({
     seekBy,
     seekTo,
     getCurrentT,
+    isEnded,
     isPlaying,
     duration,
     currentT,

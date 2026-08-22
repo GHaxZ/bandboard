@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -32,7 +32,9 @@ import { resolveBackingMedia } from "@/lib/backing-media";
 import { useAutoplayEngine } from "@/hooks/useAutoplayEngine";
 import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
+import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
+import { getCoverArtUrl } from "./CoverArt";
 import { NO_VIDEO_SKIP_MS, SEEK_STEP_S } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
 
@@ -82,22 +84,26 @@ export function RehearsalAutoplay({
 
   const [instrumentPreference, setInstrumentPreference] = useState<Role>(preferredInstrument);
 
-  const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
-  const skipOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Skip overlay
+  const { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer } = useSkipOverlay();
 
-  // Load autoplay settings from DB, then bootstrap countdown
+  // Load autoplay settings from DB, then bootstrap countdown. If the settings
+  // fetch rejects, still bootstrap — otherwise the session sits on the
+  // countdown overlay forever with an unhandled rejection.
   useEffect(() => {
-    const settingsPromise = getUserSettings().then((s) => {
-      setAutoplayEnabled(s.autoplayEnabled);
-      setTransitionTimeout(s.autoplayTimeout);
-    });
-    settingsPromise.then(() => {
-      if (!sessionStarted && countdown === null && !finished) {
-        startCountdown();
-      }
-    });
+    getUserSettings()
+      .then((s) => {
+        setAutoplayEnabled(s.autoplayEnabled);
+        setTransitionTimeout(s.autoplayTimeout);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!sessionStarted && countdown === null && !finished) {
+          startCountdown();
+        }
+      });
     return () => {
-      if (skipOverlayTimeoutRef.current) clearTimeout(skipOverlayTimeoutRef.current);
+      clearSkipOverlayTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -119,15 +125,20 @@ export function RehearsalAutoplay({
   }, [countdown, countdownPaused, sessionStarted, currentIndex, queue.length]);
 
   const currentSong = queue[currentIndex]?.song;
-  const backingMedia = currentSong
-    ? resolveBackingMedia(currentSong, instrumentPreference, progressMap[currentSong.id])
-    : { kind: 'none' as const };
+  // Memoized so useAutoplayEngine's internal memos (renderMedia, mute/solo
+  // wiring) don't churn on every render — without this, the 60fps multitrack
+  // tick re-renders the entire autoplay tree each frame.
+  const backingMedia = useMemo(
+    () =>
+      currentSong
+        ? resolveBackingMedia(currentSong, instrumentPreference, progressMap[currentSong.id])
+        : { kind: 'none' as const },
+    [currentSong, instrumentPreference, progressMap]
+  );
   const customTrack = backingMedia.kind === 'custom-file'
     ? currentSong?.customTracks?.find((t) => t.id === backingMedia.customTrackId)
     : undefined;
-  const coverArtUrl = currentSong?.coverArtStoredName
-    ? `/api/cover-art/${currentSong.id}?v=${currentSong.coverArtStoredName}`
-    : currentSong?.albumArt || null;
+  const coverArtUrl = currentSong ? getCoverArtUrl(currentSong) : null;
   const upcomingSong = !sessionStarted ? currentSong : queue[currentIndex + 1]?.song;
 
   // No-video path: 4s timer then advance
@@ -185,13 +196,6 @@ export function RehearsalAutoplay({
     coverArtUrl,
   });
 
-  // Skip overlay helper
-  const triggerSkipOverlay = (type: "back" | "forward") => {
-    if (skipOverlayTimeoutRef.current) clearTimeout(skipOverlayTimeoutRef.current);
-    setSkipOverlay({ type, key: Date.now() });
-    skipOverlayTimeoutRef.current = setTimeout(() => setSkipOverlay(null), 600);
-  };
-
   // Keyboard
   usePracticeKeyboard({
     onPlayPause: playPause,
@@ -209,8 +213,11 @@ export function RehearsalAutoplay({
 
   // Reset store on unmount
   useEffect(() => {
-    return () => reset();
-  }, [reset]);
+    return () => {
+      reset();
+      clearSkipOverlayTimer();
+    };
+  }, [reset, clearSkipOverlayTimer]);
 
   const handleTogglePlay = () => playPause();
   const handlePrevSong = () => currentIndex > 0 && setCurrentIndex(currentIndex - 1);

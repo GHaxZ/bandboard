@@ -162,3 +162,11 @@ export const ROLE_COLORS: Record<Role, string> = {
   'Piano/Keyboard': 'bg-[#73a2cf]',
   Other: 'bg-[#9ebbcf]',
 };
+
+// ---------------------------------------------------------------------------
+// Auth cookies — single source of truth for names/lifetime (proxy.ts and
+// actions/auth.ts must stay in sync; import from here).
+// ---------------------------------------------------------------------------
+export const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
+export const UID_COOKIE = 'bandboard_uid';
+export const SECRET_COOKIE = 'bandboard_secret';

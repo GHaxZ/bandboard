@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useYouTubePlayer } from "./useYouTubePlayer";
 import { useMultiTrackPlayer } from "./useMultiTrackPlayer";
 import { usePlayerStore } from "@/stores/player-store";
+import { StemMediaPool } from "@/components/StemMediaPool";
 import type { BackingMedia, CustomTrack } from "@/types/models";
 
 interface UseAutoplayEngineOpts {
@@ -35,18 +36,16 @@ export function useAutoplayEngine({
   });
 
   // Unconditional: multi-stem player with empty tracks when not multistem
+  const mutedTrackIds = useMemo(() => {
+    if (media.kind !== "multistem") return new Set<string>();
+    return new Set(
+      media.tracks.filter((t) => t.role === media.mutedRole).map((t) => t.id)
+    );
+  }, [media]);
   const mt = useMultiTrackPlayer({
     tracks: media.kind === "multistem" ? media.tracks : [],
-    mutedTrackIds:
-      media.kind === "multistem"
-        ? new Set(
-            media.tracks
-              .filter((t) => t.role === media.mutedRole)
-              .map((t) => t.id)
-          )
-        : new Set(),
+    mutedTrackIds,
     soloTrackIds: new Set(),
-    getStreamUrl: (id: string) => `/api/uploads/${id}`,
   });
 
   // Keep onEnded in a ref for async callbacks
@@ -70,6 +69,19 @@ export function useAutoplayEngine({
     [setPlaying]
   );
 
+  // Custom-file media must also honour the store's volume/speed (previously
+  // the sidebar sliders did nothing for uploaded files in rehearsal autoplay).
+  const volume = usePlayerStore((s) => s.volume);
+  const speed = usePlayerStore((s) => s.speed);
+  useEffect(() => {
+    const el = customMediaRef.current;
+    if (el) el.volume = Math.max(0, Math.min(1, volume / 100));
+  }, [volume]);
+  useEffect(() => {
+    const el = customMediaRef.current;
+    if (el) el.playbackRate = speed;
+  }, [speed]);
+
   // Auto-play custom-file when session starts
   useEffect(() => {
     if (media.kind !== "custom-file" || !sessionStarted) return;
@@ -77,7 +89,12 @@ export function useAutoplayEngine({
     if (el && el.paused) el.play().catch(() => {});
   }, [media.kind, sessionStarted]);
 
-  // Multistem end detection
+  // Multistem end detection. Polls `mt.isEnded()` (set by the player's tick
+  // when its stop condition fires) instead of subscribing to `mt.currentT`:
+  // that state updates every animation frame, so a dep on it re-ran this
+  // effect 60×/sec for the whole playback. The flag also works for stems with
+  // unknown DB durations, where `mt.duration` is 0 and a time-based check
+  // would never fire.
   const multistemEndedRef = useRef(false);
   useEffect(() => {
     multistemEndedRef.current = false;
@@ -85,23 +102,25 @@ export function useAutoplayEngine({
 
   useEffect(() => {
     if (media.kind !== "multistem" || !sessionStarted) return;
-    if (
-      mt.duration > 0 &&
-      mt.currentT >= mt.duration &&
-      !mt.isPlaying &&
-      !multistemEndedRef.current
-    ) {
-      multistemEndedRef.current = true;
-      onEndedRef.current?.();
-    }
-  }, [mt.currentT, mt.duration, mt.isPlaying, media.kind, sessionStarted]);
+    const interval = setInterval(() => {
+      if (!multistemEndedRef.current && mt.isEnded()) {
+        multistemEndedRef.current = true;
+        onEndedRef.current?.();
+      }
+    }, 250);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media, sessionStarted]);
 
   const playPause = () => {
     if (media.kind === "youtube") {
       const p = yt.playerRef?.current;
       if (!p) return;
       try {
-        if (p.getPlayerState() === 1) p.pauseVideo();
+        const state = p.getPlayerState();
+        // Buffering (3) still counts as "playing" — pausing during a stuck
+        // buffer should stop, not restart.
+        if (state === 1 || state === 3) p.pauseVideo();
         else p.playVideo();
       } catch {
         // ignore
@@ -169,49 +188,13 @@ export function useAutoplayEngine({
       const videoTracks = media.tracks.filter((t) => t.isVideo);
       const previewTrack = videoTracks[0] ?? null;
       return (
-        <>
-          {previewTrack ? (
-            <video
-              key={previewTrack.id}
-              ref={mt.registerRef(previewTrack.id)}
-              src={`/api/uploads/${previewTrack.id}`}
-              className="w-full h-full object-contain"
-              preload="metadata"
-              playsInline
-            />
-          ) : coverArtUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverArtUrl} alt="" className="w-full h-full object-contain" />
-          ) : (
-            <div className="text-center p-6 text-muted-foreground">
-              <p className="text-sm font-semibold text-foreground">
-                No video tracks. Audio-only playback.
-              </p>
-            </div>
-          )}
-          <div className="hidden">
-            {media.tracks
-              .filter((t) => t.id !== previewTrack?.id)
-              .map((track) =>
-                track.isVideo ? (
-                  <video
-                    key={track.id}
-                    ref={mt.registerRef(track.id)}
-                    src={`/api/uploads/${track.id}`}
-                    preload="metadata"
-                    playsInline
-                  />
-                ) : (
-                  <audio
-                    key={track.id}
-                    ref={mt.registerRef(track.id)}
-                    src={`/api/uploads/${track.id}`}
-                    preload="metadata"
-                  />
-                )
-              )}
-          </div>
-        </>
+        <StemMediaPool
+          tracks={media.tracks}
+          previewTrack={previewTrack}
+          coverArtUrl={coverArtUrl}
+          registerRef={mt.registerRef}
+          fallbackText="No video tracks. Audio-only playback."
+        />
       );
     }
     return null;
@@ -231,7 +214,12 @@ export function useAutoplayEngine({
       const el = customMediaRef.current;
       if (!el) return;
       usePlayerStore.getState().registerSeek(target);
-      el.currentTime = Math.max(0, Math.min(target, el.duration || 0));
+      // Clamp against the loaded duration only when it's actually known —
+      // before metadata loads, duration is NaN and `NaN || 0` would snap
+      // every seek back to 0.
+      const d = el.duration;
+      const max = isFinite(d) && d > 0 ? d : target;
+      el.currentTime = Math.max(0, Math.min(target, max));
     } else if (media.kind === "multistem") {
       mt.seekTo(target);
     }

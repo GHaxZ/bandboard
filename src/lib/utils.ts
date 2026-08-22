@@ -5,6 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Constant-time string comparison for secrets. Length is compared in the
+ * clear (unavoidable, and length is not sensitive for a shared secret), but
+ * content comparison never short-circuits.
+ * ponytail: pure-JS so it works in both Node and Edge runtimes without a
+ * node:crypto dependency in middleware.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export function slugify(text: string): string {
   return text
     .toString()

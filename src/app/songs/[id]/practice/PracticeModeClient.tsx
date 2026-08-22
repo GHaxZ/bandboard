@@ -8,6 +8,7 @@ import { useMultiStemPracticeEngine } from "@/hooks/useMultiStemPracticeEngine";
 import { getSongDetails } from "@/app/actions/songs";
 import { getCustomTracks } from "@/app/actions/customTracks";
 import { getProgressMap } from "@/app/actions/user";
+import { getCoverArtUrl } from "@/components/CoverArt";
 import type { Song, ProgressMap, CustomTrack } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
@@ -102,7 +103,7 @@ function CoverPractice({
   onExit,
   onRefresh,
 }: CoverPracticeProps) {
-  const { engine, capabilities, toggleVideo, coverState, mediaSurface, hasCustomMedia, activeIsYouTube } = useCoverPracticeEngine({
+  const { engine, capabilities, toggleVideo, coverState, mediaSurface, hasMedia, activeIsYouTube } = useCoverPracticeEngine({
     song,
     progressMap,
     preferredInstrument,
@@ -122,7 +123,7 @@ function CoverPractice({
       mediaSurface={mediaSurface}
       onToggleVideo={toggleVideo}
       coverState={coverState}
-      hasCustomMedia={hasCustomMedia}
+      hasMedia={hasMedia}
       youTubeMode={activeIsYouTube}
     />
   );
@@ -149,9 +150,7 @@ function OriginalPractice({
   onExit,
   onRefresh,
 }: OriginalPracticeProps) {
-  const coverArtUrl = song.coverArtStoredName
-    ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-    : song.albumArt || null;
+  const coverArtUrl = getCoverArtUrl(song);
 
   const {
     engine,
@@ -163,7 +162,7 @@ function OriginalPractice({
     registerRef,
     mutedTrackIds,
     mediaSurface,
-    hasCustomMedia,
+    hasMedia,
   } = useMultiStemPracticeEngine({ tracks, preferredInstrument, coverArtUrl });
 
   return (
@@ -183,7 +182,7 @@ function OriginalPractice({
       stemTracks={stemTracks}
       registerRef={registerRef}
       mutedTrackIds={mutedTrackIds}
-      hasCustomMedia={hasCustomMedia}
+      hasMedia={hasMedia}
     />
   );
 }

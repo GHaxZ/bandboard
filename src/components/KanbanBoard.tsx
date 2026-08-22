@@ -12,7 +12,6 @@ import type { RehearsalSong, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
 interface KanbanBoardProps {
-  rehearsalId: string;
   rehearsalSongs: RehearsalSong[];
   progressMap: ProgressMap;
   onSaveProgress: (songId: string, status: string) => Promise<void>;
@@ -22,7 +21,6 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({
-  rehearsalId,
   rehearsalSongs,
   progressMap,
   onSaveProgress,
@@ -31,8 +29,9 @@ export function KanbanBoard({
   preferredInstrument = "Guitar",
 }: KanbanBoardProps) {
   const [searchQuery, setSearchQuery] = useState("");
-
-  void rehearsalId; // available for future use
+  // Songs with an in-flight status save — blocks concurrent saves for the same
+  // song (last-write-wins on arrival order would otherwise decide the status).
+  const [savingSongIds, setSavingSongIds] = useState<Set<string>>(new Set());
 
   const filteredSongs = rehearsalSongs.filter(
     (rs) =>
@@ -46,11 +45,25 @@ export function KanbanBoard({
       return currentStatus === statusId;
     });
 
+  async function persistStatus(songId: string, status: string) {
+    if (savingSongIds.has(songId)) return;
+    setSavingSongIds((prev) => new Set(prev).add(songId));
+    try {
+      await onSaveProgress(songId, status);
+    } finally {
+      setSavingSongIds((prev) => {
+        const next = new Set(prev);
+        next.delete(songId);
+        return next;
+      });
+    }
+  }
+
   function handleDragEnd(result: DropResult) {
     if (!result.destination) return;
     const { source, destination, draggableId } = result;
     if (source.droppableId === destination.droppableId) return;
-    void onSaveProgress(draggableId, destination.droppableId);
+    void persistStatus(draggableId, destination.droppableId);
   }
 
   const getMoveOptions = (currentStatus: string) => {
@@ -111,6 +124,7 @@ export function KanbanBoard({
                           const song = rs.song;
                           const currentStatus = progressMap[rs.songId]?.status || "not_started";
                           const { leftStatus, rightStatus } = getMoveOptions(currentStatus);
+                          const isSaving = savingSongIds.has(rs.songId);
 
                           return (
                             <Draggable key={rs.songId} draggableId={rs.songId} index={index}>
@@ -129,10 +143,14 @@ export function KanbanBoard({
                                 >
                                   <div className="flex items-center gap-3">
                                     {(() => {
-                                      const coverSrc = song.albumArt
-                                        ? song.albumArt
-                                        : song.coverArtStoredName
-                                          ? `/api/cover-art/${song.id}`
+                                      // Prefer the user-uploaded cover over the
+                                      // fetched album art — matches getCoverArtUrl
+                                      // everywhere else (the Kanban previously had
+                                      // the priority reversed).
+                                      const coverSrc = song.coverArtStoredName
+                                        ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
+                                        : song.albumArt
+                                          ? song.albumArt
                                           : null;
                                       return coverSrc ? (
                                         // eslint-disable-next-line @next/next/no-img-element
@@ -189,9 +207,10 @@ export function KanbanBoard({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          void onSaveProgress(song.id, leftStatus);
+                                          void persistStatus(song.id, leftStatus);
                                         }}
-                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all"
+                                        disabled={isSaving}
+                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(leftStatus)}`}
                                       >
                                         <ChevronLeft className="w-3.5 h-3.5" />
@@ -216,9 +235,10 @@ export function KanbanBoard({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          void onSaveProgress(song.id, rightStatus);
+                                          void persistStatus(song.id, rightStatus);
                                         }}
-                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all"
+                                        disabled={isSaving}
+                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(rightStatus)}`}
                                       >
                                         <ChevronRight className="w-3.5 h-3.5" />

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
       // and match the prototype's approach. Disabling project-wide rather than
       // peppering disable directives across every effect.
       "react-hooks/set-state-in-effect": "off",
+      // Allow intentionally-ignored callback parameters (e.g. `_target`).
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
   // Override default ignores of eslint-config-next.

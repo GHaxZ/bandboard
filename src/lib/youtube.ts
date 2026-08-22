@@ -1,5 +1,3 @@
-import type { Song } from '@/types/models';
-
 export interface YouTubeVideo {
   videoId: string;
   title: string;
@@ -191,51 +189,4 @@ export function getYouTubeId(url: string | null | undefined): string | null {
     /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i
   );
   return match ? match[1] : null;
-}
-
-// ---------------------------------------------------------------------------
-// Backing-video resolver for Rehearsal Autoplay (PLAN §12.6)
-// ---------------------------------------------------------------------------
-export function getBackingVideoId(
-  song: Pick<Song, 'roleGroups'>,
-  preferredRole?: string
-): string | null {
-  const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== 'Other');
-
-  const tryResolve = (link: string | null): string | null => {
-    if (!link) return null;
-    return getYouTubeId(link);
-  };
-
-  // 1. preferred role's backing track
-  if (preferredRole) {
-    const matching = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    const id = tryResolve(matching?.backingTrackLink ?? null);
-    if (id) return id;
-  }
-
-  // 2. any role's backing track
-  for (const rg of standardRoleGroups) {
-    const id = tryResolve(rg.backingTrackLink);
-    if (id) return id;
-  }
-
-  // 3. preferred role's tab video
-  if (preferredRole) {
-    const matching = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    const id = tryResolve(matching?.tabVideoLink ?? null);
-    if (id) return id;
-  }
-
-  // 4. any role's tab video
-  for (const rg of standardRoleGroups) {
-    const id = tryResolve(rg.tabVideoLink);
-    if (id) return id;
-  }
-
-  return null;
 }

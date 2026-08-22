@@ -7,6 +7,7 @@ import { useSlotMediaController } from "./useSlotMediaController";
 import { useYoutubeApi } from "./useYoutubeApi";
 import { useEnsureMedia } from "./useEnsureMedia";
 import { getYouTubeId } from "@/lib/youtube";
+import { getCoverArtUrl } from "@/components/CoverArt";
 import { resolveOffsets } from "@/types/models";
 import { saveStartOffsets } from "@/app/actions/user";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ interface UseCoverPracticeEngineResult {
   toggleVideo: () => void;
   coverState: CoverState;
   mediaSurface: React.ReactNode;
-  hasCustomMedia: boolean;
+  hasMedia: boolean;
   activeIsYouTube: boolean;
 }
 
@@ -59,22 +60,22 @@ export function useCoverPracticeEngine({
 }: UseCoverPracticeEngineOpts): UseCoverPracticeEngineResult {
   const apiLoaded = useYoutubeApi();
 
-  const standardRoleGroupsInitial = useMemo(
+  const standardRoleGroups = useMemo(
     () => song.roleGroups.filter((rg) => rg.role !== "Other"),
     [song.roleGroups]
   );
-  const otherTracksInitial = useMemo(
+  const otherTracks = useMemo(
     () => song.roleGroups.find((rg) => rg.role === "Other")?.tracks || [],
     [song.roleGroups]
   );
 
   const [activeTrackId, setActiveTrackId] = useState<string>(() => {
-    const matching = standardRoleGroupsInitial.find(
+    const matching = standardRoleGroups.find(
       (rg) => rg.role.toLowerCase() === preferredInstrument.toLowerCase()
     );
     if (matching) return matching.id;
-    if (standardRoleGroupsInitial.length > 0) return standardRoleGroupsInitial[0].id;
-    if (otherTracksInitial.length > 0) return "other-tab";
+    if (standardRoleGroups.length > 0) return standardRoleGroups[0].id;
+    if (otherTracks.length > 0) return "other-tab";
     return "";
   });
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
@@ -86,9 +87,6 @@ export function useCoverPracticeEngine({
   const activeVideo = usePlayerStore((s) => s.activeVideo);
   const setActiveVideo = usePlayerStore((s) => s.setActiveVideo);
   const reset = usePlayerStore((s) => s.reset);
-
-  const standardRoleGroups = standardRoleGroupsInitial;
-  const otherTracks = otherTracksInitial;
 
   const activeRoleGroup = standardRoleGroups.find((rg) => rg.id === activeTrackId);
   const backingVideoId = activeRoleGroup ? getYouTubeId(activeRoleGroup.backingTrackLink) : null;
@@ -145,13 +143,17 @@ export function useCoverPracticeEngine({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backingVideoId, tabVideoId]);
 
-  // Load offsets from progress
+  // Load offsets from progress. Deliberately NOT keyed on progressMap: any
+  // onRefresh() (e.g. saving a marker or practice log) replaces progressMap and
+  // would otherwise re-run this effect, silently discarding unsaved edits to
+  // the offset fields even though hasUnsavedOffsets tracks them.
   useEffect(() => {
     const p = progressMap[song.id];
     const saved = resolveOffsets(p, activeTrackId);
     setBackingOffset(String(saved.backing));
     setTabOffset(String(saved.tab));
-  }, [song.id, progressMap, activeTrackId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song.id, activeTrackId]);
 
   // Lazy-load missing media
   useEnsureMedia({
@@ -198,27 +200,24 @@ export function useCoverPracticeEngine({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const engine: PlaybackEngine = useMemo(
-    () => ({
-      playPause: () => players.playPause(),
-      seekBy: (delta: number) => players.seekBy(delta),
-      seekTo: (time: number) => players.seekTo(time),
-      getCurrentTime: () => players.getActiveCurrentTime(),
-      get duration() {
-        const ctrl =
-          usePlayerStore.getState().activeVideo === "backing"
-            ? backingController.controller
-            : tabController.controller;
-        return ctrl?.getDuration() ?? 0;
-      },
-      get isPlaying() {
-        return usePlayerStore.getState().isPlaying;
-      },
-    }),
-    // players and controllers are stable by design; the getters read fresh store state
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [players]
-  );
+  // No useMemo on [players] — `players` is a fresh object every render, so the
+  // memo never memoized; the getters read fresh store state at call time.
+  const engine: PlaybackEngine = {
+    playPause: () => players.playPause(),
+    seekBy: (delta: number) => players.seekBy(delta),
+    seekTo: (time: number) => players.seekTo(time),
+    getCurrentTime: () => players.getActiveCurrentTime(),
+    get duration() {
+      const ctrl =
+        usePlayerStore.getState().activeVideo === "backing"
+          ? backingController.controller
+          : tabController.controller;
+      return ctrl?.getDuration() ?? 0;
+    },
+    get isPlaying() {
+      return usePlayerStore.getState().isPlaying;
+    },
+  };
 
   async function handleSaveOffsets() {
     setIsSavingOffsets(true);
@@ -246,11 +245,10 @@ export function useCoverPracticeEngine({
   }
 
   const isVocals = activeRoleGroup?.role === "Vocals";
-  const hasCustomMedia = !!(backingReady || tabReady);
+  // "has media" — backingReady/tabReady include YouTube, not just custom files
+  const hasMedia = !!(backingReady || tabReady);
 
-  const coverArtUrl = song.coverArtStoredName
-    ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-    : song.albumArt || null;
+  const coverArtUrl = getCoverArtUrl(song);
 
   const coverState: CoverState = {
     activeTrackId,
@@ -277,7 +275,7 @@ export function useCoverPracticeEngine({
     capabilities: { canToggle: true as const, hasOffsets: true as const },
     toggleVideo: players.toggleVideo,
     coverState,
-    hasCustomMedia,
+    hasMedia,
     activeIsYouTube,
     mediaSurface: (
       <>
@@ -374,9 +372,7 @@ export function useCoverPracticeEngine({
         {((activeVideo === "backing" && !backingReady) || (activeVideo === "tab" && !tabReady)) && (
           <div className="absolute inset-0 flex items-center justify-center">
             {(() => {
-              const artUrl = song.coverArtStoredName
-                ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-                : song.albumArt || null;
+              const artUrl = getCoverArtUrl(song);
               if (artUrl) {
                 return (
                   // eslint-disable-next-line @next/next/no-img-element

@@ -48,6 +48,7 @@ export function useYouTubePlayer({
   const isActiveRef = useRef(isActive);
   const autoplayRef = useRef(autoplay);
   const primeOnReadyRef = useRef(primeOnReady);
+  const startOffsetRef = useRef(startOffset);
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
@@ -60,6 +61,9 @@ export function useYouTubePlayer({
   useEffect(() => {
     primeOnReadyRef.current = primeOnReady;
   }, [primeOnReady]);
+  useEffect(() => {
+    startOffsetRef.current = startOffset;
+  }, [startOffset]);
 
   // Priming state: briefly play then pause to render the first frame.
   const primingRef = useRef(false);
@@ -107,6 +111,7 @@ export function useYouTubePlayer({
           onReady: (event: { target: YTPlayer }) => {
             // Guard: skip if this player is no longer current (destroyed in Strict Mode, etc.)
             if (gen !== generationRef.current) return;
+            const startOffset = startOffsetRef.current;
             try {
               const currentSettings = usePlayerStore.getState();
               event.target.setVolume(currentSettings.volume);
@@ -176,7 +181,7 @@ export function useYouTubePlayer({
                 }
                 try {
                   event.target.pauseVideo();
-                  if (startOffset > 0) event.target.seekTo(startOffset, true);
+                  if (startOffsetRef.current > 0) event.target.seekTo(startOffsetRef.current, true);
                   event.target.setVolume(usePlayerStore.getState().volume);
                   event.target.unMute();
                 } catch {
@@ -189,7 +194,9 @@ export function useYouTubePlayer({
               if (state === YTState.PLAYING) setPlaying(true);
               else if (state === YTState.PAUSED) setPlaying(false);
             }
-            if (state === YTState.ENDED) {
+            if (state === YTState.ENDED && (isActiveRef.current?.() ?? true)) {
+              // Only the active player may end playback — in dual-sync the
+              // inactive one mirrors playback and could end first.
               onEndedRef.current?.();
             }
           },
@@ -197,19 +204,12 @@ export function useYouTubePlayer({
       }) as YTPlayer;
     };
 
+    // The effect only re-runs when apiLoaded/videoId/containerId change, and
+    // its cleanup destroys the previous player first, so on entry the ref is
+    // usually null. Keep loadVideoById as a defensive fast path.
     if (playerRef.current && typeof playerRef.current.loadVideoById === "function") {
-      // If the video hasn't changed but the offset has, just seek instead of reloading.
-      if (videoId && playerRef.current.getDuration() > 0) {
-        try {
-          playerRef.current.seekTo(startOffset, true);
-          applySettings();
-          return;
-        } catch {
-          // fall through to loadVideoById
-        }
-      }
       try {
-        playerRef.current.loadVideoById({ videoId, startSeconds: startOffset });
+        playerRef.current.loadVideoById({ videoId, startSeconds: startOffsetRef.current });
         applySettings();
       } catch {
         // fall back to recreate
@@ -229,6 +229,7 @@ export function useYouTubePlayer({
       // Invalidate any pending callbacks from this player.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       genRef.current++;
+      primingRef.current = false; // don't leak priming state into a new player
       if (primingTimeoutRef.current) {
         clearTimeout(primingTimeoutRef.current);
         primingTimeoutRef.current = null;
@@ -243,7 +244,20 @@ export function useYouTubePlayer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiLoaded, videoId, containerId, startOffset]);
+  }, [apiLoaded, videoId, containerId]);
+
+  // Seek on offset change WITHOUT rebuilding the iframe (previously the offset
+  // was in the creation effect's deps, so every offset save tore down and
+  // recreated the whole player — visible flicker + full video reload).
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p || !apiLoaded || !videoId) return;
+    try {
+      p.seekTo(startOffset, true);
+    } catch {
+      // ignore (player not ready yet)
+    }
+  }, [startOffset, apiLoaded, videoId]);
 
   // Sync volume / speed changes to the live player.
   const volume = usePlayerStore((s) => s.volume);

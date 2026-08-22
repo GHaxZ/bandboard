@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
-const UID_COOKIE = 'bandboard_uid';
-const SECRET_COOKIE = 'bandboard_secret';
+import { TEN_YEARS, UID_COOKIE, SECRET_COOKIE } from '@/lib/constants';
+import { safeEqual } from '@/lib/utils';
 
 function isStaticAsset(pathname: string): boolean {
   return (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.includes('.')
+    pathname.startsWith('/favicon.ico')
+    // NOTE: no `pathname.includes('.')` heuristic — that silently skipped the
+    // secret gate for any dotted path (e.g. a future slug containing a dot).
+    // The config.matcher below already excludes real static dirs.
   );
+}
+
+/** Only allow internal redirect targets (prevents open redirect via `next`). */
+function safeNext(raw: string | null): string {
+  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
 }
 
 function isValidUuid(v: string | undefined | null): v is string {
@@ -37,6 +42,7 @@ export async function proxy(req: NextRequest) {
       path: '/',
       maxAge: TEN_YEARS,
       sameSite: 'lax',
+      httpOnly: true,
     });
   }
 
@@ -46,8 +52,12 @@ export async function proxy(req: NextRequest) {
     const provided = req.cookies.get(SECRET_COOKIE)?.value;
     const onUnlock = pathname === '/unlock';
 
-    if (provided !== secret) {
+    if (provided === undefined || !safeEqual(provided, secret)) {
       if (!onUnlock) {
+        // API callers expect JSON, not an HTML redirect to /unlock.
+        if (pathname.startsWith('/api')) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
         const unlockUrl = req.nextUrl.clone();
         unlockUrl.pathname = '/unlock';
         unlockUrl.searchParams.set('next', pathname + search);
@@ -56,8 +66,7 @@ export async function proxy(req: NextRequest) {
       // On /unlock with bad/missing secret: let them see the form.
     } else if (onUnlock) {
       // Already authenticated + hitting /unlock: bounce to next or root.
-      const next = req.nextUrl.searchParams.get('next') || '/';
-      return NextResponse.redirect(new URL(next, req.url));
+      return NextResponse.redirect(new URL(safeNext(req.nextUrl.searchParams.get('next')), req.url));
     }
   } else if (pathname === '/unlock') {
     // No secret configured: /unlock is pointless, bounce to root.

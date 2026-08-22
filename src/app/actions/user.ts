@@ -13,7 +13,22 @@ import {
   type UserSettings,
 } from "@/types/models";
 import type { Role, ProgressStatus } from "@/lib/constants";
-import { AUTOPLAY_TIMEOUT_DEFAULT } from "@/lib/constants";
+import {
+  AUTOPLAY_TIMEOUT_DEFAULT,
+  PROGRESS_STATUSES,
+  SPEED_MIN,
+  SPEED_MAX,
+} from "@/lib/constants";
+import {
+  clampVolume,
+  clampPlaybackSpeed,
+  clampAutoplayTimeout,
+  validateUserSettings,
+  validateSongProgress,
+  validatePracticeMarkers,
+  validateStartOffsets,
+  clamp,
+} from "@/lib/validation";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -54,6 +69,13 @@ export async function saveUserSettings(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const err = validateUserSettings({
+      volume: partial.volume,
+      playbackSpeed: partial.playbackSpeed,
+      autoplayTimeout: partial.autoplayTimeout,
+    });
+    if (err) return { success: false, error: err };
+
     const uuid = await getUserUuid();
     const now = Date.now();
     await db
@@ -62,9 +84,9 @@ export async function saveUserSettings(
         userUuid: uuid,
         preferredInstrument: partial.preferredInstrument ?? DEFAULT_USER_SETTINGS.preferredInstrument,
         autoplayEnabled: partial.autoplayEnabled ?? DEFAULT_USER_SETTINGS.autoplayEnabled,
-        autoplayTimeout: partial.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT,
-        volume: partial.volume ?? DEFAULT_USER_SETTINGS.volume,
-        playbackSpeed: partial.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed,
+        autoplayTimeout: clampAutoplayTimeout(partial.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT),
+        volume: clampVolume(partial.volume ?? DEFAULT_USER_SETTINGS.volume),
+        playbackSpeed: clampPlaybackSpeed(partial.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed),
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -77,13 +99,13 @@ export async function saveUserSettings(
             autoplayEnabled: partial.autoplayEnabled,
           }),
           ...(partial.autoplayTimeout !== undefined && {
-            autoplayTimeout: partial.autoplayTimeout,
+            autoplayTimeout: clampAutoplayTimeout(partial.autoplayTimeout),
           }),
           ...(partial.volume !== undefined && {
-            volume: partial.volume,
+            volume: clampVolume(partial.volume),
           }),
           ...(partial.playbackSpeed !== undefined && {
-            playbackSpeed: partial.playbackSpeed,
+            playbackSpeed: clampPlaybackSpeed(partial.playbackSpeed),
           }),
           updatedAt: now,
         },
@@ -194,6 +216,9 @@ export async function saveSongProgress(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const err = validateSongProgress({ status: patch.status, speed: patch.speed });
+    if (err) return { success: false, error: err };
+
     const uuid = await getUserUuid();
     const now = Date.now();
     await db
@@ -260,6 +285,9 @@ export async function savePracticeMarkers(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const err = validatePracticeMarkers(markers);
+    if (err) return { success: false, error: err };
+
     const uuid = await getUserUuid();
     const now = Date.now();
     const serialized = JSON.stringify(markers);
@@ -294,6 +322,9 @@ export async function saveStartOffsets(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const err = validateStartOffsets({ backing, tab });
+    if (err) return { success: false, error: err };
+
     const uuid = await getUserUuid();
     const now = Date.now();
     const existing = await db
@@ -408,9 +439,9 @@ export async function importUserData(
             userUuid: importUuid,
             preferredInstrument: (s.preferredInstrument as Role) || "Guitar",
             autoplayEnabled: s.autoplayEnabled ?? true,
-            autoplayTimeout: s.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT,
-            volume: s.volume ?? DEFAULT_USER_SETTINGS.volume,
-            playbackSpeed: s.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed,
+            autoplayTimeout: clampAutoplayTimeout(s.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT),
+            volume: clampVolume(s.volume ?? DEFAULT_USER_SETTINGS.volume),
+            playbackSpeed: clampPlaybackSpeed(s.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed),
             updatedAt: Date.now(),
           })
           .onConflictDoUpdate({
@@ -418,9 +449,9 @@ export async function importUserData(
             set: {
               preferredInstrument: (s.preferredInstrument as Role) || "Guitar",
               autoplayEnabled: s.autoplayEnabled ?? true,
-              autoplayTimeout: s.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT,
-              volume: s.volume ?? DEFAULT_USER_SETTINGS.volume,
-              playbackSpeed: s.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed,
+              autoplayTimeout: clampAutoplayTimeout(s.autoplayTimeout ?? AUTOPLAY_TIMEOUT_DEFAULT),
+              volume: clampVolume(s.volume ?? DEFAULT_USER_SETTINGS.volume),
+              playbackSpeed: clampPlaybackSpeed(s.playbackSpeed ?? DEFAULT_USER_SETTINGS.playbackSpeed),
               updatedAt: Date.now(),
             },
           })
@@ -450,13 +481,24 @@ export async function importUserData(
             .get();
           if (!exists) continue;
 
+          // Sanitize imported values (bad rows come from hand-edited exports).
+          const status: ProgressStatus =
+            p.status && PROGRESS_STATUSES.some((s) => s.id === p.status)
+              ? (p.status as ProgressStatus)
+              : "learning";
+          const speed = clamp(
+            typeof p.speed === "number" && Number.isFinite(p.speed) ? p.speed : 100,
+            SPEED_MIN,
+            SPEED_MAX
+          );
+
           tx.insert(userSongProgress)
             .values({
               id: crypto.randomUUID(),
               userUuid: importUuid,
               songId: p.songId,
-              status: (p.status as ProgressStatus) || "learning",
-              speed: p.speed || 100,
+              status,
+              speed,
               notes: p.notes || null,
               practiceMarkers: p.practiceMarkers || null,
               offsets: p.offsets ?? null,
@@ -467,8 +509,8 @@ export async function importUserData(
             .onConflictDoUpdate({
               target: [userSongProgress.userUuid, userSongProgress.songId],
               set: {
-                status: (p.status as ProgressStatus) || "learning",
-                speed: p.speed || 100,
+                status,
+                speed,
                 notes: p.notes || null,
                 practiceMarkers: p.practiceMarkers || null,
                 offsets: p.offsets ?? null,

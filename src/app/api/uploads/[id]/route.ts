@@ -7,6 +7,7 @@ import { Readable } from 'stream';
 import { storedPath, mimeForExt } from '@/lib/uploads';
 import { ALLOWED_UPLOAD_MIMES } from '@/lib/constants';
 import { parseRange } from '@/lib/http-range';
+import { requireAuth, AuthError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
+    await requireAuth(); // Defense-in-depth behind the proxy gate (no-op when BAND_SECRET is unset)
     const { id } = await params;
 
     const rows = await db
@@ -73,6 +75,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
           'Content-Length': String(contentLength),
           'Content-Range': `bytes ${start}-${end}/${totalSize}`,
           'Accept-Ranges': 'bytes',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -86,9 +89,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
         'Content-Type': contentType,
         'Content-Length': String(totalSize),
         'Accept-Ranges': 'bytes',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('File serve failed:', error);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }

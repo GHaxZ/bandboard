@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,10 @@ export function VideoSelector({
   const [customError, setCustomError] = useState<string | null>(null);
   const [uploadedId, setUploadedId] = useState<string | null>(null);
 
+  // Tracks the latest search request — responses from an older in-flight
+  // request (auto-search on open racing a manual search) are ignored.
+  const searchRequestIdRef = useRef(0);
+
   const youtubeInUse = !currentCustomTrackId && !!currentUrl;
   const customInUse = !!currentCustomTrackId;
 
@@ -72,25 +76,31 @@ export function VideoSelector({
       const defaultQuery = getYouTubeQuery(songArtist, songTitle, role, type, instrumentName);
       setQuery(defaultQuery);
       if (defaultQuery.trim()) {
+        const requestId = ++searchRequestIdRef.current;
         setIsLoading(true);
         searchYouTubeVideosAction(defaultQuery)
-          .then((videos) => setResults(videos))
+          .then((videos) => {
+            if (requestId === searchRequestIdRef.current) setResults(videos);
+          })
           .catch((e) => console.error(e))
-          .finally(() => setIsLoading(false));
+          .finally(() => {
+            if (requestId === searchRequestIdRef.current) setIsLoading(false);
+          });
       }
     }
   }, [isOpen, trackId, type, role, songTitle, songArtist, instrumentName, currentUrl]);
 
   async function handleSearch(searchQuery: string) {
     if (!searchQuery.trim()) return;
+    const requestId = ++searchRequestIdRef.current;
     setIsLoading(true);
     try {
       const videos = await searchYouTubeVideosAction(searchQuery);
-      setResults(videos);
+      if (requestId === searchRequestIdRef.current) setResults(videos);
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      if (requestId === searchRequestIdRef.current) setIsLoading(false);
     }
   }
 
@@ -122,6 +132,8 @@ export function VideoSelector({
   function handleCustomFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0];
     if (!selected) return;
+    // Clear the input so re-selecting the same file still fires onChange.
+    e.target.value = "";
     setCustomFile(selected);
     setCustomError(null);
     setUploadedId(null);

@@ -1,19 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Edit, Sliders, ListMusic, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FileText } from "lucide-react";
 import dynamic from "next/dynamic";
-import { PrivateIndicator } from "@/components/PrivateIndicator";
+import { RehearsalHeader } from "@/components/RehearsalHeader";
 import { EditRehearsalModal } from "@/components/EditRehearsalModal";
-import { ClientDate } from "@/components/ClientDate";
 import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
 import { getProgressMap, saveSongProgress } from "@/app/actions/user";
 import type { RehearsalDetails, ProgressMap } from "@/types/models";
-import type { Role } from "@/lib/constants";
+import { DEFAULT_PROGRESS } from "@/types/models";
+import type { Role, ProgressStatus } from "@/lib/constants";
 
 // DnD is client-only; avoid SSR hydration mismatch (PLAN §3.5 r).
 const KanbanBoard = dynamic(
@@ -59,64 +57,14 @@ export function RehearsalKanbanClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/rehearsals"
-            className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card rounded-xl w-10 h-10 transition-all border border-transparent hover:border-border"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-              {rehearsalDetails.title}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <ClientDate ms={rehearsalDetails.date} variant="datetime" />
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setIsEditRehearsalOpen(true)}
-            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-3.5 h-9"
-          >
-            <Edit className="w-3.5 h-3.5 mr-1" /> Edit Details
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleDeleteRehearsal}
-            className="bg-red-950/25 hover:bg-red-900/40 border border-red-950/40 text-red-400 hover:text-white rounded-xl text-xs font-bold px-3.5 h-9"
-          >
-            Delete Session
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 bg-card border border-border p-1 rounded-xl w-fit">
-          <Link
-            href={`/rehearsals/${rehearsalId}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 text-muted-foreground hover:text-foreground"
-          >
-            <ListMusic className="w-4 h-4" />
-            Setlist &amp; Practice
-          </Link>
-          <Link
-            href={`/rehearsals/${rehearsalId}/kanban`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 bg-muted text-foreground"
-          >
-            <Sliders className="w-4 h-4" />
-            Kanban Board
-          </Link>
-        </div>
-
-        <PrivateIndicator
-          text="Only synced for you"
-          tooltip="Your practice progress and notes are kept private to your user session."
-        />
-      </div>
+      <RehearsalHeader
+        rehearsalId={rehearsalId}
+        title={rehearsalDetails.title}
+        date={rehearsalDetails.date}
+        activeTab="kanban"
+        onEdit={() => setIsEditRehearsalOpen(true)}
+        onDelete={handleDeleteRehearsal}
+      />
 
       {rehearsalDetails.notes && (
         <div className="bg-card/40 border border-border rounded-2xl p-4 flex gap-3 text-xs leading-relaxed text-muted-foreground">
@@ -132,24 +80,24 @@ export function RehearsalKanbanClient({
 
       <div className="flex-1 min-h-0">
         <KanbanBoard
-          rehearsalId={rehearsalDetails.id}
           rehearsalSongs={rehearsalDetails.rehearsalSongs}
           progressMap={progressMap}
           preferredInstrument={preferredInstrument}
           onSaveProgress={async (songId, status) => {
-            const oldProgress = progressMap[songId] || {
-              status: "not_started" as never,
-              speed: 100,
-              notes: null,
-              practiceMarkers: null,
-              offsets: {},
-            };
-            setProgressMap({
-              ...progressMap,
-              [songId]: { ...oldProgress, status: status as never },
-            });
-            const res = await saveSongProgress(songId, { status: status as never });
-            if (!res.success) toast.error("Failed to save progress: " + res.error);
+            const oldProgress = progressMap[songId] ?? { ...DEFAULT_PROGRESS };
+            // Optimistic update in functional form — reading the render-closure
+            // map meant a second drag discarded the first's optimistic state.
+            setProgressMap((prev) => ({
+              ...prev,
+              [songId]: { ...oldProgress, status: status as ProgressStatus },
+            }));
+            const res = await saveSongProgress(songId, { status: status as ProgressStatus });
+            if (!res.success) {
+              toast.error("Failed to save progress: " + res.error);
+              // Explicit rollback (the refetch below would mask it only if it
+              // succeeds).
+              setProgressMap((prev) => ({ ...prev, [songId]: oldProgress }));
+            }
             refreshData();
           }}
           onSelectSong={(songId) => router.push(`/rehearsals/${rehearsalId}?song=${songId}`)}

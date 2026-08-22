@@ -27,14 +27,11 @@ interface PlayerStore {
   isPlaying: boolean;
   volume: number;
   speed: number;
-  seekTarget: number | null;
   lastSeekAt: number;
 
   // practice (dual player)
   activeVideo: ActiveVideo;
   markers: number[];
-  backingOffset: number;
-  tabOffset: number;
 
   // autoplay
   currentIndex: number;
@@ -54,12 +51,8 @@ interface PlayerStore {
 
   setActiveVideo: (v: ActiveVideo) => void;
   setMarkers: (m: number[]) => void;
-  setBackingOffset: (n: number) => void;
-  setTabOffset: (n: number) => void;
 
   setCurrentIndex: (i: number) => void;
-  next: (len: number) => void;
-  prev: () => void;
   setAutoplayEnabled: (v: boolean) => void;
   setTransitionTimeout: (n: number) => void;
 
@@ -80,13 +73,10 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   isPlaying: false,
   volume: 100,
   speed: 1.0,
-  seekTarget: null,
   lastSeekAt: 0,
 
   activeVideo: "backing",
   markers: [],
-  backingOffset: 0,
-  tabOffset: 0,
 
   currentIndex: 0,
   autoplayEnabled: true,
@@ -100,21 +90,14 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   setPlaying: (v) => set({ isPlaying: v }),
   setVolume: (v) => set({ volume: v }),
   setSpeed: (v) => set({ speed: v }),
-  registerSeek: (target) => set({ seekTarget: target, lastSeekAt: Date.now() }),
+  // seekTarget was removed as dead state; only the timestamp is kept so the
+  // sync engine can debounce seeks.
+  registerSeek: (_target) => set({ lastSeekAt: Date.now() }),
 
   setActiveVideo: (v) => set({ activeVideo: v }),
   setMarkers: (m) => set({ markers: m }),
-  setBackingOffset: (n) => set({ backingOffset: n }),
-  setTabOffset: (n) => set({ tabOffset: n }),
 
   setCurrentIndex: (i) => set({ currentIndex: i, skipReason: null, isPlaying: false }),
-  next: (len) =>
-    set((s) => ({
-      currentIndex: Math.min(s.currentIndex + 1, Math.max(0, len - 1)),
-      skipReason: null,
-      isPlaying: false,
-    })),
-  prev: () => set((s) => ({ currentIndex: Math.max(0, s.currentIndex - 1), skipReason: null, isPlaying: false })),
   setAutoplayEnabled: (v) => set({ autoplayEnabled: v }),
   setTransitionTimeout: (n) => set({ transitionTimeout: n }),
 
@@ -153,14 +136,13 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   triggerNoVideo: () => set({ skipReason: "no_video", isPlaying: false }),
   clearSkipReason: () => set({ skipReason: null }),
 
+  // NOTE: reset() deliberately does NOT touch volume/speed/autoplayEnabled/
+  // transitionTimeout — those persist across practice sessions.
   reset: () =>
     set({
       isPlaying: false,
-      seekTarget: null,
       activeVideo: "backing",
       markers: [],
-      backingOffset: 0,
-      tabOffset: 0,
       currentIndex: 0,
       countdown: null,
       countdownPaused: false,

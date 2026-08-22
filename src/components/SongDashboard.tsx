@@ -12,7 +12,7 @@ import {
   lazyLoadTrackMedia,
   refreshSongMetadata,
 } from "@/app/actions/songs";
-import { getSongProgress } from "@/app/actions/user";
+import { useSongProgress } from "@/hooks/useSongProgress";
 import { VideoSelector } from "./VideoSelector";
 import { YouTubePreview } from "./YouTubePreview";
 import { CustomMediaPreview } from "./CustomMediaPreview";
@@ -35,9 +35,6 @@ interface SongDashboardProps {
 
 // Module-scoped set so we only attempt lazy-load once per roleGroup per session.
 const attemptedLazy = new Set<string>();
-export function clearAttemptedLazy() {
-  attemptedLazy.clear();
-}
 
 export function SongDashboard({
   song,
@@ -76,28 +73,7 @@ export function SongDashboard({
     : song.albumArt || null;
 
   const [selectedOtherTrackId, setSelectedOtherTrackId] = useState<string>("");
-  const [initialProgress, setInitialProgress] = useState<{
-    status: string;
-    speed: number;
-    notes: string;
-  } | null>(null);
-
-  useEffect(() => {
-    async function loadSongUserData() {
-      if (!song.id) return;
-      const prog = await getSongProgress(song.id);
-      if (prog) {
-        setInitialProgress({
-          status: prog.status,
-          speed: prog.speed,
-          notes: prog.notes || "",
-        });
-      } else {
-        setInitialProgress({ status: "not_started", speed: 100, notes: "" });
-      }
-    }
-    loadSongUserData();
-  }, [song.id]);
+  const { progress: initialProgress, reload: reloadProgress } = useSongProgress(song.id);
 
   const [isNotationExpanded, setIsNotationExpanded] = useState<Record<string, boolean>>({});
   const lastPreferredRef = useRef(preferredInstrument);
@@ -265,10 +241,10 @@ export function SongDashboard({
     <Card className="border-border bg-card overflow-hidden rounded-2xl shadow-xl">
       <CardHeader className="border-b border-border pb-5 pt-6 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          {song.albumArt && (
+          {coverArtUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={song.albumArt}
+              src={coverArtUrl}
               alt=""
               className="w-14 h-14 rounded-xl object-cover border border-border flex-shrink-0"
             />
@@ -730,14 +706,7 @@ export function SongDashboard({
                   initialNotes={initialProgress?.notes ?? ""}
                   initialSpeed={initialProgress?.speed}
                   onSaveSuccess={async () => {
-                    const prog = await getSongProgress(song.id);
-                    if (prog) {
-                      setInitialProgress({
-                        status: prog.status,
-                        speed: prog.speed,
-                        notes: prog.notes || "",
-                      });
-                    }
+                    await reloadProgress();
                     onRefresh();
                   }}
                   className="mt-6 border-border/60 bg-background/60"

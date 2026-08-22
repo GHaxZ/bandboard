@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { getSongProgress } from "@/app/actions/user";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { EmptyState } from "./EmptyState";
+import { getCoverArtUrl } from "./CoverArt";
+import { useSongProgress } from "@/hooks/useSongProgress";
 import { Music, Pencil, Trash } from "lucide-react";
 import { INSTRUMENT_ROLES, ROLE_LABEL } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
@@ -30,28 +31,7 @@ export function OriginalSongDashboard({
   onEdit,
   preferredInstrument,
 }: OriginalSongDashboardProps) {
-  const [initialProgress, setInitialProgress] = useState<{
-    status: string;
-    speed: number;
-    notes: string;
-  } | null>(null);
-
-  useEffect(() => {
-    async function loadSongUserData() {
-      if (!song.id) return;
-      const prog = await getSongProgress(song.id);
-      if (prog) {
-        setInitialProgress({
-          status: prog.status,
-          speed: prog.speed,
-          notes: prog.notes || "",
-        });
-      } else {
-        setInitialProgress({ status: "not_started", speed: 100, notes: "" });
-      }
-    }
-    loadSongUserData();
-  }, [song.id]);
+  const { progress: initialProgress, reload: reloadProgress } = useSongProgress(song.id);
 
   const tracks = song.customTracks ?? [];
 
@@ -75,11 +55,7 @@ export function OriginalSongDashboard({
     }
   }, [rolesWithStems, preferredInstrument, activeRole]);
 
-  const coverArtSrc = song.coverArtStoredName
-    ? `/api/cover-art/${song.id}?v=${song.coverArtStoredName}`
-    : song.albumArt
-      ? song.albumArt
-      : null;
+  const coverArtSrc = getCoverArtUrl(song);
 
   return (
     <Card className="border-border bg-card overflow-hidden rounded-2xl shadow-xl">
@@ -222,14 +198,7 @@ export function OriginalSongDashboard({
           initialNotes={initialProgress?.notes ?? ""}
           initialSpeed={initialProgress?.speed}
           onSaveSuccess={async () => {
-            const prog = await getSongProgress(song.id);
-            if (prog) {
-              setInitialProgress({
-                status: prog.status,
-                speed: prog.speed,
-                notes: prog.notes || "",
-              });
-            }
+            await reloadProgress();
             onRefresh();
           }}
           className="border-border/60 bg-background/60"

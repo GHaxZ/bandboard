@@ -31,14 +31,22 @@ export function PracticeLogCard({
 }: PracticeLogCardProps) {
   const [progressStatus, setProgressStatus] = useState<string>(initialStatus);
   const [progressNotes, setProgressNotes] = useState<string>(initialNotes);
-  const [progressSpeed, setProgressSpeed] = useState<number>(initialSpeed);
   const [isSavingProgress, setIsSavingProgress] = useState<boolean>(false);
+  // Once the user starts editing, stop syncing from props — both parents fetch
+  // progress AFTER mount, and that async load would otherwise silently discard
+  // notes typed in the first ~100ms.
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
 
   useEffect(() => {
+    if (hasLocalEdits) return;
     setProgressStatus(initialStatus || "not_started");
     setProgressNotes(initialNotes || "");
-    setProgressSpeed(initialSpeed || 100);
-  }, [initialStatus, initialNotes, initialSpeed, songId]);
+  }, [initialStatus, initialNotes, songId, hasLocalEdits]);
+
+  // Switching songs resets the edit guard.
+  useEffect(() => {
+    setHasLocalEdits(false);
+  }, [songId]);
 
   const hasUnsavedProgress =
     progressStatus !== (initialStatus || "not_started") ||
@@ -49,11 +57,12 @@ export function PracticeLogCard({
     try {
       const res = await saveSongProgress(songId, {
         status: progressStatus as never,
-        speed: progressSpeed,
+        speed: initialSpeed,
         notes: progressNotes || null,
       });
       if (res.success) {
         toast.success("Progress saved successfully!");
+        setHasLocalEdits(false); // re-arm prop syncing with the saved values
         onSaveSuccess?.();
       } else {
         toast.error("Failed to save progress: " + res.error);
@@ -92,7 +101,10 @@ export function PracticeLogCard({
                   key={status.id}
                   type="button"
                   variant={isSelected ? "default" : "outline"}
-                  onClick={() => setProgressStatus(status.id)}
+                  onClick={() => {
+                    setProgressStatus(status.id);
+                    setHasLocalEdits(true);
+                  }}
                   className={cn(
                     "rounded-lg text-[9px] font-bold h-8 px-1 transition-all truncate",
                     isSelected
@@ -115,7 +127,10 @@ export function PracticeLogCard({
           <textarea
             placeholder="Record highlights, difficult parts, or speed settings..."
             value={progressNotes}
-            onChange={(e) => setProgressNotes(e.target.value)}
+            onChange={(e) => {
+              setProgressNotes(e.target.value);
+              setHasLocalEdits(true);
+            }}
             className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-[#4e525a]"
           />
         </div>

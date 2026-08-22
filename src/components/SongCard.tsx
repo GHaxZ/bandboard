@@ -38,8 +38,8 @@ export function SongCard({
   const roleCaption = `${roleCount} instrument role${roleCount === 1 ? "" : "s"}`;
 
   return (
-    <Link href={`/songs/${song.id}`} className="block h-full">
-      <Card className="border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0 h-full flex flex-col justify-between">
+    <div className="h-full">
+      <Card className="relative h-full flex flex-col justify-between border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0">
         <CardHeader className="p-5 flex flex-row items-center gap-4">
           <CoverArt song={song} size="md" />
           <div className="min-w-0 flex-1">
@@ -68,17 +68,21 @@ export function SongCard({
           <Button
             size="sm"
             variant="practice"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onPractice(song.id);
-            }}
+            className="relative z-10"
+            onClick={() => onPractice(song.id)}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             Practice
           </Button>
         </div>
+        {/* Stretched link replaces the old <Link> wrapper — a <button> inside an
+            <a> is invalid HTML and broke screen-reader semantics. */}
+        <Link
+          href={`/songs/${song.id}`}
+          aria-label={`Open ${song.title}`}
+          className="absolute inset-0"
+        />
       </Card>
-    </Link>
+    </div>
   );
 }

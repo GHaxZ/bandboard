@@ -111,8 +111,8 @@ export function OriginalEditor({
 
   // Keep drafts in sync when server data refreshes (e.g. after upload).
   useEffect(() => {
+    const serverIds = new Set(tracks.map((t) => t.id));
     setStemDrafts((prev) => {
-      const serverIds = new Set(tracks.map((t) => t.id));
       // Preserve draft edits (role, label, startOffset) for stems that still exist,
       // but update duration from server (probed value).
       const preserved = prev
@@ -128,7 +128,7 @@ export function OriginalEditor({
     setDeletedStemIds((prev) => {
       const next = new Set(prev);
       for (const id of next) {
-        if (!serverIds_has(tracks, id)) next.delete(id);
+        if (!serverIds.has(id)) next.delete(id);
       }
       return next;
     });
@@ -158,17 +158,6 @@ export function OriginalEditor({
     tracks: activeStems,
     mutedTrackIds,
     soloTrackIds,
-    getStreamUrl: (id) => {
-      // Pending stems use blob URLs until uploaded on Save All.
-      const file = pendingFilesRef.current.get(id);
-      if (file) {
-        if (!blobUrlsRef.current.has(id)) {
-          blobUrlsRef.current.set(id, URL.createObjectURL(file));
-        }
-        return blobUrlsRef.current.get(id)!;
-      }
-      return `/api/uploads/${id}`;
-    },
   });
 
   const getStreamUrlForTrack = useCallback((id: string) => {
@@ -217,8 +206,21 @@ export function OriginalEditor({
   const hasBassStems = useMemo(() => activeStems.some((t) => t.role === "Bass"), [activeStems]);
 
   // --- Cover art preview ---
-  const coverArtPreview = coverArtFile
-    ? URL.createObjectURL(coverArtFile)
+  // Object URL created in an effect (and revoked on change/unmount) — creating
+  // it in the render body leaked a new URL per render while a file was selected.
+  const [coverArtBlobUrl, setCoverArtBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!coverArtFile) {
+      setCoverArtBlobUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(coverArtFile);
+    setCoverArtBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverArtFile]);
+
+  const coverArtPreview = coverArtBlobUrl
+    ? coverArtBlobUrl
     : coverArtMarkedForRemoval
       ? null
       : song.coverArtStoredName
@@ -245,7 +247,9 @@ export function OriginalEditor({
       );
       // Only persist duration to server for non-pending stems
       if (!pendingStemIds.has(trackId)) {
-        updateCustomTrack(trackId, { duration }).then(() => onRefresh());
+        updateCustomTrack(trackId, { duration })
+          .then(() => onRefresh())
+          .catch((e) => console.error("Failed to save track duration:", e));
       }
     },
     [onRefresh, pendingStemIds]
@@ -263,19 +267,39 @@ export function OriginalEditor({
     );
   }, []);
 
-  const handleStemDelete = useCallback((trackId: string) => {
-    setDeletedStemIds((prev) => new Set(prev).add(trackId));
-    setMutedTrackIds((prev) => {
-      const next = new Set(prev);
-      next.delete(trackId);
-      return next;
-    });
-    setSoloTrackIds((prev) => {
-      const next = new Set(prev);
-      next.delete(trackId);
-      return next;
-    });
-  }, []);
+  const handleStemDelete = useCallback(
+    (trackId: string) => {
+      if (pendingStemIds.has(trackId)) {
+        // Pending stem (file selected, not yet uploaded): drop the draft
+        // entirely instead of marking it deleted — otherwise Save All would
+        // still upload it (step 3b) and then deleteCustomTrack(trackId) would
+        // no-op against a temp id, resurrecting the stem in the library.
+        setStemDrafts((prev) => prev.filter((t) => t.id !== trackId));
+        setPendingStemIds((prev) => {
+          const next = new Set(prev);
+          next.delete(trackId);
+          return next;
+        });
+        const url = blobUrlsRef.current.get(trackId);
+        if (url) URL.revokeObjectURL(url);
+        blobUrlsRef.current.delete(trackId);
+        pendingFilesRef.current.delete(trackId);
+        return;
+      }
+      setDeletedStemIds((prev) => new Set(prev).add(trackId));
+      setMutedTrackIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trackId);
+        return next;
+      });
+      setSoloTrackIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trackId);
+        return next;
+      });
+    },
+    [pendingStemIds]
+  );
 
   function toggleMute(trackId: string) {
     setMutedTrackIds((prev) => {
@@ -894,8 +918,4 @@ export function OriginalEditor({
       />
     </div>
   );
-}
-
-function serverIds_has(tracks: CustomTrack[], id: string): boolean {
-  return tracks.some((t) => t.id === id);
 }

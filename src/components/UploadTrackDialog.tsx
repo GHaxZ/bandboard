@@ -101,7 +101,7 @@ export function UploadTrackDialog({
             Add Stem
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Upload an audio or video stem. Assign it a role so the practice mode knows which
+            Upload an audio stem. Assign it a role so the practice mode knows which
             instrument to mute for you.
           </DialogDescription>
         </DialogHeader>

@@ -10,9 +10,14 @@ export function parseRange(
 ): { start: number; end: number } | null {
   if (!rangeHeader || !rangeHeader.startsWith('bytes=')) return null;
 
-  const spec = rangeHeader.slice(6).split('-');
-  const startRaw = spec[0];
-  const endRaw = spec[1];
+  const spec = rangeHeader.slice(6);
+  // Reject multi-range requests (bytes=0-1,5-6): we serve single ranges only.
+  // Previously the comma leaked into parseInt and silently served the first
+  // range, which is RFC-noncompliant.
+  if (spec.includes(',')) return null;
+  const parts = spec.split('-');
+  const startRaw = parts[0];
+  const endRaw = parts[1];
   let start: number;
   let end: number;
 

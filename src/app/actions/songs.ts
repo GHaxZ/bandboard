@@ -53,16 +53,22 @@ export async function ingestSongData(
     await requireAuth();
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
+    if (!formattedTitle || !formattedArtist) {
+      return { success: false, error: "Title and artist are required." };
+    }
 
     if (await findDuplicate(formattedTitle, formattedArtist, 'cover')) {
       return { success: false, error: "This cover song is already in your library." };
     }
 
-    // External enrichment (each independent, 3s timeout)
+    // External enrichment: Songsterr first (its verified title/artist feed the
+    // other two lookups), then album art + lyrics in parallel.
     const { songsterrId, verifiedTitle, verifiedArtist, rawTracks } =
       await fetchSongsterr(formattedTitle, formattedArtist);
-    const albumArt = await fetchAlbumArt(verifiedArtist, verifiedTitle);
-    const lyricsUrl = await fetchGeniusLyricsUrl(verifiedArtist, verifiedTitle);
+    const [albumArt, lyricsUrl] = await Promise.all([
+      fetchAlbumArt(verifiedArtist, verifiedTitle),
+      fetchGeniusLyricsUrl(verifiedArtist, verifiedTitle),
+    ]);
 
     const songId = crypto.randomUUID();
     const artistSlug = slugify(verifiedArtist);
@@ -194,10 +200,11 @@ export async function updateOriginalMetadata(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
+    if (!current) return { success: false, error: "Song not found." };
+
     // When renaming, ensure no duplicate original song with the new name+artist exists.
     if (patch.title !== undefined || patch.artist !== undefined) {
-      const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
-      if (!current) return { success: false, error: "Song not found." };
       const newTitle = (patch.title ?? current.title).trim();
       const newArtist = (patch.artist ?? current.artist).trim();
       if (await findDuplicate(newTitle, newArtist, 'original', songId)) {
@@ -206,12 +213,33 @@ export async function updateOriginalMetadata(
     }
 
     const set: Record<string, unknown> = {};
-    if (patch.title !== undefined) set.title = patch.title.trim();
-    if (patch.artist !== undefined) set.artist = patch.artist.trim();
+    if (patch.title !== undefined) {
+      const title = patch.title.trim();
+      if (!title) return { success: false, error: "Title is required." };
+      set.title = title;
+    }
+    if (patch.artist !== undefined) {
+      const artist = patch.artist.trim();
+      if (!artist) return { success: false, error: "Artist is required." };
+      set.artist = artist;
+    }
     if (patch.tunings !== undefined) {
       set.tunings = patch.tunings ? JSON.stringify(patch.tunings) : null;
     }
-    if (patch.coverArtStoredName !== undefined) set.coverArtStoredName = patch.coverArtStoredName;
+    if (patch.coverArtStoredName !== undefined) {
+      const name = patch.coverArtStoredName;
+      // Only accept server-generated cover names. Without this check a caller
+      // could point the column at an arbitrary path and exfiltrate/delete any
+      // file via the cover-art GET route / deleteSong cleanup.
+      if (name !== null && !/^cover-[0-9a-f-]{36}\.(png|jpe?g|webp|gif)$/i.test(name)) {
+        return { success: false, error: "Invalid cover art reference." };
+      }
+      // Unlink the old file when the reference changes (removal → null or
+      // replacement), so uploads/ doesn't accumulate orphaned images.
+      const oldName = current.coverArtStoredName;
+      if (oldName && oldName !== name) deleteStoredFile(oldName);
+      set.coverArtStoredName = name;
+    }
     if (Object.keys(set).length === 0) return { success: true };
 
     db.update(songs).set(set).where(eq(songs.id, songId)).run();
@@ -234,9 +262,10 @@ export async function updateRoleGroupCustomArtifact(
     if (!rg) return { success: false, error: "Role group not found." };
 
     const oldId = type === "backing" ? rg.backingCustomTrackId : rg.tabCustomTrackId;
-    // FK is NO ACTION (Drizzle's ALTER ADD COLUMN omitted ON DELETE SET NULL), so
-    // the slot reference must be cleared before the old custom track row can be
-    // deleted. Set the new value first, then unlink the old track's file + row.
+    // The slot reference is set to the new value first, then the old track's
+    // file + row are unlinked via deleteCustomTrack (which also clears any
+    // remaining slot refs before deleting — belt-and-suspenders alongside the
+    // ON DELETE SET NULL FK added by migration 0005).
     const patch =
       type === "backing"
         ? { backingCustomTrackId: customTrackId }
@@ -339,6 +368,13 @@ export async function updateRoleGroupVideo(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    if (
+      videoUrl !== null &&
+      videoUrl !== NO_VIDEO_SENTINEL &&
+      !/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(videoUrl)
+    ) {
+      return { success: false, error: "Only YouTube URLs are allowed." };
+    }
     if (type === "backing") {
       await db
         .update(roleGroups)

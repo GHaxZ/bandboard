@@ -35,11 +35,21 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
   const [copySuccess, setCopySuccess] = useState(false);
   const [syncIdInput, setSyncIdInput] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [savingInstrument, setSavingInstrument] = useState(false);
 
   async function handleInstrumentChange(val: Role) {
+    if (savingInstrument) return;
     setInstrument(val);
-    await saveUserSettings({ preferredInstrument: val });
-    toast.success(`Role updated to ${ROLE_LABEL[val]}`);
+    setSavingInstrument(true);
+    try {
+      await saveUserSettings({ preferredInstrument: val });
+      toast.success(`Role updated to ${ROLE_LABEL[val]}`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingInstrument(false);
+    }
   }
 
   function handleCopyId() {
@@ -52,14 +62,23 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
   }
 
   async function handleSyncId() {
+    if (isSyncing) return;
     setSyncError("");
     const trimmed = syncIdInput.trim();
-    const res = await syncDeviceId(trimmed);
-    if (res.success) {
-      toast.success("Device ID synchronized! Reloading page...");
-      window.location.reload();
-    } else {
-      setSyncError(res.error || "Invalid Device ID.");
+    setIsSyncing(true);
+    try {
+      const res = await syncDeviceId(trimmed);
+      if (res.success) {
+        toast.success("Device ID synchronized! Reloading page...");
+        window.location.reload();
+      } else {
+        setSyncError(res.error || "Invalid Device ID.");
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncError("Something went wrong.");
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -80,28 +99,30 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
   }
 
   function handleImportProfile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Clear the input so re-selecting the same file still fires onChange.
+    e.target.value = "";
+    if (!file) return;
     const fileReader = new FileReader();
-    if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], "UTF-8");
-      fileReader.onload = async (event) => {
-        try {
-          const parsed = JSON.parse(event.target?.result as string);
-          if (!parsed.bandboard_uid) {
-            toast.error("Invalid file: No Device ID found.");
-            return;
-          }
-          const res = await importUserData(parsed);
-          if (res.success && res.userUuid) {
-            toast.success("Profile imported successfully!");
-            window.location.reload();
-          } else {
-            toast.error("Import failed: " + (res.error || "Database error"));
-          }
-        } catch {
-          toast.error("Failed to parse file as JSON.");
+    fileReader.readAsText(file, "UTF-8");
+    fileReader.onload = async (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (!parsed.bandboard_uid) {
+          toast.error("Invalid file: No Device ID found.");
+          return;
         }
-      };
-    }
+        const res = await importUserData(parsed);
+        if (res.success && res.userUuid) {
+          toast.success("Profile imported successfully!");
+          window.location.reload();
+        } else {
+          toast.error("Import failed: " + (res.error || "Database error"));
+        }
+      } catch {
+        toast.error("Failed to parse file as JSON.");
+      }
+    };
   }
 
   return (
@@ -137,8 +158,9 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
                   <Button
                     key={inst}
                     variant={isSelected ? "default" : "outline"}
+                    disabled={savingInstrument}
                     onClick={() => handleInstrumentChange(inst)}
-                    className={`rounded-xl h-11 font-bold text-xs ${
+                    className={`rounded-xl h-11 font-bold text-xs disabled:opacity-50 ${
                       isSelected
                         ? "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
                         : "border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -244,9 +266,10 @@ export function SettingsClient({ preferredInstrument, userUuid }: SettingsClient
                 />
                 <Button
                   onClick={handleSyncId}
-                  className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
+                  disabled={isSyncing || !syncIdInput.trim()}
+                  className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0 disabled:opacity-50"
                 >
-                  Sync ID
+                  {isSyncing ? "Syncing..." : "Sync ID"}
                 </Button>
               </div>
               {syncError && <p className="text-xs text-red-400 font-semibold">{syncError}</p>}

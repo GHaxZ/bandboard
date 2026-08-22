@@ -28,7 +28,6 @@ export function useDualSyncedEngine({
   backingOffset,
   tabOffset,
 }: UseDualSyncedEngineOpts) {
-  const activeVideo = usePlayerStore((s) => s.activeVideo);
   const setActiveVideo = usePlayerStore((s) => s.setActiveVideo);
   const registerSeek = usePlayerStore((s) => s.registerSeek);
 
@@ -37,11 +36,6 @@ export function useDualSyncedEngine({
   useEffect(() => {
     offsetsRef.current = { backing: backingOffset, tab: tabOffset };
   }, [backingOffset, tabOffset]);
-
-  const activeVideoRef = useRef(activeVideo);
-  useEffect(() => {
-    activeVideoRef.current = activeVideo;
-  }, [activeVideo]);
 
   // Keep controller refs fresh so the interval reads latest values without
   // re-subscribing each change.
@@ -56,15 +50,20 @@ export function useDualSyncedEngine({
 
   // Sync interval: keep the inactive controller muted, time-aligned, and in
   // the same play/pause state as the active one. Reads via refs so a controller
-  // created after mount is picked up immediately.
+  // created after mount is picked up immediately. `activeVideo` is read
+  // synchronously from the store (NOT a ref synced in a passive effect) — a
+  // tick landing between setActiveVideo() and the effect flush would otherwise
+  // compute active/inactive from the stale value and mute the just-activated
+  // slot, which the interval never unmutes again.
   useEffect(() => {
     const interval = setInterval(() => {
       const backing = backingRef.current;
       const tab = tabRef.current;
       if (!backing || !tab) return;
 
-      const active = activeVideoRef.current === "backing" ? backing : tab;
-      const inactive = activeVideoRef.current === "backing" ? tab : backing;
+      const current = usePlayerStore.getState().activeVideo;
+      const active = current === "backing" ? backing : tab;
+      const inactive = current === "backing" ? tab : backing;
 
       // Ensure inactive stays muted.
       try {
@@ -121,8 +120,8 @@ export function useDualSyncedEngine({
       if (activeState !== YT_PLAYING && inactiveState !== YT_PLAYING) return;
 
       const { backing: bOff, tab: tOff } = offsetsRef.current;
-      const activeOffset = activeVideoRef.current === "backing" ? bOff : tOff;
-      const inactiveOffset = activeVideoRef.current === "backing" ? tOff : bOff;
+      const activeOffset = current === "backing" ? bOff : tOff;
+      const inactiveOffset = current === "backing" ? tOff : bOff;
 
       let activeTime = 0;
       let inactiveTime = 0;
@@ -160,8 +159,8 @@ export function useDualSyncedEngine({
 
   const toggleVideo = () => {
     if (!backing || !tab) return;
-    const next: "backing" | "tab" =
-      activeVideoRef.current === "backing" ? "tab" : "backing";
+    const current = usePlayerStore.getState().activeVideo;
+    const next: "backing" | "tab" = current === "backing" ? "tab" : "backing";
     const active = getActive();
     const inactive = getInactive();
     if (!active || !inactive) {
@@ -170,8 +169,8 @@ export function useDualSyncedEngine({
     }
 
     const { backing: bOff, tab: tOff } = offsetsRef.current;
-    const activeOffset = activeVideoRef.current === "backing" ? bOff : tOff;
-    const inactiveOffset = activeVideoRef.current === "backing" ? tOff : bOff;
+    const activeOffset = current === "backing" ? bOff : tOff;
+    const inactiveOffset = current === "backing" ? tOff : bOff;
 
     try {
       const t = active.getCurrentTime();
@@ -265,6 +264,5 @@ export function useDualSyncedEngine({
     seekTo,
     playPause,
     getActiveCurrentTime,
-    hasBoth: !!(backing && tab),
   };
 }

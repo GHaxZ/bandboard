@@ -29,6 +29,10 @@ const MIME_TO_EXT: Record<string, string> = {
   'video/webm': '.webm',
   'video/quicktime': '.mov',
   'video/x-matroska': '.mkv',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
 };
 
 export function extForMime(mime: string): string {
@@ -46,6 +50,11 @@ const EXT_TO_MIME: Record<string, string> = {
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
   '.mkv': 'video/x-matroska',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
 };
 
 export function mimeForExt(storedName: string): string {
@@ -57,7 +66,14 @@ export function mimeForExt(storedName: string): string {
 }
 
 export function storedPath(storedName: string): string {
-  return path.join(UPLOAD_DIR, storedName);
+  // Defense-in-depth: never resolve a path that escapes UPLOAD_DIR. All stored
+  // names are server-generated (UUID + extension), so a name containing
+  // separators or ".." is by definition invalid input.
+  const safe = path.basename(storedName);
+  if (safe !== storedName) {
+    throw new Error('Invalid stored name');
+  }
+  return path.join(UPLOAD_DIR, safe);
 }
 
 export function deleteStoredFile(storedName: string): void {

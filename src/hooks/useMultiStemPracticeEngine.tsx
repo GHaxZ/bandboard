@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMultiTrackPlayer } from "./useMultiTrackPlayer";
 import { usePlayerStore } from "@/stores/player-store";
+import { StemMediaPool } from "@/components/StemMediaPool";
 import { cn } from "@/lib/utils";
 import { INSTRUMENT_ROLES } from "@/lib/constants";
 import type { PlaybackEngine } from "@/lib/media-controller";
@@ -25,7 +26,7 @@ interface UseMultiStemPracticeEngineResult {
   registerRef: (trackId: string) => (el: HTMLMediaElement | null) => void;
   mutedTrackIds: Set<string>;
   mediaSurface: React.ReactNode;
-  hasCustomMedia: boolean;
+  hasMedia: boolean;
 }
 
 export function useMultiStemPracticeEngine({
@@ -35,6 +36,13 @@ export function useMultiStemPracticeEngine({
 }: UseMultiStemPracticeEngineOpts): UseMultiStemPracticeEngineResult {
   const [activeRole, setActiveRole] = useState<Role>(preferredInstrument);
   const [videoPreviewId, setVideoPreviewId] = useState<string | null>(null);
+
+  // Re-sync active role when the preferred instrument changes (mirrors the
+  // cover engine's behaviour; harmless today since the page remounts, but
+  // keeps the two engines consistent).
+  useEffect(() => {
+    setActiveRole(preferredInstrument);
+  }, [preferredInstrument]);
 
   const reset = usePlayerStore((s) => s.reset);
 
@@ -58,7 +66,9 @@ export function useMultiStemPracticeEngine({
   }, [videoTracks, videoPreviewId]);
 
   useEffect(() => {
-    reset();
+    // Reset only on unmount, matching useCoverPracticeEngine: a mount-time
+    // reset runs AFTER PracticeShell's marker hydration effect (child effects
+    // run first) and wipes saved markers from the store.
     return () => reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -68,24 +78,22 @@ export function useMultiStemPracticeEngine({
     tracks: tracks.map((t) => ({ ...t, startOffset: 0 })),
     mutedTrackIds,
     soloTrackIds: new Set(),
-    getStreamUrl: (id) => `/api/uploads/${id}`,
   });
 
-  const engine: PlaybackEngine = useMemo(
-    () => ({
-      playPause: () => player.playPause(),
-      seekBy: (delta: number) => player.seekBy(delta),
-      seekTo: (time: number) => player.seekTo(time),
-      getCurrentTime: () => player.getCurrentT(),
-      get duration() {
-        return player.duration;
-      },
-      get isPlaying() {
-        return usePlayerStore.getState().isPlaying;
-      },
-    }),
-    [player]
-  );
+  // No useMemo here: `player` is a fresh object every render, so a memo on it
+  // would never memoize anyway — it only added indirection.
+  const engine: PlaybackEngine = {
+    playPause: () => player.playPause(),
+    seekBy: (delta: number) => player.seekBy(delta),
+    seekTo: (time: number) => player.seekTo(time),
+    getCurrentTime: () => player.getCurrentT(),
+    get duration() {
+      return player.duration;
+    },
+    get isPlaying() {
+      return usePlayerStore.getState().isPlaying;
+    },
+  };
 
   const previewTrack = videoTracks.find((t) => t.id === videoPreviewId) ?? null;
 
@@ -98,29 +106,16 @@ export function useMultiStemPracticeEngine({
     stemTracks: tracks,
     registerRef: player.registerRef,
     mutedTrackIds,
-    hasCustomMedia: true,
+    hasMedia: true,
     mediaSurface: (
       <>
-        {previewTrack ? (
-          <video
-            key={previewTrack.id}
-            ref={player.registerRef(previewTrack.id)}
-            src={`/api/uploads/${previewTrack.id}`}
-            className="w-full h-full object-contain"
-            preload="metadata"
-            playsInline
-          />
-        ) : coverArtUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverArtUrl} alt="" className="w-full h-full object-contain" />
-        ) : (
-          <div className="text-center p-6 text-muted-foreground">
-            <MusicIcon className="w-12 h-12 mx-auto mb-2 text-[#27282b] animate-pulse" />
-            <p className="text-sm font-semibold text-foreground">
-              No playback video
-            </p>
-          </div>
-        )}
+        <StemMediaPool
+          tracks={tracks}
+          previewTrack={previewTrack}
+          coverArtUrl={coverArtUrl}
+          registerRef={player.registerRef}
+          fallbackText="No playback video"
+        />
 
         {videoTracks.length > 1 && (
           <div className="absolute bottom-2 left-2 right-2 flex gap-1.5 overflow-x-auto bg-black/60 backdrop-blur-sm rounded-xl p-1.5">
@@ -140,40 +135,7 @@ export function useMultiStemPracticeEngine({
             ))}
           </div>
         )}
-
-        <div className="hidden">
-          {tracks
-            .filter((t) => t.id !== videoPreviewId)
-            .map((track) =>
-              track.isVideo ? (
-                <video
-                  key={track.id}
-                  ref={player.registerRef(track.id)}
-                  src={`/api/uploads/${track.id}`}
-                  preload="metadata"
-                  playsInline
-                />
-              ) : (
-                <audio
-                  key={track.id}
-                  ref={player.registerRef(track.id)}
-                  src={`/api/uploads/${track.id}`}
-                  preload="metadata"
-                />
-              )
-            )}
-        </div>
       </>
     ),
   };
-}
-
-function MusicIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
-    </svg>
-  );
 }

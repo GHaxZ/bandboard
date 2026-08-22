@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
 import { usePracticeControls } from "@/hooks/usePracticeControls";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { useIframeFocusGuard } from "@/hooks/useIframeFocusGuard";
+import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
 import { SEEK_STEP_S } from "@/lib/constants";
 import type { PlaybackEngine } from "@/lib/media-controller";
@@ -52,7 +53,7 @@ interface PracticeShellProps {
   /** Cover-specific: offsets, instrument selection */
   coverState?: CoverState;
   /** When true, renders CustomPlaybackHUD over the media surface */
-  hasCustomMedia?: boolean;
+  hasMedia?: boolean;
   /** Passed to CustomPlaybackHUD to hide center button for YouTube embeds */
   youTubeMode?: boolean;
   /** Original-specific: role selector + stems list */
@@ -74,7 +75,7 @@ export function PracticeShell({
   mediaSurface,
   onToggleVideo,
   coverState,
-  hasCustomMedia,
+  hasMedia,
   youTubeMode = false,
   activeRole,
   onActiveRoleChange,
@@ -96,13 +97,7 @@ export function PracticeShell({
   const { volume, setVolume, speed, setSpeed, markers, handleSaveCurrentTimeAsMarker, handleDeleteMarker } = practiceControls;
 
   // Skip overlay
-  const [skipOverlay, setSkipOverlay] = useState<{ type: "back" | "forward"; key: number } | null>(null);
-  const overlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggerSkipOverlay = (type: "back" | "forward") => {
-    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
-    setSkipOverlay({ type, key: Date.now() });
-    overlayTimeoutRef.current = setTimeout(() => setSkipOverlay(null), 600);
-  };
+  const { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer } = useSkipOverlay();
 
   // Keyboard shortcuts
   usePracticeKeyboard({
@@ -133,7 +128,7 @@ export function PracticeShell({
   useEffect(() => {
     return () => {
       reset();
-      if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
+      clearSkipOverlayTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -185,7 +180,7 @@ export function PracticeShell({
           >
             {mediaSurface}
 
-            {(hasCustomMedia || engine.isPlaying) && (
+            {(hasMedia || engine.isPlaying) && (
               <CustomPlaybackHUD
                 engine={engine}
                 isPlaying={isPlaying}

@@ -1,5 +1,7 @@
 import { cookies } from 'next/headers';
 import { randomUUID } from 'node:crypto';
+import { TEN_YEARS, UID_COOKIE, SECRET_COOKIE } from '@/lib/constants';
+import { safeEqual } from '@/lib/utils';
 
 export class AuthError extends Error {
   constructor(msg = 'Unauthorized') {
@@ -15,15 +17,22 @@ export class AuthError extends Error {
  */
 export async function getUserUuid(): Promise<string> {
   const cookieStore = await cookies();
-  const existing = cookieStore.get('bandboard_uid');
+  const existing = cookieStore.get(UID_COOKIE);
   if (existing?.value) return existing.value;
   const uuid = randomUUID();
-  cookieStore.set('bandboard_uid', uuid, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365 * 10,
-  });
+  try {
+    cookieStore.set(UID_COOKIE, uuid, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: TEN_YEARS,
+    });
+  } catch {
+    // cookieStore.set throws outside Server Actions / Route Handlers (e.g.
+    // during page render). The proxy mints the cookie for page requests, so
+    // this only matters as a guard against proxy-coverage gaps — the caller
+    // still gets a usable (session-stable) uuid either way.
+  }
   return uuid;
 }
 
@@ -37,8 +46,8 @@ export async function requireAuth(): Promise<void> {
   const secret = process.env.BAND_SECRET;
   if (!secret) return; // No secret configured → open access
   const cookieStore = await cookies();
-  const provided = cookieStore.get('bandboard_secret')?.value;
-  if (provided !== secret) {
+  const provided = cookieStore.get(SECRET_COOKIE)?.value;
+  if (provided === undefined || !safeEqual(provided, secret)) {
     throw new AuthError();
   }
 }

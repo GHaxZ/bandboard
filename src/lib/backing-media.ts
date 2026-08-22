@@ -3,6 +3,50 @@ import { resolveOffsets } from '@/types/models';
 import { getYouTubeId } from '@/lib/youtube';
 import type { Role } from '@/lib/constants';
 
+/** Minimal shape of a role group needed for slot resolution (both the cover
+ *  media resolver and the autoplay video resolver use this ladder). */
+export interface SlotRoleGroup {
+  id: string;
+  role: string;
+  backingTrackLink: string | null;
+  tabVideoLink: string | null;
+  backingCustomTrackId: string | null;
+  tabCustomTrackId: string | null;
+}
+
+/**
+ * Walk the shared backing/tab priority ladder:
+ *   1. preferred role's backing slot → 2. any role's backing slot
+ *   3. preferred role's tab slot → 4. any role's tab slot
+ * `resolve` returns the media for a (roleGroup, slot-type) pair, or null to
+ * continue down the ladder. Previously hand-mirrored in `resolveBackingMedia`
+ * and `getBackingVideoId` (youtube.ts), which had drifted apart.
+ */
+export function resolveSlotLadder<T>(
+  roleGroups: SlotRoleGroup[],
+  preferredRole: string | undefined,
+  resolve: (rg: SlotRoleGroup, type: 'backing' | 'tab') => T | null
+): T | null {
+  const standard = roleGroups.filter((rg) => rg.role !== 'Other');
+  const preferred = preferredRole
+    ? standard.find((rg) => rg.role.toLowerCase() === preferredRole.toLowerCase())
+    : undefined;
+
+  const candidates: Array<[SlotRoleGroup | undefined, 'backing' | 'tab']> = [
+    [preferred, 'backing'],
+  ];
+  for (const rg of standard) candidates.push([rg, 'backing']);
+  if (preferred) candidates.push([preferred, 'tab']);
+  for (const rg of standard) candidates.push([rg, 'tab']);
+
+  for (const [rg, type] of candidates) {
+    if (!rg) continue;
+    const result = resolve(rg, type);
+    if (result) return result;
+  }
+  return null;
+}
+
 export function resolveBackingMedia(
   song: Song,
   preferredRole: Role,
@@ -14,27 +58,26 @@ export function resolveBackingMedia(
     return { kind: 'multistem', tracks, mutedRole: preferredRole };
   }
 
-  // cover — mirror the priority ladder of getBackingVideoId
-  const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== 'Other');
-
-  const resolveSlot = (
-    rg: typeof standardRoleGroups[number] | undefined,
-    type: 'backing' | 'tab'
-  ): BackingMedia | null => {
-    if (!rg) return null;
+  // cover — the priority ladder is shared with getBackingVideoId
+  const result = resolveSlotLadder<BackingMedia>(song.roleGroups, preferredRole, (rg, type) => {
     const customId = type === 'backing' ? rg.backingCustomTrackId : rg.tabCustomTrackId;
     if (customId && song.customTracks?.some((t) => t.id === customId)) {
       return {
-        kind: 'custom-file',
+        kind: 'custom-file' as const,
         customTrackId: customId,
-        offset: resolveOffsets(progress, rg.id).backing,
+        // A tab-slot custom file must use the tab offset, not always the
+        // backing one (which caused sync drift).
+        offset:
+          type === 'backing'
+            ? resolveOffsets(progress, rg.id).backing
+            : resolveOffsets(progress, rg.id).tab,
       };
     }
     const link = type === 'backing' ? rg.backingTrackLink : rg.tabVideoLink;
     const ytId = link ? getYouTubeId(link) : null;
     if (ytId) {
       return {
-        kind: 'youtube',
+        kind: 'youtube' as const,
         videoId: ytId,
         offset:
           type === 'backing'
@@ -43,37 +86,7 @@ export function resolveBackingMedia(
       };
     }
     return null;
-  };
+  });
 
-  // 1. preferred role's backing slot
-  if (preferredRole) {
-    const matching = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    const result = resolveSlot(matching, 'backing');
-    if (result) return result;
-  }
-
-  // 2. any role's backing slot
-  for (const rg of standardRoleGroups) {
-    const result = resolveSlot(rg, 'backing');
-    if (result) return result;
-  }
-
-  // 3. preferred role's tab slot
-  if (preferredRole) {
-    const matching = standardRoleGroups.find(
-      (rg) => rg.role.toLowerCase() === preferredRole.toLowerCase()
-    );
-    const result = resolveSlot(matching, 'tab');
-    if (result) return result;
-  }
-
-  // 4. any role's tab slot
-  for (const rg of standardRoleGroups) {
-    const result = resolveSlot(rg, 'tab');
-    if (result) return result;
-  }
-
-  return { kind: 'none' };
+  return result ?? { kind: 'none' };
 }

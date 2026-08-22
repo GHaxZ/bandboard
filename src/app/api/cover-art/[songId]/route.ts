@@ -2,28 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { songs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { storedPath } from '@/lib/uploads';
+import { storedPath, mimeForExt } from '@/lib/uploads';
 import { statSync, createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { parseRange } from '@/lib/http-range';
 
 export const dynamic = 'force-dynamic';
-
-const EXT_TO_MIME: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-};
-
-function inferMime(storedName: string): string {
-  const lower = storedName.toLowerCase();
-  for (const [ext, mime] of Object.entries(EXT_TO_MIME)) {
-    if (lower.endsWith(ext)) return mime;
-  }
-  return 'application/octet-stream';
-}
 
 export async function GET(
   req: NextRequest,
@@ -46,7 +30,7 @@ export async function GET(
 
     const total = stat.size;
     const range = req.headers.get('range');
-    const contentType = inferMime(song.coverArtStoredName);
+    const contentType = mimeForExt(song.coverArtStoredName);
 
     if (range) {
       const r = parseRange(range, total);
@@ -67,6 +51,7 @@ export async function GET(
           'Content-Length': String(end - start + 1),
           'Content-Type': contentType,
           'Cache-Control': 'no-store, max-age=0',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -80,6 +65,7 @@ export async function GET(
         'Accept-Ranges': 'bytes',
         'Content-Length': String(total),
         'Cache-Control': 'no-store, max-age=0',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (error) {

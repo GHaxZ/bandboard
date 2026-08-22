@@ -20,7 +20,9 @@ export default function UnlockPage() {
 function UnlockForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/";
+  const rawNext = searchParams.get("next");
+  // Only allow internal redirect targets (prevents open redirect).
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
   const [secretInput, setSecretInput] = useState("");
   const [authError, setAuthError] = useState("");

@@ -15,10 +15,11 @@ if (!globalForDb.conn) {
   globalForDb.conn.pragma('journal_mode = WAL');
   globalForDb.conn.pragma('busy_timeout = 5000');
   globalForDb.conn.pragma('foreign_keys = ON');
-}
-
-if (process.env.MIGRATE_ON_BOOT !== '0') {
-  migrate(drizzle(globalForDb.conn, { schema }), { migrationsFolder: './drizzle' });
+  // Only run migrations when the connection is actually created, not on every
+  // dev hot-reload (migrations are idempotent, but this avoids re-checking).
+  if (process.env.MIGRATE_ON_BOOT !== '0') {
+    migrate(drizzle(globalForDb.conn, { schema }), { migrationsFolder: './drizzle' });
+  }
 }
 
 export const db = drizzle(globalForDb.conn, { schema });

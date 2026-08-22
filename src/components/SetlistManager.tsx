@@ -20,6 +20,7 @@ import { SearchInput } from "./SearchInput";
 import { PracticeButton } from "./PracticeButton";
 import { ProgressBadge } from "./ProgressBadge";
 import { TuningBadges } from "./TuningBadges";
+import { toast } from "sonner";
 import type { Song, RehearsalSong, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
@@ -50,6 +51,11 @@ export function SetlistManager({
 }: SetlistManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Songs with an in-flight add/remove (prevents double-submit) + a reorder
+  // in-flight guard (rapid up/down clicks each computed from the same stale
+  // order, so the server order diverged from the click sequence).
+  const [pendingActionIds, setPendingActionIds] = useState<Set<string>>(new Set());
+  const [isReordering, setIsReordering] = useState(false);
 
   const currentSongIds = new Set(rehearsalSongs.map((rs) => rs.songId));
   const availableSongs = allSongs.filter(
@@ -60,29 +66,68 @@ export function SetlistManager({
   );
 
   async function handleAddSong(songId: string) {
-    const res = await addSongToRehearsalSetlist(rehearsalId, songId);
-    if (res.success) onRefresh();
+    if (pendingActionIds.has(songId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(songId));
+    try {
+      const res = await addSongToRehearsalSetlist(rehearsalId, songId);
+      if (res.success) onRefresh();
+      else toast.error("Failed to add song: " + res.error);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add song: " + String(err));
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(songId);
+        return next;
+      });
+    }
   }
 
   async function handleRemoveSong(songId: string) {
-    const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
-    if (res.success) {
-      if (activeSongId === songId) {
-        const remaining = rehearsalSongs.filter((rs) => rs.songId !== songId);
-        if (remaining.length > 0) onSelectSong(remaining[0].songId);
+    if (pendingActionIds.has(songId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(songId));
+    try {
+      const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
+      if (res.success) {
+        if (activeSongId === songId) {
+          const remaining = rehearsalSongs.filter((rs) => rs.songId !== songId);
+          if (remaining.length > 0) onSelectSong(remaining[0].songId);
+        }
+        onRefresh();
+      } else {
+        toast.error("Failed to remove song: " + res.error);
       }
-      onRefresh();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove song: " + String(err));
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(songId);
+        return next;
+      });
     }
   }
 
   async function handleMove(index: number, direction: "up" | "down") {
+    if (isReordering) return;
     const newSongs = [...rehearsalSongs];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newSongs.length) return;
     [newSongs[index], newSongs[targetIndex]] = [newSongs[targetIndex], newSongs[index]];
     const orderedIds = newSongs.map((rs) => rs.songId);
-    const res = await reorderRehearsalSongs(rehearsalId, orderedIds);
-    if (res.success) onRefresh();
+    setIsReordering(true);
+    try {
+      const res = await reorderRehearsalSongs(rehearsalId, orderedIds);
+      if (res.success) onRefresh();
+      else toast.error("Failed to reorder setlist: " + res.error);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to reorder setlist: " + String(err));
+    } finally {
+      setIsReordering(false);
+    }
   }
 
   return (
@@ -176,7 +221,7 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={index === 0}
+                    disabled={index === 0 || isReordering}
                     onClick={() => handleMove(index, "up")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Up"
@@ -186,7 +231,7 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={index === rehearsalSongs.length - 1}
+                    disabled={index === rehearsalSongs.length - 1 || isReordering}
                     onClick={() => handleMove(index, "down")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Down"
@@ -196,8 +241,9 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
+                    disabled={pendingActionIds.has(rs.songId)}
                     onClick={() => handleRemoveSong(rs.songId)}
-                    className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-lg ml-1"
+                    className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-lg ml-1 disabled:opacity-40"
                     title="Remove from Setlist"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -250,10 +296,11 @@ export function SetlistManager({
                   </div>
                   <Button
                     size="sm"
+                    disabled={pendingActionIds.has(song.id)}
                     onClick={() => handleAddSong(song.id)}
-                    className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-lg px-3 py-1 h-8 font-bold text-xs"
+                    className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-lg px-3 py-1 h-8 font-bold text-xs disabled:opacity-40"
                   >
-                    Add
+                    {pendingActionIds.has(song.id) ? "Adding..." : "Add"}
                   </Button>
                 </div>
               ))

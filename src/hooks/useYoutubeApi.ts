@@ -50,6 +50,10 @@ function loadYoutubeApi(): Promise<void> {
       }
       if (++attempts >= maxAttempts) {
         clearInterval(interval);
+        // Reset the cached promise so a later mount can retry — otherwise the
+        // rejected promise sticks around and the YouTube layer is dead until
+        // a full page reload.
+        apiPromise = null;
         reject(new Error("YouTube API load timed out"));
       }
     }, 100);
@@ -64,9 +68,14 @@ export function useYoutubeApi(): boolean {
 
   useEffect(() => {
     let mounted = true;
-    loadYoutubeApi().then(() => {
-      if (mounted) setLoaded(true);
-    });
+    loadYoutubeApi()
+      .then(() => {
+        if (mounted) setLoaded(true);
+      })
+      .catch(() => {
+        // Load failed/timed out; the module-level apiPromise was reset, so a
+        // remount retries. Keep `loaded` false — the player simply won't mount.
+      });
     return () => {
       mounted = false;
     };
