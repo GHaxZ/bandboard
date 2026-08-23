@@ -290,7 +290,7 @@ export function RehearsalAutoplay({
         <div className="flex items-center flex-shrink-0">
           <PrivateIndicator
             text="Settings synced only for you"
-            tooltip="All settings, offsets, markers, and autoplay preferences are private to your device."
+            tooltip="All settings, offsets, markers, and autoplay preferences are private to your account."
           />
         </div>
       </header>

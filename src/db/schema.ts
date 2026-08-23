@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, real, primaryKey, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import type { Role, ProgressStatus } from '@/lib/constants';
 
 // ---------------------------------------------------------------------------
@@ -153,6 +153,34 @@ export const userSongProgress = sqliteTable(
     uniqueIndex('user_song_unique_idx').on(table.userUuid, table.songId),
     index('user_song_progress_user_uuid_idx').on(table.userUuid),
   ]
+);
+
+// ---------------------------------------------------------------------------
+// users — real accounts. `id` reuses the anonymous device UUID so existing
+// user_settings / user_song_progress rows stay valid when a device registers
+// (no data migration needed).
+// ---------------------------------------------------------------------------
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [uniqueIndex('users_username_unique').on(sql`lower(${table.username})`)]
+);
+
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    token: text('token').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('sessions_user_id_idx').on(table.userId)]
 );
 
 // ---------------------------------------------------------------------------

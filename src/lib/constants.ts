@@ -168,5 +168,7 @@ export const ROLE_COLORS: Record<Role, string> = {
 // actions/auth.ts must stay in sync; import from here).
 // ---------------------------------------------------------------------------
 export const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
+/** Anonymous pre-registration identity. Registration adopts it as users.id. */
 export const UID_COOKIE = 'bandboard_uid';
-export const SECRET_COOKIE = 'bandboard_secret';
+/** Session token → sessions table row. */
+export const SESSION_COOKIE = 'bandboard_session';

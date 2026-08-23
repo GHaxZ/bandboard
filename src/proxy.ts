@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TEN_YEARS, UID_COOKIE, SECRET_COOKIE } from '@/lib/constants';
-import { safeEqual } from '@/lib/utils';
+import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE } from '@/lib/constants';
 
 function isStaticAsset(pathname: string): boolean {
   return (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon.ico')
     // NOTE: no `pathname.includes('.')` heuristic — that silently skipped the
-    // secret gate for any dotted path (e.g. a future slug containing a dot).
+    // auth gate for any dotted path (e.g. a future slug containing a dot).
     // The config.matcher below already excludes real static dirs.
   );
 }
@@ -34,7 +33,8 @@ export async function proxy(req: NextRequest) {
 
   const res = NextResponse.next();
 
-  // --- 1. Device UUID: mint if missing (PLAN §5.1.2) ---
+  // --- 1. Anonymous device UUID: still minted so registration can adopt it
+  //        (existing per-user rows keep working with zero migration). ---
   let uid = req.cookies.get(UID_COOKIE)?.value;
   if (!isValidUuid(uid)) {
     uid = crypto.randomUUID();
@@ -46,31 +46,25 @@ export async function proxy(req: NextRequest) {
     });
   }
 
-  // --- 2. Shared secret gate (PLAN §5.1.1) ---
-  const secret = process.env.BAND_SECRET;
-  if (secret) {
-    const provided = req.cookies.get(SECRET_COOKIE)?.value;
-    const onUnlock = pathname === '/unlock';
+  // --- 2. Account gate: PRESENCE-CHECK ONLY (Edge middleware cannot touch
+  //        SQLite). Real token validation happens server-side in
+  //        getSessionUser(); stale tokens degrade to anonymous reads. ---
+  const hasSession = isValidUuid(req.cookies.get(SESSION_COOKIE)?.value);
+  const onLogin = pathname === '/login';
 
-    if (provided === undefined || !safeEqual(provided, secret)) {
-      if (!onUnlock) {
-        // API callers expect JSON, not an HTML redirect to /unlock.
-        if (pathname.startsWith('/api')) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const unlockUrl = req.nextUrl.clone();
-        unlockUrl.pathname = '/unlock';
-        unlockUrl.searchParams.set('next', pathname + search);
-        return NextResponse.redirect(unlockUrl);
-      }
-      // On /unlock with bad/missing secret: let them see the form.
-    } else if (onUnlock) {
-      // Already authenticated + hitting /unlock: bounce to next or root.
-      return NextResponse.redirect(new URL(safeNext(req.nextUrl.searchParams.get('next')), req.url));
+  if (!hasSession && !onLogin) {
+    // API callers expect JSON, not an HTML redirect to /login.
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-  } else if (pathname === '/unlock') {
-    // No secret configured: /unlock is pointless, bounce to root.
-    return NextResponse.redirect(new URL('/', req.url));
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.searchParams.set('next', pathname + search);
+    return NextResponse.redirect(loginUrl);
+  }
+  if (hasSession && onLogin) {
+    // Already authenticated + hitting /login: bounce to next or root.
+    return NextResponse.redirect(new URL(safeNext(req.nextUrl.searchParams.get('next')), req.url));
   }
 
   return res;

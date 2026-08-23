@@ -158,7 +158,7 @@ export function PracticeShell({
         <div className="order-2 self-end min-[400px]:self-auto min-[400px]:ml-auto md:ml-0 md:order-3 flex items-center flex-shrink-0">
           <PrivateIndicator
             text="Settings synced only for you"
-            tooltip="All settings, offsets, and markers in Practice Mode are private to your device."
+            tooltip="All settings, offsets, and markers in Practice Mode are private to your account."
           />
         </div>
       </header>

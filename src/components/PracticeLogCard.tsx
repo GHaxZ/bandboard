@@ -83,7 +83,7 @@ export function PracticeLogCard({
           {showPrivateIndicator && (
             <PrivateIndicator
               text="Only synced for you"
-              tooltip="Your learning status and notes are private to your device."
+              tooltip="Your learning status and notes are private to your account."
             />
           )}
         </CardTitle>
