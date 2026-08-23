@@ -37,7 +37,7 @@ export function StemMediaPool({
         <img src={coverArtUrl} alt="" className="w-full h-full object-contain" />
       ) : (
         <div className="text-center p-6 text-muted-foreground">
-          <Music className="w-12 h-12 mx-auto mb-2 text-[#27282b] animate-pulse" />
+          <Music className="w-12 h-12 mx-auto mb-2 text-muted-foreground/40 animate-pulse" />
           <p className="text-sm font-semibold text-foreground">{fallbackText}</p>
         </div>
       )}

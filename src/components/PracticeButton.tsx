@@ -20,16 +20,18 @@ export function PracticeButton({
   children = "Practice",
 }: PracticeButtonProps) {
   return (
-    <Button
-      variant="practice"
-      onClick={onClick}
-      size={size === "icon" ? "icon" : size === "sm" ? "sm" : "default"}
-      className={cn(
-        "transition-all duration-200 cursor-pointer shadow-sm",
-        className
-      )}
-      title={title}
-    >
+      <Button
+        variant="practice"
+        onClick={onClick}
+        size={size === "icon" ? "icon" : size === "sm" ? "sm" : "default"}
+        className={cn(
+          "transition-all duration-200 shadow-sm",
+          // default size matches neighboring header buttons (h-9)
+          size === "default" && "h-9 px-4 text-xs font-bold",
+          className
+        )}
+        title={title}
+      >
       <Play className={cn(
         "fill-current",
         size === "sm" || size === "icon" ? "w-3.5 h-3.5" : "w-4 h-4"

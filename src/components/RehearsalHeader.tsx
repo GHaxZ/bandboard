@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Edit, Sliders, ListMusic } from "lucide-react";
+import { ArrowLeft, Edit, Sliders, ListMusic, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientDate } from "./ClientDate";
 
@@ -35,7 +35,7 @@ export function RehearsalHeader({
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+            <h2 className="text-xl font-heading font-bold text-foreground flex items-center gap-2">
               {title}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -46,17 +46,18 @@ export function RehearsalHeader({
 
         <div className="flex items-center gap-2">
           <Button
+            variant="secondary"
             onClick={onEdit}
-            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold px-3.5 h-9"
+            className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
             <Edit className="w-3.5 h-3.5 mr-1" /> Edit Details
           </Button>
           <Button
-            variant="destructive"
+            variant="danger-subtle"
             onClick={onDelete}
-            className="bg-red-950/25 hover:bg-red-900/40 border border-red-950/40 text-red-400 hover:text-white rounded-xl text-xs font-bold px-3.5 h-9"
+            className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
-            Delete Session
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Session
           </Button>
         </div>
       </div>

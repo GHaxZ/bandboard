@@ -131,7 +131,7 @@ export function PracticeLogCard({
               setProgressNotes(e.target.value);
               setHasLocalEdits(true);
             }}
-            className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-[#5b80a5] focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-[#4e525a]"
+            className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-muted-foreground"
           />
         </div>
 
@@ -141,7 +141,7 @@ export function PracticeLogCard({
           className={cn(
             "w-full text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5 transition-all duration-300 rounded-xl",
             hasUnsavedProgress && !isSavingProgress
-              ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+              ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
               : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
           )}
         >

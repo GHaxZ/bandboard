@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AudioLines } from "lucide-react";
 import { NavLinks } from "@/components/NavLinks";
 
 export default function DashboardLayout({
@@ -9,16 +10,16 @@ export default function DashboardLayout({
   return (
     <div className="flex-1 min-h-dvh flex flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border px-6 py-4 flex items-center justify-between">
-        <Link href="/rehearsals" className="flex items-center gap-2 hover:opacity-90">
-          <div className="w-8 h-8 rounded-xl bg-btn-bg border border-dialog-border flex items-center justify-center text-foreground font-black text-sm">
-            BB
+        <Link href="/rehearsals" className="flex items-center gap-2.5 hover:opacity-90">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent-text text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20">
+            <AudioLines className="w-5 h-5" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-base font-black tracking-tight text-foreground leading-none">
+            <h1 className="text-base font-heading font-bold tracking-tight text-foreground leading-none">
               BandBoard
             </h1>
             <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#5b80a5] animate-ping" /> Live
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" /> Live
               Setlist Sync
             </span>
           </div>

@@ -29,7 +29,7 @@ export function VolumeSpeedControls({
       >
         <button
           onClick={() => onVolumeChange(volume === 0 ? 100 : 0)}
-          className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+          className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
         >
           {volume === 0 ? (
             <VolumeX className="w-3.5 h-3.5" />
@@ -40,7 +40,7 @@ export function VolumeSpeedControls({
         <div className="flex flex-col flex-1">
           <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
             <span>Volume</span>
-            <span className="text-[#acd1f8] font-mono">{volume}%</span>
+            <span className="text-accent-text font-mono">{volume}%</span>
           </div>
           <Slider
             value={[volume]}
@@ -57,13 +57,13 @@ export function VolumeSpeedControls({
       <div
         className={`flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl ${blockClassName}`}
       >
-        <span className="text-[#acd1f8] flex items-center">
+        <span className="text-accent-text flex items-center">
           <Gauge className="w-3.5 h-3.5" />
         </span>
         <div className="flex flex-col flex-1">
           <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
             <span>Speed</span>
-            <span className="text-[#acd1f8] font-mono">{speed.toFixed(2)}x</span>
+            <span className="text-accent-text font-mono">{speed.toFixed(2)}x</span>
           </div>
           <Slider
             value={[speed]}

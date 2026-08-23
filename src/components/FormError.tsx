@@ -9,7 +9,7 @@ interface FormErrorProps {
 export function FormError({ children, className }: FormErrorProps) {
   if (!children) return null;
   return (
-    <p className={`text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 rounded-xl p-3 leading-relaxed ${className ?? ""}`}>
+    <p className={`text-xs font-semibold text-destructive bg-destructive/10 border border-destructive/30 rounded-xl p-3 leading-relaxed ${className ?? ""}`}>
       {children}
     </p>
   );

@@ -24,7 +24,7 @@ export function SearchInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-card border-border text-foreground pl-11 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl w-full"
+        className="bg-card border-border text-foreground pl-11 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl w-full"
       />
     </div>
   );

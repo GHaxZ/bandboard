@@ -124,7 +124,7 @@ export function RehearsalDetailClient({
               if (!currentRehSong) {
                 return (
                   <div className="text-center py-20 bg-card/40 border border-border rounded-2xl p-6 text-muted-foreground">
-                    <MusicIcon className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
+                    <MusicIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40 animate-pulse" />
                     <h3 className="font-semibold text-muted-foreground">No Song Selected</h3>
                     <p className="text-xs mt-1">
                       Select a song from the setlist on the left to load its notations and backing

@@ -31,12 +31,12 @@ export function TuningBadges({
 
   const matchCls =
     variant === "solid"
-      ? "bg-[#2e4057]/45 border-[#446285]/55 text-[#acd1f8]"
-      : "border-[#446285] text-[#acd1f8] font-bold";
+      ? "bg-primary/15 border-ring/40 text-accent-text"
+      : "border-ring/60 text-accent-text font-bold";
   const idleCls =
     variant === "solid"
-      ? "bg-card/40 border-border text-[#6c727a]"
-      : "border-border text-[#6c727a]";
+      ? "bg-card/40 border-border text-muted-foreground"
+      : "border-border text-muted-foreground";
 
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>

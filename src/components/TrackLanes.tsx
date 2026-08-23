@@ -213,7 +213,7 @@ export function TrackLanes({
                     className={cn(
                       "w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border flex-shrink-0",
                       isMuted
-                        ? "bg-red-950/30 border-red-900/40 text-red-400"
+                        ? "bg-destructive/10 border-destructive/40 text-destructive"
                         : "bg-background border-border text-muted-foreground hover:text-foreground"
                     )}
                     title={isMuted ? "Unmute" : "Mute"}
@@ -225,7 +225,7 @@ export function TrackLanes({
                     className={cn(
                       "w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border flex-shrink-0",
                       isSoloed
-                        ? "bg-[#2e4057]/40 border-[#2e4057] text-[#acd1f8]"
+                        ? "bg-primary/15 border-ring/40 text-accent-text"
                         : "bg-background border-border text-muted-foreground hover:text-foreground"
                     )}
                     title={isSoloed ? "Unsolo" : "Solo"}
@@ -335,10 +335,10 @@ export function TrackLanes({
           })}
 
           <div
-            className="absolute top-0 bottom-0 w-0.5 bg-[#acd1f8] z-20 pointer-events-none"
+            className="absolute top-0 bottom-0 w-0.5 bg-primary z-20 pointer-events-none"
             style={{ left: currentT * pxPerSec }}
           >
-            <div className="w-2.5 h-2.5 -ml-[5px] rounded-full bg-[#acd1f8]" />
+            <div className="w-2.5 h-2.5 -ml-[5px] rounded-full bg-primary" />
           </div>
         </div>
       </div>

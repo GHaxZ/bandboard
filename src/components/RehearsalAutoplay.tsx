@@ -364,7 +364,7 @@ export function RehearsalAutoplay({
                           cx="48"
                           cy="48"
                           r={radius}
-                          className="stroke-[#1d1e21]"
+                          className="stroke-muted"
                           strokeWidth="5"
                           fill="transparent"
                         />
@@ -372,17 +372,17 @@ export function RehearsalAutoplay({
                           cx="48"
                           cy="48"
                           r={radius}
-                          className="stroke-[#acd1f8]"
+                          className="stroke-primary"
                           strokeWidth="5"
                           fill="transparent"
                           strokeDasharray={circumference}
                           strokeDashoffset={dashOffset}
                         />
                       </svg>
-                      <span className="absolute text-2xl font-black text-[#acd1f8]">{countdown}</span>
+                      <span className="absolute text-2xl font-heading font-bold text-accent-text">{countdown}</span>
                     </div>
                     <div className="space-y-1.5">
-                      <h3 className="text-base font-black text-foreground leading-snug line-clamp-1">
+                      <h3 className="text-base font-heading font-bold text-foreground leading-snug line-clamp-1">
                         {upcomingSong.title}
                       </h3>
                       <p className="text-xs text-muted-foreground line-clamp-1">
@@ -400,7 +400,7 @@ export function RehearsalAutoplay({
                       <Button
                         size="sm"
                         onClick={handleSkipCountdown}
-                        className="bg-[#acd1f8] hover:bg-[#bce0ff] text-[#0c0d0e] rounded-xl text-xs font-black px-4 h-9 animate-none"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-heading font-bold px-4 h-9 animate-none"
                       >
                         {!sessionStarted ? "Start Now" : "Play Now"}
                       </Button>
@@ -413,10 +413,10 @@ export function RehearsalAutoplay({
               {backingMedia.kind === "none" && countdown === null && !finished && currentSong && sessionStarted && (
                 <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-3 max-w-md flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-[#3b1c1c] border border-red-900/60 flex items-center justify-center text-red-400 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/40 flex items-center justify-center text-destructive mb-2">
                       <Music className="w-6 h-6" />
                     </div>
-                    <h3 className="text-sm font-bold text-red-400">No Backing Track Found</h3>
+                    <h3 className="text-sm font-bold text-destructive">No Backing Track Found</h3>
                     <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
                       Could not find a valid backing track or video link for{" "}
                       <span className="font-bold text-foreground">&quot;{currentSong.title}&quot;</span>.
@@ -438,11 +438,11 @@ export function RehearsalAutoplay({
               {finished && (
                 <div className="absolute inset-0 z-30 bg-background/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-4 max-w-sm flex flex-col items-center">
-                    <div className="w-14 h-14 rounded-full bg-[#1b3b2b] border border-emerald-900/60 flex items-center justify-center text-emerald-400 mb-2">
+                    <div className="w-14 h-14 rounded-full bg-success/10 border border-success/40 flex items-center justify-center text-success mb-2">
                       <CheckCircle2 className="w-8 h-8" />
                     </div>
                     <div className="space-y-1.5">
-                      <h3 className="text-lg font-black text-foreground">Rehearsal Prep Complete!</h3>
+                      <h3 className="text-lg font-heading font-bold text-foreground">Rehearsal Prep Complete!</h3>
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         You played through all the backing tracks in your setlist sequence.
                       </p>
@@ -456,7 +456,7 @@ export function RehearsalAutoplay({
                       </Button>
                       <Button
                         onClick={onExit}
-                        className="bg-[#acd1f8] hover:bg-[#bce0ff] text-[#0c0d0e] rounded-xl text-xs font-black px-4 h-10 animate-none"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-heading font-bold px-4 h-10 animate-none"
                       >
                         Back to Session
                       </Button>
@@ -473,7 +473,7 @@ export function RehearsalAutoplay({
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
                     Now Playing (Song {currentIndex + 1} of {queue.length})
                   </span>
-                  <h3 className="text-lg font-black text-foreground mt-1 truncate">
+                  <h3 className="text-lg font-heading font-bold text-foreground mt-1 truncate">
                     {currentSong.title}
                   </h3>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -507,7 +507,7 @@ export function RehearsalAutoplay({
                       size="icon"
                       onClick={handleTogglePlay}
                       disabled={backingMedia.kind === "none" || !sessionStarted}
-                      className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-[#acd1f8] hover:text-white rounded-lg flex items-center justify-center cursor-pointer"
+                      className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-accent-text hover:text-accent-text-strong rounded-lg flex items-center justify-center cursor-pointer"
                       title={isPlaying ? "Pause" : "Play"}
                     >
                       {isPlaying ? (
@@ -570,7 +570,7 @@ export function RehearsalAutoplay({
                     className={cn(
                       "text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all border-0 flex-1 cursor-pointer animate-none",
                       autoplayEnabled
-                        ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                     )}
                   >
@@ -581,7 +581,7 @@ export function RehearsalAutoplay({
                     className={cn(
                       "text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all border-0 flex-1 cursor-pointer animate-none",
                       !autoplayEnabled
-                        ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                     )}
                   >
@@ -620,12 +620,12 @@ export function RehearsalAutoplay({
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Volume
                   </label>
-                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">{volume}%</span>
+                  <span className="text-[10px] font-mono text-accent-text font-bold">{volume}%</span>
                 </div>
                 <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
                   <button
                     onClick={() => setVolume(volume === 0 ? 100 : 0)}
-                    className="text-[#acd1f8] hover:text-white transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+                    className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
                   >
                     {volume === 0 ? (
                       <VolumeX className="w-3.5 h-3.5" />
@@ -649,12 +649,12 @@ export function RehearsalAutoplay({
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Playback Speed
                   </label>
-                  <span className="text-[10px] font-mono text-[#acd1f8] font-bold">
+                  <span className="text-[10px] font-mono text-accent-text font-bold">
                     {speed.toFixed(2)}x
                   </span>
                 </div>
                 <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
-                  <span className="text-[#acd1f8] flex items-center">
+                  <span className="text-accent-text flex items-center">
                     <Gauge className="w-3.5 h-3.5" />
                   </span>
                   <Slider
@@ -693,10 +693,10 @@ export function RehearsalAutoplay({
                   className={cn(
                     "flex flex-col p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none gap-2",
                     isSongActive
-                      ? "bg-muted border-[#5b80a5]/45 shadow-md shadow-[#0c0d0e]/40"
+                      ? "bg-muted border-ring/45 shadow-md shadow-black/20"
                       : isSongCompleted
-                        ? "bg-background/20 border-border/60 opacity-60 hover:opacity-90 hover:border-[#383a3f]"
-                        : "bg-background/40 border-border/80 hover:bg-card/40 hover:border-[#383a3f]"
+                        ? "bg-background/20 border-border/60 opacity-60 hover:opacity-90 hover:border-ring/30"
+                        : "bg-background/40 border-border/80 hover:bg-card/40 hover:border-ring/30"
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -719,7 +719,7 @@ export function RehearsalAutoplay({
                         <h4
                           className={cn(
                             "text-xs font-bold truncate",
-                            isSongActive ? "text-foreground" : "text-[#d1d1d6]"
+                            isSongActive ? "text-foreground" : "text-foreground/90"
                           )}
                         >
                           {rs.song.title}
@@ -732,9 +732,9 @@ export function RehearsalAutoplay({
 
                     <div className="flex items-center flex-shrink-0">
                       {isSongCompleted ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <CheckCircle2 className="w-4 h-4 text-success" />
                       ) : isSongActive ? (
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#acd1f8] animate-pulse shadow-[0_0_8px_#acd1f8]" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary)]" />
                       ) : isSongNext ? (
                         <Clock className="w-4 h-4 text-muted-foreground" />
                       ) : null}

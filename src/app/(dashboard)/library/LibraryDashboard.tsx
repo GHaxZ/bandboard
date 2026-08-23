@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AddSongModal } from "@/components/AddSongModal";
 import { SearchInput } from "@/components/SearchInput";
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { SongCard } from "@/components/SongCard";
 import { getSongs } from "@/app/actions/songs";
 import { getProgressMap } from "@/app/actions/user";
@@ -55,23 +56,20 @@ export function LibraryDashboard({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-black text-foreground flex items-center gap-2">
-            <MusicIcon className="w-5 h-5 text-muted-foreground" />
-            Song Library
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Master repository of notations, tracks, and metadata.
-          </p>
-        </div>
-        <Button
-          onClick={() => setIsAddSongOpen(true)}
-          className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold text-xs"
-        >
-          <Plus className="w-4 h-4 mr-1" /> Add New Song
-        </Button>
-      </div>
+      <PageHeader
+        icon={MusicIcon}
+        title="Song Library"
+        description="Master repository of notations, tracks, and metadata."
+        actions={
+          <Button
+            onClick={() => setIsAddSongOpen(true)}
+            variant="secondary"
+            className="rounded-xl shadow-md font-bold text-xs"
+          >
+            <Plus className="w-4 h-4 mr-1" /> Add New Song
+          </Button>
+        }
+      />
 
       <div className="flex items-center gap-1 rounded-xl bg-muted/30 border border-border p-1 w-fit">
         {typeFilterOptions.map((opt) => (

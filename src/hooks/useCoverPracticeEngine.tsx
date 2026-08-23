@@ -392,7 +392,7 @@ export function useCoverPracticeEngine({
 
         {!apiLoaded && (
           <div className="absolute inset-0 bg-background/95 flex flex-col items-center justify-center">
-            <SpinnerIcon className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
+            <SpinnerIcon className="w-8 h-8 animate-spin text-primary mb-2" />
             <p className="text-xs text-muted-foreground">Loading YouTube Player API...</p>
           </div>
         )}

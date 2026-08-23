@@ -139,7 +139,7 @@ export function SetlistManager({
         </h3>
         <div className="flex items-center gap-2">
           {rehearsalSongs.length > 0 && onStartAutoplay && (
-            <PracticeButton onClick={onStartAutoplay} className="h-9 px-4" />
+            <PracticeButton onClick={onStartAutoplay} />
           )}
           <Button
             onClick={() => {
@@ -155,12 +155,12 @@ export function SetlistManager({
 
       {rehearsalSongs.length === 0 ? (
         <div className="text-center py-10 bg-background/40 border border-border/80 rounded-2xl p-6 text-muted-foreground">
-          <Music className="w-8 h-8 mx-auto mb-2 text-[#27282b]" />
+          <Music className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
           <p className="text-xs">Your setlist is empty.</p>
           <Button
             onClick={() => setIsAddOpen(true)}
             variant="link"
-            className="text-[#5b80a5] hover:text-[#7ba0c5] text-xs font-bold mt-1"
+            className="text-primary hover:text-accent-text-strong text-xs font-bold mt-1"
           >
             Add your first song
           </Button>
@@ -174,8 +174,8 @@ export function SetlistManager({
                 key={rs.songId}
                 className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
-                    ? "bg-muted border-[#5b80a5]/40 shadow-md shadow-[#0c0d0e]/40"
-                    : "bg-background/40 border-border/80 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
+                    ? "bg-muted border-ring/40 shadow-md shadow-black/20"
+                    : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
                 }`}
               >
                 <button
@@ -189,7 +189,7 @@ export function SetlistManager({
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <p
                         className={`text-sm font-bold truncate min-w-0 ${
-                          isSelected ? "text-foreground" : "text-[#d1d1d6]"
+                          isSelected ? "text-foreground" : "text-foreground/90"
                         }`}
                       >
                         {rs.song.title}
@@ -213,7 +213,7 @@ export function SetlistManager({
                     variant="ghost"
                     size="icon"
                     onClick={() => onPracticeSong?.(rs.songId)}
-                    className="h-8 w-8 text-[#acd1f8] hover:text-[#cde3fa] hover:bg-[#2e4057]/40 rounded-lg mr-1 cursor-pointer"
+                    className="h-8 w-8 text-accent-text hover:text-accent-text-strong hover:bg-primary/15 rounded-lg mr-1 cursor-pointer"
                     title="Practice Mode"
                   >
                     <Play className="w-4 h-4 fill-current" />
@@ -243,7 +243,7 @@ export function SetlistManager({
                     size="icon"
                     disabled={pendingActionIds.has(rs.songId)}
                     onClick={() => handleRemoveSong(rs.songId)}
-                    className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-lg ml-1 disabled:opacity-40"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-1 disabled:opacity-40"
                     title="Remove from Setlist"
                   >
                     <Trash2 className="w-4 h-4" />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Loader2 } from "lucide-react";
+import { AudioLines, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,13 +54,18 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-dvh bg-background text-foreground p-4">
-      <Card className="max-w-md w-full border-border bg-card rounded-2xl shadow-2xl p-6">
+    <div className="relative flex items-center justify-center min-h-dvh bg-background text-foreground p-4 overflow-hidden">
+      {/* Tube-amber stage glow behind the card */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_38%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent)]"
+      />
+      <Card className="relative max-w-md w-full border-border bg-card rounded-2xl shadow-2xl p-6">
         <CardHeader className="text-center pb-4">
-          <div className="mx-auto w-12 h-12 bg-muted/60 border border-dialog-border/50 rounded-2xl flex items-center justify-center mb-3">
-            <Lock className="w-5 h-5 text-muted-foreground" />
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-primary to-accent-text text-primary-foreground rounded-2xl flex items-center justify-center mb-3 shadow-md shadow-primary/20">
+            <AudioLines className="w-6 h-6" strokeWidth={2.5} />
           </div>
-          <CardTitle className="text-2xl font-black tracking-tight text-foreground">
+          <CardTitle className="text-2xl font-heading font-bold tracking-tight text-foreground">
             {mode === "login" ? "Log In" : "Create Account"}
           </CardTitle>
           {/* min-h reserves two lines so switching modes doesn't resize the card */}
@@ -89,7 +94,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 placeholder={mode === "register" ? "Choose a username" : "Your username"}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
               />
             </div>
 
@@ -109,7 +114,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 placeholder={mode === "register" ? "Minimum 8 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
               />
             </div>
 
@@ -130,10 +135,10 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                   placeholder="Repeat your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
                 />
                 {/* Always rendered so the mismatch hint never pushes content around */}
-                <p className={`text-xs font-semibold ${passwordMismatch ? "text-red-400" : "invisible"}`}>
+                <p className={`text-xs font-semibold ${passwordMismatch ? "text-destructive" : "invisible"}`}>
                   {passwordMismatch ? "Passwords do not match." : "\u00A0"}
                 </p>
               </div>
@@ -155,7 +160,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                   placeholder="Ask your band admin for the code"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
-                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl"
+                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
                 />
               </div>
             )}
@@ -163,7 +168,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
             {/* Reserved slot: appearing errors must not shift the button below */}
             <p
               aria-live="polite"
-              className={`text-xs font-semibold text-center min-h-[20px] ${authError ? "text-red-400" : "invisible"}`}
+              className={`text-xs font-semibold text-center min-h-[20px] ${authError ? "text-destructive" : "invisible"}`}
             >
               {authError || "\u00A0"}
             </p>

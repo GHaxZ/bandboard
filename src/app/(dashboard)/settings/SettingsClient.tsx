@@ -8,7 +8,11 @@ import {
   Sliders,
   CheckCircle,
   UserRound,
+  SunMoon,
+  Trash2,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,15 +120,27 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-black text-foreground flex items-center gap-2">
-          <SettingsIcon className="w-5 h-5 text-muted-foreground" />
-          Settings &amp; Preferences
-        </h2>
-        <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-          Customize your instrument settings and manage your account.
-        </p>
-      </div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="Settings & Preferences"
+        description="Customize your instrument settings and manage your account."
+      />
+
+      {/* Appearance */}
+      <Card className="border-border bg-card/40 rounded-2xl shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+            <SunMoon className="w-4 h-4 text-muted-foreground" />
+            Appearance
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Choose light or dark, or follow your device setting. Saved per device.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeToggle />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Instrument */}
@@ -146,14 +162,10 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 return (
                   <Button
                     key={inst}
-                    variant={isSelected ? "default" : "outline"}
+                    variant={isSelected ? "secondary" : "outline"}
                     disabled={savingInstrument}
                     onClick={() => handleInstrumentChange(inst)}
-                    className={`rounded-xl h-11 font-bold text-xs disabled:opacity-50 ${
-                      isSelected
-                        ? "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
-                        : "border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
+                    className="rounded-xl h-11 font-bold text-xs disabled:opacity-50 aria-expanded:bg-btn-hover"
                   >
                     {ROLE_LABEL[inst]}
                   </Button>
@@ -161,7 +173,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               })}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/40 border border-border p-3 rounded-xl leading-relaxed">
-              <CheckCircle className="w-4 h-4 text-[#5b80a5] shrink-0" />
+              <CheckCircle className="w-4 h-4 text-primary shrink-0" />
               <span>
                 Your role is synced to your account as{" "}
                 <strong className="font-bold text-foreground">{ROLE_LABEL[instrument]}</strong>.
@@ -198,7 +210,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   placeholder="New username..."
                   disabled={savingUsername}
                   autoComplete="off"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-10"
+                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
                 />
                 <Button
                   type="submit"
@@ -225,7 +237,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 placeholder="Current password..."
                 disabled={savingPassword}
                 autoComplete="current-password"
-                className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-10"
+                className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
               />
               <div className="flex gap-2">
                 <Input
@@ -236,7 +248,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   placeholder="New password (min. 8 chars)..."
                   disabled={savingPassword}
                   autoComplete="new-password"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl h-10"
+                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
                 />
                 <Button
                   type="submit"
@@ -251,7 +263,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
             <div className="pt-2 space-y-2 border-t border-border">
               <Label
                 htmlFor="deletePassword"
-                className="text-[10px] font-bold text-red-400 uppercase tracking-wider"
+                className="text-[10px] font-bold text-destructive uppercase tracking-wider"
               >
                 Danger Zone
               </Label>
@@ -264,14 +276,15 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   placeholder="Confirm with your password..."
                   disabled={deleting}
                   autoComplete="current-password"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-red-500 rounded-xl h-10"
+                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-destructive rounded-xl h-10"
                 />
                 <Button
+                  variant="danger-subtle"
                   onClick={handleDeleteAccount}
                   disabled={deleting || !deletePassword}
-                  className="border border-red-500/40 bg-red-950/30 hover:bg-red-900/40 text-red-300 text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0 disabled:opacity-50"
+                  className="text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
                 >
-                  Delete Account
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Account
                 </Button>
               </div>
               <Button

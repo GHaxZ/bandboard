@@ -15,7 +15,7 @@ export function PrivateIndicator({
   return (
     <span
       className={cn(
-        "text-[10px] text-[#a7a7ad] font-bold bg-muted/50 border border-dialog-border/50 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0",
+        "text-[10px] text-muted-foreground font-bold bg-muted/50 border border-dialog-border/50 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0",
         className
       )}
       title={tooltip}

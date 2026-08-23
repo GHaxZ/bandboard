@@ -4,15 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Warm-tinted shadow scale — stock black shadows read harsh/gray on cream */
+@theme {
+  --shadow-sm: 0 1px 3px oklch(0.3 0.04 60 / 0.07);
+  --shadow-md: 0 3px 10px oklch(0.3 0.04 60 / 0.09);
+  --shadow-lg: 0 6px 20px oklch(0.3 0.04 60 / 0.11);
+  --shadow-xl: 0 12px 32px oklch(0.3 0.04 60 / 0.15);
+  --shadow-2xl: 0 20px 48px oklch(0.3 0.04 60 / 0.2);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -48,72 +58,77 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --btn-bg: #24272c;
-  --btn-hover: #2d3137;
-  --dialog-border: #3b3e45;
-  --accent-soft: #e8f0fa;
-  --accent-strong: #c5d9f0;
-  --accent-text: #1a497a;
-  --accent-text-strong: #0d2d52;
-  --role-guitar: #5b80a5;
-  --role-bass: #4ea388;
-  --role-drums: #cf73b5;
-  --role-vocals: #cf9c73;
-  --role-keys: #73a2cf;
-  --role-other: #9ebbcf;
+  /* "Daylight" — cream paper light theme */
+  --background: oklch(0.97 0.012 85);
+  --foreground: oklch(0.24 0.02 50);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: oklch(0.24 0.02 50);
+  --popover: oklch(0.995 0.004 85);
+  --popover-foreground: oklch(0.24 0.02 50);
+  --primary: oklch(0.55 0.13 55);
+  --primary-foreground: oklch(0.98 0.01 85);
+  --secondary: oklch(0.93 0.012 80);
+  --secondary-foreground: oklch(0.28 0.02 50);
+  --muted: oklch(0.93 0.012 80);
+  --muted-foreground: oklch(0.47 0.025 58);
+  --accent: oklch(0.92 0.03 75);
+  --accent-foreground: oklch(0.3 0.04 55);
+  --destructive: oklch(0.55 0.22 25);
+  --success: oklch(0.6 0.13 150);
+  --border: oklch(0.88 0.015 80);
+  --input: oklch(0.88 0.015 80);
+  --ring: oklch(0.62 0.13 60);
+  --btn-bg: oklch(0.91 0.014 78);
+  --btn-hover: oklch(0.86 0.02 76);
+  --dialog-border: oklch(0.84 0.02 76);
+  --accent-soft: oklch(0.94 0.035 80);
+  --accent-strong: oklch(0.89 0.055 78);
+  --accent-text: oklch(0.5 0.11 55);
+  --accent-text-strong: oklch(0.42 0.12 52);
+  /* role colors: mid-tone, white-text-safe on both themes */
+  --role-guitar: oklch(0.62 0.13 55);
+  --role-bass: oklch(0.58 0.09 195);
+  --role-drums: oklch(0.6 0.16 350);
+  --role-vocals: oklch(0.66 0.14 70);
+  --role-keys: oklch(0.58 0.12 300);
+  --role-other: oklch(0.6 0.03 240);
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: #0c0d0e;
-  --foreground: #f1f2f4;
-  --card: #161719;
-  --card-foreground: #f1f2f4;
-  --popover: #161719;
-  --popover-foreground: #f1f2f4;
-  --primary: #f1f2f4;
-  --primary-foreground: #0c0d0e;
-  --secondary: #27282b;
-  --secondary-foreground: #f1f2f4;
-  --muted: #27282b;
-  --muted-foreground: #888d96;
-  --accent: #24272c;
-  --accent-foreground: #f1f2f4;
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: #27282b;
-  --input: #27282b;
-  --ring: #5b80a5;
-  --btn-bg: #24272c;
-  --btn-hover: #2d3137;
-  --dialog-border: #3b3e45;
-  --accent-soft: #2e4057;
-  --accent-strong: #344b67;
-  --accent-text: #acd1f8;
-  --accent-text-strong: #cde3fa;
-  --role-guitar: #5b80a5;
-  --role-bass: #4ea388;
-  --role-drums: #cf73b5;
-  --role-vocals: #cf9c73;
-  --role-keys: #73a2cf;
-  --role-other: #9ebbcf;
+  /* "Backstage" — warm charcoal dark theme with tube-amber glow */
+  --background: oklch(0.17 0.008 60);
+  --foreground: oklch(0.93 0.008 80);
+  --card: oklch(0.21 0.01 62);
+  --card-foreground: oklch(0.93 0.008 80);
+  --popover: oklch(0.21 0.01 62);
+  --popover-foreground: oklch(0.93 0.008 80);
+  --primary: oklch(0.78 0.09 72);
+  --primary-foreground: oklch(0.18 0.02 55);
+  --secondary: oklch(0.27 0.012 62);
+  --secondary-foreground: oklch(0.93 0.008 80);
+  --muted: oklch(0.27 0.012 62);
+  --muted-foreground: oklch(0.66 0.015 70);
+  --accent: oklch(0.3 0.02 65);
+  --accent-foreground: oklch(0.93 0.008 80);
+  --destructive: oklch(0.67 0.15 25);
+  --success: oklch(0.7 0.11 152);
+  --border: oklch(0.29 0.012 62);
+  --input: oklch(0.29 0.012 62);
+  --ring: oklch(0.72 0.07 70);
+  --btn-bg: oklch(0.26 0.012 62);
+  --btn-hover: oklch(0.31 0.015 64);
+  --dialog-border: oklch(0.35 0.015 64);
+  --accent-soft: oklch(0.27 0.02 62);
+  --accent-strong: oklch(0.32 0.032 63);
+  --accent-text: oklch(0.82 0.055 75);
+  --accent-text-strong: oklch(0.87 0.075 78);
+  --role-guitar: oklch(0.68 0.1 55);
+  --role-bass: oklch(0.64 0.07 195);
+  --role-drums: oklch(0.66 0.13 350);
+  --role-vocals: oklch(0.72 0.11 70);
+  --role-keys: oklch(0.64 0.09 300);
+  --role-other: oklch(0.62 0.03 240);
 }
 
 @layer base {
@@ -125,6 +140,16 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Tailwind v4 preflight sets buttons to cursor:default — every clickable
+     control gets the hand cursor instead */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a,
+  label,
+  select,
+  summary {
+    cursor: pointer;
   }
   /* Native date inputs should use dark color scheme in dark mode */
   input[type="date"] {

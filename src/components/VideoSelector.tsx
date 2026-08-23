@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { searchYouTubeVideosAction } from "@/app/actions/songs";
-import { Loader2, Search, Play, Check, Video, Upload } from "lucide-react";
+import { Loader2, Search, Play, Check, Video, Upload, Trash2 } from "lucide-react";
 import { getYouTubeQuery } from "@/lib/youtube-query";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/constants";
 import type { YouTubeVideo } from "@/lib/youtube";
@@ -211,17 +211,17 @@ export function VideoSelector({
             className={cn(
               "rounded-2xl border p-4 space-y-3 transition-colors",
               youtubeInUse
-                ? "border-emerald-600/60 bg-emerald-950/10"
+                ? "border-success/50 bg-success/5"
                 : "border-border bg-background/30"
             )}
           >
             <div className="flex items-center gap-2">
-              <Play className="w-4 h-4 text-red-400" />
+              <Play className="w-4 h-4 text-destructive" />
               <span className="text-xs font-bold text-foreground uppercase tracking-wider flex-1">
                 YouTube
               </span>
               {youtubeInUse && (
-                <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-700/50 bg-emerald-950/30 px-1.5 py-0.5 rounded-full">
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-success border border-success/40 bg-success/10 px-1.5 py-0.5 rounded-full">
                   <Check className="w-2.5 h-2.5" /> In use
                 </span>
               )}
@@ -233,7 +233,7 @@ export function VideoSelector({
                 placeholder="https://youtube.com/watch?v=..."
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl text-xs"
+                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl text-xs"
               />
               <Button
                 onClick={handleSaveManual}
@@ -251,7 +251,7 @@ export function VideoSelector({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch(query)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-[#5b80a5] rounded-xl text-xs"
+                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl text-xs"
               />
               <Button
                 onClick={() => handleSearch(query)}
@@ -266,7 +266,7 @@ export function VideoSelector({
             <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#5b80a5]" />
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   <span className="text-xs">Searching YouTube...</span>
                 </div>
               ) : results.length === 0 ? (
@@ -283,8 +283,8 @@ export function VideoSelector({
                       disabled={isSaving}
                       className={`w-full text-left flex gap-3 p-2 rounded-xl border transition-all duration-200 ${
                         isCurrent
-                          ? "bg-muted border-[#5b80a5]/50"
-                          : "bg-background/40 border-border/60 hover:bg-[#1c1d21]/60 hover:border-[#383a3f]"
+                          ? "bg-muted border-ring/50"
+                          : "bg-background/40 border-border/60 hover:bg-card/60 hover:border-ring/30"
                       }`}
                     >
                       <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-background flex-shrink-0">
@@ -325,7 +325,7 @@ export function VideoSelector({
             className={cn(
               "rounded-2xl border p-4 space-y-3 transition-colors",
               customInUse
-                ? "border-emerald-600/60 bg-emerald-950/10"
+                ? "border-success/50 bg-success/5"
                 : "border-border bg-background/30"
             )}
           >
@@ -335,7 +335,7 @@ export function VideoSelector({
                 Custom
               </span>
               {customInUse && (
-                <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-700/50 bg-emerald-950/30 px-1.5 py-0.5 rounded-full">
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-success border border-success/40 bg-success/10 px-1.5 py-0.5 rounded-full">
                   <Check className="w-2.5 h-2.5" /> In use
                 </span>
               )}
@@ -351,9 +351,10 @@ export function VideoSelector({
                   disabled={isSaving}
                   size="sm"
                   variant="ghost"
-                  className="text-red-400 hover:text-red-300 hover:bg-red-950/20 text-[10px] font-bold rounded-lg"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 text-[10px] font-bold rounded-lg"
                 >
-                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Remove"}
+                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                  Remove
                 </Button>
               </div>
             )}
@@ -368,17 +369,17 @@ export function VideoSelector({
               />
               {isUploadingCustom && (
                 <div className="flex items-center justify-center px-3">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#5b80a5]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 </div>
               )}
               {uploadedId && customFile && !isUploadingCustom && (
                 <div className="flex items-center justify-center px-3">
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-4 h-4 text-success" />
                 </div>
               )}
             </div>
             {customError && (
-              <p className="text-[10px] text-red-400 font-medium">{customError}</p>
+              <p className="text-[10px] text-destructive font-medium">{customError}</p>
             )}
           </div>
         </div>

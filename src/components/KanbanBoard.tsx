@@ -114,8 +114,8 @@ export function KanbanBoard({
                     >
                       {columnSongs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border rounded-xl text-center p-4 min-h-[150px] flex-grow">
-                          <Music className="w-6 h-6 text-[#27282b] mb-1.5" />
-                          <p className="text-[10px] text-[#4e525a] font-medium leading-normal">
+                          <Music className="w-6 h-6 text-muted-foreground/40 mb-1.5" />
+                          <p className="text-[10px] text-muted-foreground/70 font-medium leading-normal">
                             No songs here
                           </p>
                         </div>
@@ -135,9 +135,9 @@ export function KanbanBoard({
                                   {...provided.dragHandleProps}
                                   onClick={() => onSelectSong?.(rs.songId)}
                                   className={cn(
-                                    "bg-background/60 border border-border/80 hover:border-[#383a3f] hover:bg-[#131416]/90 rounded-xl p-3.5 select-none transition-all duration-200 shadow-sm flex flex-col gap-2 group cursor-pointer flex-shrink-0",
+                                    "bg-background/60 border border-border/80 hover:border-ring/30 hover:bg-card/90 rounded-xl p-3.5 select-none transition-all duration-200 shadow-sm flex flex-col gap-2 group cursor-pointer flex-shrink-0",
                                     snapshot.isDragging
-                                      ? "shadow-xl border-[#5b80a5] bg-[#1c1d21] scale-[1.03]"
+                                      ? "shadow-xl border-ring bg-card scale-[1.03]"
                                       : ""
                                   )}
                                 >
@@ -198,7 +198,7 @@ export function KanbanBoard({
                                         e.stopPropagation();
                                         onPracticeSong?.(song.id);
                                       }}
-                                      className="text-[#acd1f8] hover:text-white p-1 hover:bg-[#2e4057]/45 border border-[#2e4057]/30 rounded-lg transition-all flex items-center justify-center gap-1 text-[9px] font-bold px-2 h-7"
+                                      className="text-accent-text hover:text-accent-text-strong p-1 hover:bg-primary/15 border border-ring/30 rounded-lg transition-all flex items-center justify-center gap-1 text-[9px] font-bold px-2 h-7"
                                       title="Practice Song"
                                     >
                                       <Play className="w-2.5 h-2.5 fill-current" />

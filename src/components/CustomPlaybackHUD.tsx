@@ -238,7 +238,7 @@ export function CustomPlaybackHUD({
           onMouseDown={handleProgressMouseDown}
         >
           <div
-            className="h-full bg-[#acd1f8] rounded-full relative"
+            className="h-full bg-primary rounded-full relative"
             style={{ width: `${progressPct}%` }}
           >
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow" />

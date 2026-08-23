@@ -39,7 +39,7 @@ export function SongCard({
 
   return (
     <div className="h-full">
-      <Card className="relative h-full flex flex-col justify-between border-border bg-card/40 hover:bg-card/80 hover:border-[#383a3f] transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0">
+      <Card className="relative h-full flex flex-col justify-between border-border bg-card/40 hover:bg-card/80 hover:border-ring/30 hover:-translate-y-0.5 hover:shadow-xl transition-all duration-200 cursor-pointer rounded-2xl overflow-hidden group shadow-lg py-0">
         <CardHeader className="p-5 flex flex-row items-center gap-4">
           <CoverArt song={song} size="md" />
           <div className="min-w-0 flex-1">
@@ -50,7 +50,7 @@ export function SongCard({
                 <ProgressBadge status={progStatus} />
               </div>
             </div>
-            <CardTitle className="text-base font-bold text-[#d1d1d6] mt-1 truncate group-hover:text-foreground">
+            <CardTitle className="text-base font-bold text-foreground/90 mt-1 truncate group-hover:text-foreground">
               {song.title}
             </CardTitle>
             <div className="flex flex-col gap-1.5 mt-1">

@@ -203,15 +203,15 @@ export function PracticeShell({
           {/* Controls card */}
           <Card className="border-border bg-card/40 rounded-xl shadow-lg overflow-hidden">
             <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-[#27282b]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-border">
                 {/* Col 1: playback */}
                 <div className="space-y-2.5 pb-3 md:pb-0 md:pr-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+                    <span className="text-[11px] font-heading font-bold text-muted-foreground uppercase tracking-wider block">
                       Playback settings
                     </span>
                     {hasBothVideos && (
-                      <span className="text-[10px] text-[#acd1f8] flex items-center gap-1 font-semibold bg-[#2e4057]/20 border border-[#2e4057]/50 px-2 py-0.5 rounded">
+                      <span className="text-[10px] text-accent-text flex items-center gap-1 font-semibold bg-primary/10 border border-ring/40 px-2 py-0.5 rounded">
                         <Info className="w-3 h-3" />
                         Auto-Sync Active
                       </span>
@@ -225,7 +225,7 @@ export function PracticeShell({
                         className={cn(
                           "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
                           coverState?.activeVideo === "backing"
-                            ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                            ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                             : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                         )}
                       >
@@ -236,7 +236,7 @@ export function PracticeShell({
                         className={cn(
                           "text-xs font-bold px-3 py-1.5 h-8 rounded-lg transition-all border-0 flex-1 cursor-pointer",
                           coverState?.activeVideo === "tab"
-                            ? "bg-[#2e4057] text-[#acd1f8] hover:bg-[#2e4057] hover:text-[#acd1f8]"
+                            ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                             : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/40"
                         )}
                       >
@@ -260,15 +260,15 @@ export function PracticeShell({
                 {/* Col 2: markers */}
                 <div className="space-y-2.5 pt-3 pb-3 md:pt-0 md:pb-0 md:px-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Bookmark className="w-3.5 h-3.5 text-[#acd1f8]" />
+                    <span className="text-[11px] font-heading font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Bookmark className="w-3.5 h-3.5 text-accent-text" />
                       Practice Markers
                     </span>
                   </div>
 
                   <Button
                     onClick={handleSaveCurrentTimeAsMarker}
-                    className="w-full bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full bg-accent-soft hover:bg-accent-strong border border-ring/40 text-accent-text text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Bookmark className="w-3 h-3 fill-current" />
                     Save Current Time
@@ -283,17 +283,17 @@ export function PracticeShell({
                         >
                           <button
                             onClick={() => engine.seekTo(time)}
-                            className="text-[10px] font-bold text-[#acd1f8] hover:text-foreground px-2 h-full hover:bg-[#2e4057]/30 transition-all cursor-pointer border-0 flex items-center"
+                            className="text-[10px] font-bold text-accent-text hover:text-foreground px-2 h-full hover:bg-primary/10 transition-all cursor-pointer border-0 flex items-center"
                             title={`Jump to marker ${idx + 1}`}
                           >
-                            <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-[#acd1f8] mr-1.5">
+                            <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
                               {idx + 1}
                             </kbd>
                             {time.toFixed(1)}s
                           </button>
                           <button
                             onClick={() => handleDeleteMarker(idx)}
-                            className="text-muted-foreground hover:text-red-400 px-1.5 h-full hover:bg-red-950/20 border-l border-border transition-all cursor-pointer flex items-center"
+                            className="text-muted-foreground hover:text-destructive px-1.5 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
                             title="Delete marker"
                           >
                             <Trash2 className="w-2.5 h-2.5" />
@@ -308,8 +308,8 @@ export function PracticeShell({
                 {capabilities.hasOffsets && coverState && (
                   <div className="space-y-2.5 pt-3 md:pt-0 md:pl-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                        <Settings className="w-3.5 h-3.5 text-[#acd1f8]" />
+                      <span className="text-[11px] font-heading font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Settings className="w-3.5 h-3.5 text-accent-text" />
                         Start Sync Offsets
                       </span>
                     </div>
@@ -324,7 +324,7 @@ export function PracticeShell({
                           <button
                             type="button"
                             onClick={() => coverState.setBackingOffset(coverState.getActiveCurrentTime().toFixed(1))}
-                            className="text-[9px] text-[#acd1f8] hover:text-foreground px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                            className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
                             title="Capture current playback time"
                           >
                             <ClockIcon className="w-2.5 h-2.5" /> Capture
@@ -369,7 +369,7 @@ export function PracticeShell({
                           <button
                             type="button"
                             onClick={() => coverState.setTabOffset(coverState.getActiveCurrentTime().toFixed(1))}
-                            className="text-[9px] text-[#acd1f8] hover:text-foreground px-1.5 py-0.5 bg-[#1b2330] border border-[#2e4057] hover:bg-[#202b3c] rounded flex items-center gap-1 cursor-pointer transition-all"
+                            className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
                             title="Capture current playback time"
                           >
                             <ClockIcon className="w-2.5 h-2.5" /> Capture
@@ -412,7 +412,7 @@ export function PracticeShell({
                       className={cn(
                         "w-full text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-300",
                         coverState.hasUnsavedOffsets && !coverState.isSavingOffsets
-                          ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+                          ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
                           : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
                       )}
                     >
@@ -529,7 +529,7 @@ export function PracticeShell({
                         className="space-y-2 border-b border-border/60 pb-3 last:border-0 last:pb-0"
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-[#d1d1d6]">{track.instrumentName}</span>
+                          <span className="font-bold text-foreground/90">{track.instrumentName}</span>
                           {track.tuning && (
                             <Badge className="bg-background/60 border border-border text-[9px] font-mono text-muted-foreground">
                               {track.tuning}
@@ -557,7 +557,7 @@ export function PracticeShell({
                                 rel="noopener noreferrer"
                                 className={cn(
                                   buttonVariants({ variant: "default", size: "sm" }),
-                                  "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                                  "bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                                 )}
                               >
                                 Sheets
@@ -569,7 +569,7 @@ export function PracticeShell({
                                 rel="noopener noreferrer"
                                 className={cn(
                                   buttonVariants({ variant: "default", size: "sm" }),
-                                  "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                                  "bg-success/10 hover:bg-success/20 border border-success/40 text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                                 )}
                               >
                                 Chords
@@ -584,10 +584,10 @@ export function PracticeShell({
                               rel="noopener noreferrer"
                               className={cn(
                                 buttonVariants({ variant: "default", size: "sm" }),
-                                "bg-[#2d1b28] hover:bg-[#3a2233] border-[#4f2d47] text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
+                                "bg-role-drums/10 hover:bg-role-drums/20 border-role-drums/40 text-foreground rounded-xl flex items-center gap-1.5 text-[11px] font-bold py-1.5 px-3 transition-all cursor-pointer"
                               )}
                             >
-                              <FileText className="w-3.5 h-3.5 text-[#cf73b5]" />
+                              <FileText className="w-3.5 h-3.5 text-role-drums" />
                               Lyrics
                               <ExternalLink className="w-3 h-3 text-muted-foreground" />
                             </a>
@@ -624,7 +624,7 @@ export function PracticeShell({
                             className="space-y-2 border-b border-border/60 pb-3 last:border-0 last:pb-0"
                           >
                             <div className="flex items-center justify-between text-xs">
-                              <span className={cn("font-bold truncate", isMuted ? "text-muted-foreground" : "text-[#d1d1d6]")}>
+                              <span className={cn("font-bold truncate", isMuted ? "text-muted-foreground" : "text-foreground/90")}>
                                 {track.label}
                                 {isMuted && <VolumeX className="inline-block w-3 h-3 ml-1.5 text-muted-foreground align-middle" />}
                               </span>

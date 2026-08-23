@@ -9,7 +9,7 @@ import { PracticeButton } from "./PracticeButton";
 import { EmptyState } from "./EmptyState";
 import { getCoverArtUrl } from "./CoverArt";
 import { useSongProgress } from "@/hooks/useSongProgress";
-import { Music, Pencil, Trash } from "lucide-react";
+import { Music, Pencil, Trash2 } from "lucide-react";
 import { INSTRUMENT_ROLES, ROLE_LABEL } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
 import type { Song, CustomTrack } from "@/types/models";
@@ -73,7 +73,7 @@ export function OriginalSongDashboard({
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/60 border border-dialog-border/50 px-2.5 py-1 rounded-full">
               Song Details
             </span>
-            <CardTitle className="text-2xl font-black text-foreground mt-2 flex items-center gap-2">
+            <CardTitle className="text-2xl font-heading font-bold text-foreground mt-2 flex items-center gap-2">
               {song.title}
             </CardTitle>
             <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium">
@@ -86,8 +86,9 @@ export function OriginalSongDashboard({
 
           {onEdit && (
             <Button
+              variant="secondary"
               onClick={onEdit}
-              className="bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-[#acd1f8] hover:text-foreground rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer font-bold text-xs shadow-sm h-10 px-4"
+              className="rounded-xl h-9 px-4 text-xs font-bold"
               title="Edit Original"
             >
               <Pencil className="w-4 h-4" /> Edit
@@ -96,13 +97,13 @@ export function OriginalSongDashboard({
 
           {onDelete && (
             <Button
-              variant="destructive"
+              variant="danger-subtle"
               size="icon"
               onClick={onDelete}
-              className="bg-red-950/20 hover:bg-red-900/40 border border-red-900/30 text-red-400 hover:text-foreground rounded-xl h-10 w-10 transition-all duration-200"
+              className="rounded-xl h-9 w-9"
               title="Delete Song"
             >
-              <Trash className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -150,11 +151,11 @@ export function OriginalSongDashboard({
                     value={role}
                     className="mt-6 focus-visible:ring-0 focus-visible:outline-none"
                   >
-                    <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
+                    <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Music className="w-4 h-4 text-[#9ebbcf]" />
-                          <span className="font-extrabold text-sm text-[#9ebbcf]">
+                          <Music className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-heading font-bold text-sm text-muted-foreground">
                             {ROLE_LABEL[role as Role]}
                           </span>
                           <span className="text-[10px] text-muted-foreground font-medium">
@@ -168,7 +169,7 @@ export function OriginalSongDashboard({
                             key={track.id}
                             className="p-4 bg-background/60 border border-border rounded-2xl flex items-center justify-between gap-3"
                           >
-                            <div className="text-xs font-extrabold text-foreground truncate">
+                            <div className="text-xs font-heading font-bold text-foreground truncate">
                               {track.label}
                             </div>
                             {(role === "Guitar" || role === "Bass") && song.tunings?.[role] && (
@@ -176,7 +177,7 @@ export function OriginalSongDashboard({
                                 <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
                                   Tuning:
                                 </span>
-                                <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">
+                                <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
                                   {song.tunings[role]}
                                 </span>
                               </div>

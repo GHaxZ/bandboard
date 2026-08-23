@@ -19,7 +19,7 @@ import { CustomMediaPreview } from "./CustomMediaPreview";
 import { PracticeLogCard } from "./PracticeLogCard";
 import { PracticeButton } from "./PracticeButton";
 import { getCoverArtUrl } from "./CoverArt";
-import { Music, Play, Video, ExternalLink, Info, Trash, FileText, Loader2, ChevronDown } from "lucide-react";
+import { Music, Play, Video, ExternalLink, Info, Trash2, FileText, Loader2, ChevronDown } from "lucide-react";
 import { getYouTubeId } from "@/lib/youtube";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import type { Song } from "@/types/models";
@@ -194,7 +194,7 @@ export function SongDashboard({
   if (!song.roleGroups || song.roleGroups.length === 0) {
     return (
       <div className="text-center py-10 bg-card border border-border rounded-2xl p-6 text-muted-foreground">
-        <Music className="w-12 h-12 mx-auto mb-3 text-[#27282b] animate-pulse" />
+        <Music className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40 animate-pulse" />
         <h3 className="font-semibold text-lg text-foreground">No Tracks Found</h3>
         <p className="text-sm mt-1">
           This song doesn&apos;t have any notation or instrument tracks loaded.
@@ -261,7 +261,7 @@ export function SongDashboard({
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/60 border border-dialog-border/50 px-2.5 py-1 rounded-full">
               Song Details
             </span>
-            <CardTitle className="text-2xl font-black text-foreground mt-2 flex items-center gap-2">
+            <CardTitle className="text-2xl font-heading font-bold text-foreground mt-2 flex items-center gap-2">
               {song.title}
             </CardTitle>
             <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium">
@@ -274,13 +274,13 @@ export function SongDashboard({
 
           {onDelete && (
             <Button
-              variant="destructive"
+              variant="danger-subtle"
               size="icon"
               onClick={onDelete}
-              className="bg-red-950/20 hover:bg-red-900/40 border border-red-900/30 text-red-400 hover:text-foreground rounded-xl h-10 w-10 transition-all duration-200"
+              className="rounded-xl h-9 w-9"
               title="Delete Song"
             >
-              <Trash className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -328,9 +328,9 @@ export function SongDashboard({
                 className="mt-6 space-y-6 focus-visible:ring-0 focus-visible:outline-none"
               >
                 {/* Notation & Sheets */}
-                <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
+                <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
                   <div>
-                    <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
+                    <h4 className="font-heading font-bold text-sm text-muted-foreground flex items-center gap-1.5">
                       <Music className="w-4 h-4 text-muted-foreground" />{" "}
                       {roleGroup.role === "Vocals" ? "Lyrics" : "Notation & Sheets"}
                     </h4>
@@ -365,7 +365,7 @@ export function SongDashboard({
                               className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-card/40 transition-colors cursor-pointer"
                             >
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-extrabold text-foreground">
+                                <span className="text-xs font-heading font-bold text-foreground">
                                   {track.instrumentName}{" "}
                                   {track.details ? `— ${track.details}` : ""}
                                 </span>
@@ -380,7 +380,7 @@ export function SongDashboard({
                                     <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
                                       Tuning:
                                     </span>
-                                    <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">
+                                    <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
                                       {track.tuning}
                                     </span>
                                   </div>
@@ -396,7 +396,7 @@ export function SongDashboard({
                           ) : (
                             <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60">
                               <div>
-                                <span className="text-xs font-extrabold text-foreground">
+                                <span className="text-xs font-heading font-bold text-foreground">
                                   {track.instrumentName}{" "}
                                   {track.details ? `— ${track.details}` : ""}
                                 </span>
@@ -406,7 +406,7 @@ export function SongDashboard({
                                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
                                     Tuning:
                                   </span>
-                                  <span className="text-xs font-mono font-bold text-[#b8c2d1] tracking-wide">
+                                  <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
                                     {track.tuning}
                                   </span>
                                 </div>
@@ -429,7 +429,7 @@ export function SongDashboard({
                                         "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <Music className="w-3.5 h-3.5 text-[#5b80a5]" />
+                                      <Music className="w-3.5 h-3.5 text-primary" />
                                       Interactive Tab
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -439,10 +439,10 @@ export function SongDashboard({
                                       rel="noopener noreferrer"
                                       className={cn(
                                         buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
+                                        "bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <FileText className="w-3.5 h-3.5 text-[#73a2cf]" />
+                                      <FileText className="w-3.5 h-3.5 text-role-keys" />
                                       Sheet Music
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -452,10 +452,10 @@ export function SongDashboard({
                                       rel="noopener noreferrer"
                                       className={cn(
                                         buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
+                                        "bg-success/10 hover:bg-success/20 border border-success/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <FileText className="w-3.5 h-3.5 text-[#4ea388]" />
+                                      <FileText className="w-3.5 h-3.5 text-role-bass" />
                                       Chords Sheet
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -468,10 +468,10 @@ export function SongDashboard({
                                       rel="noopener noreferrer"
                                       className={cn(
                                         buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-[#1b2330] hover:bg-[#202b3c] border border-[#2e4057] text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
+                                        "bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <FileText className="w-3.5 h-3.5 text-[#73a2cf]" />
+                                      <FileText className="w-3.5 h-3.5 text-role-keys" />
                                       Sheet Music
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -481,10 +481,10 @@ export function SongDashboard({
                                       rel="noopener noreferrer"
                                       className={cn(
                                         buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-[#1b2824] hover:bg-[#22352f] border border-[#2d473f] text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
+                                        "bg-success/10 hover:bg-success/20 border border-success/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <FileText className="w-3.5 h-3.5 text-[#4ea388]" />
+                                      <FileText className="w-3.5 h-3.5 text-role-bass" />
                                       Chords Sheet
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -502,10 +502,10 @@ export function SongDashboard({
                                       rel="noopener noreferrer"
                                       className={cn(
                                         buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-[#2d1b28] hover:bg-[#3a2233] border-[#4f2d47] text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
+                                        "bg-role-drums/10 hover:bg-role-drums/20 border-role-drums/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <FileText className="w-3.5 h-3.5 text-[#cf73b5]" />
+                                      <FileText className="w-3.5 h-3.5 text-role-drums" />
                                       Open Lyrics
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -518,7 +518,7 @@ export function SongDashboard({
                                         "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                       )}
                                     >
-                                      <Music className="w-3.5 h-3.5 text-[#5b80a5]" />
+                                      <Music className="w-3.5 h-3.5 text-primary" />
                                       Interactive Tab
                                       <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                     </a>
@@ -533,7 +533,7 @@ export function SongDashboard({
                                       "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
                                     )}
                                   >
-                                    <Music className="w-3.5 h-3.5 text-[#5b80a5]" />
+                                    <Music className="w-3.5 h-3.5 text-primary" />
                                     Interactive Tab
                                     <ExternalLink className="w-3 h-3 text-muted-foreground" />
                                   </a>
@@ -583,7 +583,7 @@ export function SongDashboard({
                         />
                       ) : isLazyLoading && roleGroup.backingTrackLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
-                          <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
+                          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                           <p className="text-xs text-muted-foreground">
                             Searching YouTube backing track...
                           </p>
@@ -649,7 +649,7 @@ export function SongDashboard({
                         />
                       ) : isLazyLoading && roleGroup.tabVideoLink === null ? (
                         <div className="flex flex-col items-center justify-center py-8">
-                          <Loader2 className="w-8 h-8 animate-spin text-[#5b80a5] mb-2" />
+                          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                           <p className="text-xs text-muted-foreground">
                             {roleGroup.role === "Vocals"
                               ? "Searching original song..."
@@ -754,9 +754,9 @@ export function SongDashboard({
                         </div>
                       </div>
 
-                      <div className="bg-[#1d1f23] border border-[#2c313a] rounded-2xl p-5 space-y-4">
+                      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
                         <div>
-                          <h4 className="font-extrabold text-sm text-[#9ebbcf] flex items-center gap-1.5">
+                          <h4 className="font-heading font-bold text-sm text-muted-foreground flex items-center gap-1.5">
                             <Music className="w-4 h-4 text-muted-foreground" /> Notation &amp; Sheets
                           </h4>
                           <p className="text-xs text-muted-foreground mt-1 font-medium">
@@ -773,7 +773,7 @@ export function SongDashboard({
                               "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold transition-all cursor-pointer"
                             )}
                           >
-                            <Music className="w-3.5 h-3.5 text-[#5b80a5]" />
+                            <Music className="w-3.5 h-3.5 text-primary" />
                             Open Interactive Tab
                             <ExternalLink className="w-3 h-3 text-muted-foreground" />
                           </a>
@@ -781,7 +781,7 @@ export function SongDashboard({
                       </div>
 
                       <div className="bg-background border border-border rounded-2xl p-6 text-center text-muted-foreground">
-                        <Info className="w-8 h-8 mx-auto mb-2 text-[#27282b]" />
+                        <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
                         <h5 className="font-semibold text-sm text-foreground">Non-Standard Instrument</h5>
                         <p className="text-xs mt-1">
                           Backing tracks and video lessons are not automated for non-standard

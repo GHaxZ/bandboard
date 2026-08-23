@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { getWaveformPeaks, getCachedPeaks } from "@/lib/waveform";
 
 interface WaveformDisplayProps {
@@ -11,17 +12,33 @@ interface WaveformDisplayProps {
   color?: string;
 }
 
+/** Canvas can't use CSS classes — resolve the theme token to a concrete
+ *  color at draw time and repaint whenever the resolved theme changes. */
+function useThemeColor(fallback: string): string {
+  const { resolvedTheme } = useTheme();
+  const [color, setColor] = useState(fallback);
+  useEffect(() => {
+    const value = getComputedStyle(document.body)
+      .getPropertyValue("--foreground")
+      .trim();
+    setColor(value || fallback);
+  }, [resolvedTheme, fallback]);
+  return color;
+}
+
 export function WaveformDisplay({
   trackId,
   srcUrl,
   width,
   height,
-  color = "rgba(255, 255, 255, 0.6)",
+  color,
 }: WaveformDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">(() =>
     getCachedPeaks(trackId) ? "ready" : "loading"
   );
+  const resolvedColor = useThemeColor("rgba(255, 255, 255, 0.6)");
+  const drawColor = color ?? resolvedColor;
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +71,7 @@ export function WaveformDisplay({
     canvas.height = Math.max(1, Math.floor(height * dpr));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = color;
+    ctx.fillStyle = drawColor;
 
     const { peaks } = cached;
     const numPeaks = peaks.length / 2;
@@ -69,7 +86,7 @@ export function WaveformDisplay({
       const maxY = midY + max * amplitude;
       ctx.fillRect(x, minY, 1, Math.max(1, maxY - minY));
     }
-  }, [trackId, width, height, color, status]);
+  }, [trackId, width, height, drawColor, status]);
 
   if (status === "loading") {
     return (
@@ -77,7 +94,7 @@ export function WaveformDisplay({
         style={{ width: `${width}px`, height: `${height}px`, position: "absolute", top: 0, left: 0 }}
         className="flex items-center justify-center pointer-events-none"
       >
-        <span className="text-[9px] text-white/60 font-mono">Loading...</span>
+        <span className="text-[9px] text-muted-foreground font-mono">Loading...</span>
       </div>
     );
   }

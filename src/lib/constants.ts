@@ -33,8 +33,16 @@ export const SONG_TYPE_LABEL: Record<SongType, string> = {
 };
 
 export const SONG_TYPE_BADGE: Record<SongType, { text: string; soft: string; border: string }> = {
-  cover: { text: 'text-sky-400', soft: 'bg-sky-950/40', border: 'border-sky-800' },
-  original: { text: 'text-amber-400', soft: 'bg-amber-950/40', border: 'border-amber-800' },
+  cover: {
+    text: 'text-sky-700 dark:text-sky-400',
+    soft: 'bg-sky-500/10 dark:bg-sky-950/40',
+    border: 'border-sky-600/30 dark:border-sky-800',
+  },
+  original: {
+    text: 'text-amber-700 dark:text-amber-400',
+    soft: 'bg-amber-500/10 dark:bg-amber-950/40',
+    border: 'border-amber-600/30 dark:border-amber-800',
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -53,33 +61,33 @@ export const PROGRESS_STATUSES = [
     id: 'not_started' as ProgressStatus,
     label: 'Not Learned',
     dot: 'bg-red-500',
-    text: 'text-red-400',
-    soft: 'bg-red-950/40',
-    border: 'border-red-900',
+    text: 'text-red-700 dark:text-red-400',
+    soft: 'bg-red-500/10 dark:bg-red-950/40',
+    border: 'border-red-600/30 dark:border-red-900',
   },
   {
     id: 'learning' as ProgressStatus,
     label: 'Learning',
     dot: 'bg-sky-500',
-    text: 'text-sky-400',
-    soft: 'bg-sky-950/40',
-    border: 'border-sky-800',
+    text: 'text-sky-700 dark:text-sky-400',
+    soft: 'bg-sky-500/10 dark:bg-sky-950/40',
+    border: 'border-sky-600/30 dark:border-sky-800',
   },
   {
     id: 'ready_to_play' as ProgressStatus,
     label: 'Ready to Play',
     dot: 'bg-emerald-500',
-    text: 'text-emerald-400',
-    soft: 'bg-emerald-950/40',
-    border: 'border-emerald-800',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    soft: 'bg-emerald-500/10 dark:bg-emerald-950/40',
+    border: 'border-emerald-600/30 dark:border-emerald-800',
   },
   {
     id: 'mastered' as ProgressStatus,
     label: 'Mastered',
     dot: 'bg-purple-500',
-    text: 'text-purple-400',
-    soft: 'bg-purple-950/40',
-    border: 'border-purple-800',
+    text: 'text-purple-700 dark:text-purple-400',
+    soft: 'bg-purple-500/10 dark:bg-purple-950/40',
+    border: 'border-purple-600/30 dark:border-purple-800',
   },
 ];
 
@@ -155,12 +163,12 @@ export const DAW_PX_PER_SEC_MIN = 10;
 export const DAW_PX_PER_SEC_MAX = 200;
 
 export const ROLE_COLORS: Record<Role, string> = {
-  Guitar: 'bg-[#5b80a5]',
-  Bass: 'bg-[#4ea388]',
-  Drums: 'bg-[#cf73b5]',
-  Vocals: 'bg-[#cf9c73]',
-  'Piano/Keyboard': 'bg-[#73a2cf]',
-  Other: 'bg-[#9ebbcf]',
+  Guitar: 'bg-role-guitar',
+  Bass: 'bg-role-bass',
+  Drums: 'bg-role-drums',
+  Vocals: 'bg-role-vocals',
+  'Piano/Keyboard': 'bg-role-keys',
+  Other: 'bg-role-other',
 };
 
 // ---------------------------------------------------------------------------

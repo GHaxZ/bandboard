@@ -487,7 +487,7 @@ export function OriginalEditor({
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-black text-foreground">Edit Original</h2>
+          <h2 className="text-lg font-heading font-bold text-foreground">Edit Original</h2>
           <p className="text-xs text-muted-foreground mt-0.5 truncate">
             {song.title} by {song.artist}
           </p>
@@ -508,7 +508,7 @@ export function OriginalEditor({
           className={cn(
             "h-9 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all duration-300",
             isDirty && !isSaving
-              ? "bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse"
+              ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
               : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
           )}
         >
@@ -544,7 +544,7 @@ export function OriginalEditor({
                 )}
               </div>
               <div className="flex gap-1.5">
-                <label className="text-[10px] font-bold text-[#acd1f8] hover:text-foreground cursor-pointer bg-btn-bg hover:bg-btn-hover border border-dialog-border rounded-lg px-2 py-1 flex items-center gap-1">
+                <label className="text-[10px] font-bold text-accent-text hover:text-foreground cursor-pointer bg-btn-bg hover:bg-btn-hover border border-dialog-border rounded-lg px-2 py-1 flex items-center gap-1">
                   <ImageIcon className="w-3 h-3" /> Browse
                   <input
                     type="file"
@@ -565,9 +565,9 @@ export function OriginalEditor({
                       setCoverArtFile(null);
                       setCoverArtMarkedForRemoval(true);
                     }}
-                    className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer bg-background border border-border rounded-lg px-2 py-1"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive hover:bg-destructive/10 bg-background border border-destructive/30 rounded-lg px-2 py-1"
                   >
-                    Remove
+                    <Trash2 className="w-3 h-3" /> Remove
                   </button>
                 )}
               </div>
@@ -669,7 +669,7 @@ export function OriginalEditor({
             value={notesDraft}
             onChange={(e) => setNotesDraft(e.target.value)}
             placeholder="Jot down arrangement ideas, key changes, section notes..."
-            className="w-full min-h-[100px] bg-background border border-border text-foreground text-sm rounded-xl p-3 resize-y focus:outline-none focus:border-[#5b80a5]"
+            className="w-full min-h-[100px] bg-background border border-border text-foreground text-sm rounded-xl p-3 resize-y focus:outline-none focus:border-ring"
           />
         </CardContent>
       </Card>
@@ -733,7 +733,7 @@ export function OriginalEditor({
                       </span>
                       <button
                         onClick={() => handleStemDelete(track.id)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer border bg-background border-border text-muted-foreground hover:text-red-400 hover:bg-red-950/20 flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all border bg-background border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 flex-shrink-0"
                         title="Delete stem (applies on Save)"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -761,7 +761,7 @@ export function OriginalEditor({
                       <select
                         value={track.role}
                         onChange={(e) => handleStemRoleChange(track.id, e.target.value as Role)}
-                        className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-[#5b80a5] rounded-lg px-2.5 text-sm focus:outline-none h-9 flex-1"
+                        className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-ring rounded-lg px-2.5 text-sm focus:outline-none h-9 flex-1"
                       >
                         {INSTRUMENT_ROLES.map((r) => (
                           <option key={r} value={r} className="bg-card">
@@ -841,13 +841,13 @@ export function OriginalEditor({
               />
 
               <div className="flex items-center gap-3 bg-background/40 border border-border px-3.5 py-2 rounded-xl flex-1 min-w-[160px]">
-                <span className="text-[#acd1f8] flex items-center">
+                <span className="text-accent-text flex items-center">
                   <ZoomIn className="w-3.5 h-3.5" />
                 </span>
                 <div className="flex flex-col flex-1">
                   <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1.5">
                     <span>Zoom</span>
-                    <span className="text-[#acd1f8] font-mono">{Math.round(((pxPerSec - DAW_PX_PER_SEC_MIN) / (DAW_PX_PER_SEC_MAX - DAW_PX_PER_SEC_MIN)) * 100)}%</span>
+                    <span className="text-accent-text font-mono">{Math.round(((pxPerSec - DAW_PX_PER_SEC_MIN) / (DAW_PX_PER_SEC_MAX - DAW_PX_PER_SEC_MIN)) * 100)}%</span>
                   </div>
                   <Slider
                     value={[pxPerSec]}
