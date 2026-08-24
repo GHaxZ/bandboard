@@ -5,6 +5,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, getAlternativeLinks } from "@/lib/utils";
+import { toast } from "sonner";
+import { useSaveBar } from "@/hooks/use-save-bar";
 import {
   updateRoleGroupVideo,
   updateRoleGroupCustomArtifact,
@@ -13,7 +15,7 @@ import {
   refreshSongMetadata,
 } from "@/app/actions/songs";
 import { useSongProgress } from "@/hooks/useSongProgress";
-import { VideoSelector } from "./VideoSelector";
+import { VideoSelector, type MediaDraft } from "./VideoSelector";
 import { YouTubePreview } from "./YouTubePreview";
 import { CustomMediaPreview } from "./CustomMediaPreview";
 import { PracticeLogCard } from "./PracticeLogCard";
@@ -54,6 +56,124 @@ export function SongDashboard({
     type: "backing" | "tab";
     instrumentName: string;
   } | null>(null);
+
+  // Staged, unsaved media choices keyed by `${trackId}:${type}`.
+  const [mediaDrafts, setMediaDrafts] = useState<Record<string, MediaDraft>>({});
+  const [isSavingMedia, setIsSavingMedia] = useState(false);
+
+  function setDraft(key: string, next: MediaDraft | null) {
+    setMediaDrafts((prev) => {
+      const old = prev[key];
+      if (
+        old?.kind === "custom" &&
+        next?.kind === "custom" &&
+        old.previewUrl !== next.previewUrl
+      ) {
+        URL.revokeObjectURL(old.previewUrl);
+      }
+      const copy = { ...prev };
+      if (next) copy[key] = next;
+      else delete copy[key];
+      return copy;
+    });
+  }
+
+  function handleDraftChange(
+    trackId: string,
+    type: "backing" | "tab",
+    currentUrl: string | null,
+    currentCustomTrackId: string | null,
+    next: MediaDraft | null
+  ) {
+    const key = `${trackId}:${type}`;
+    // Normalizing a YouTube draft back to the persisted value = no-op.
+    if (
+      next?.kind === "youtube" &&
+      !currentCustomTrackId &&
+      next.url.trim() === (currentUrl ?? "").trim()
+    ) {
+      setDraft(key, null);
+      return;
+    }
+    setDraft(key, next);
+  }
+
+  function revertMediaDrafts() {
+    for (const d of Object.values(mediaDrafts)) {
+      if (d.kind === "custom") URL.revokeObjectURL(d.previewUrl);
+    }
+    setMediaDrafts({});
+  }
+
+  async function flushMediaDrafts() {
+    setIsSavingMedia(true);
+    try {
+      for (const [key, draft] of Object.entries(mediaDrafts)) {
+        const sep = key.lastIndexOf(":");
+        const trackId = key.slice(0, sep);
+        const type = key.slice(sep + 1) as "backing" | "tab";
+        const rg = song.roleGroups.find((g) => g.id === trackId);
+        const boundId = rg
+          ? type === "backing"
+            ? rg.backingCustomTrackId
+            : rg.tabCustomTrackId
+          : null;
+
+        if (draft.kind === "youtube") {
+          const res = await updateRoleGroupVideo(trackId, type, draft.url.trim() || null);
+          if (!res.success) throw new Error(res.error || "Failed to save video link");
+          if (boundId) await removeRoleGroupCustomArtifact(trackId, type);
+        } else if (draft.kind === "custom") {
+          const form = new FormData();
+          form.append("songId", song.id);
+          form.append("role", rg?.role ?? "Other");
+          form.append("label", draft.file.name.replace(/\.[^.]+$/, ""));
+          form.append("file", draft.file);
+          form.append("kind", "artifact");
+          const res = await fetch("/api/uploads", { method: "POST", body: form });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Upload failed (${res.status})`);
+          }
+          const data = await res.json();
+          const bind = await updateRoleGroupCustomArtifact(trackId, type, data.track.id);
+          if (!bind.success) throw new Error(bind.error || "Failed to attach file");
+        }
+        setDraft(key, null);
+      }
+      toast.success("Media updated");
+      onRefresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save media");
+      throw e; // stay dirty so Save can be retried
+    } finally {
+      setIsSavingMedia(false);
+    }
+  }
+
+  const hasMediaDrafts = Object.keys(mediaDrafts).length > 0;
+  useSaveBar(
+    "song-media",
+    hasMediaDrafts || isSavingMedia
+      ? {
+          label: "Backing & tab media",
+          isDirty: hasMediaDrafts,
+          isSaving: isSavingMedia,
+          onSave: flushMediaDrafts,
+          onRevert: revertMediaDrafts,
+        }
+      : null
+  );
+
+  // Revoke any leftover blob URLs on unmount.
+  useEffect(() => {
+    return () => {
+      for (const d of Object.values(mediaDrafts)) {
+        if (d.kind === "custom") URL.revokeObjectURL(d.previewUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [isLazyLoading, setIsLazyLoading] = useState(false);
   const [lazyLoadedTrackId, setLazyLoadedTrackId] = useState<string | null>(null);
@@ -207,34 +327,6 @@ export function SongDashboard({
   const otherRoleGroup = song.roleGroups.find((rg) => rg.role === "Other");
   const otherTracks = otherRoleGroup?.tracks || [];
 
-  async function handleSaveVideoLink(url: string | null) {
-    if (!videoSelectorState) return;
-    const { trackId, type } = videoSelectorState;
-    // Save the URL first; unlink the old custom file only on success so a
-    // rejected URL can't silently drop the bound file.
-    const res = await updateRoleGroupVideo(trackId, type, url);
-    if (!res.success) {
-      throw new Error(res.error || "Failed to save video link");
-    }
-    const rg = song.roleGroups.find((g) => g.id === trackId);
-    const boundId = rg
-      ? type === "backing"
-        ? rg.backingCustomTrackId
-        : rg.tabCustomTrackId
-      : null;
-    if (boundId) {
-      await removeRoleGroupCustomArtifact(trackId, type);
-    }
-    onRefresh();
-  }
-
-  async function handleSaveCustomArtifact(customTrackId: string | null) {
-    if (!videoSelectorState) return;
-    const { trackId, type } = videoSelectorState;
-    const res = await updateRoleGroupCustomArtifact(trackId, type, customTrackId);
-    if (res.success) onRefresh();
-  }
-
   function handleTabChange(val: string) {
     setActiveTrackId(val);
     const rg = song.roleGroups.find((g) => g.id === val);
@@ -312,14 +404,65 @@ export function SongDashboard({
           </div>
 
           {standardRoleGroups.map((roleGroup) => {
-            const backingVideoId = getYouTubeId(roleGroup.backingTrackLink);
-            const tabVideoId = getYouTubeId(roleGroup.tabVideoLink);
-            const backingCustomTrack = roleGroup.backingCustomTrackId
+            // Draft-aware view state: panels render exactly what Save will
+            // persist, so staging a file/URL/removal updates previews live.
+            const backingDraft = mediaDrafts[`${roleGroup.id}:backing`] ?? null;
+            const tabDraft = mediaDrafts[`${roleGroup.id}:tab`] ?? null;
+
+            const storedBackingUrl =
+              roleGroup.backingTrackLink && roleGroup.backingTrackLink !== NO_VIDEO_SENTINEL
+                ? roleGroup.backingTrackLink
+                : null;
+            const storedTabUrl =
+              roleGroup.tabVideoLink && roleGroup.tabVideoLink !== NO_VIDEO_SENTINEL
+                ? roleGroup.tabVideoLink
+                : null;
+
+            const effBackingUrl =
+              backingDraft?.kind === "youtube" ? backingDraft.url.trim() || null : storedBackingUrl;
+            const effTabUrl =
+              tabDraft?.kind === "youtube" ? tabDraft.url.trim() || null : storedTabUrl;
+
+            const persistedBackingCustom = roleGroup.backingCustomTrackId
               ? song.customTracks?.find((t) => t.id === roleGroup.backingCustomTrackId)
               : undefined;
-            const tabCustomTrack = roleGroup.tabCustomTrackId
+            const persistedTabCustom = roleGroup.tabCustomTrackId
               ? song.customTracks?.find((t) => t.id === roleGroup.tabCustomTrackId)
               : undefined;
+
+            const effBackingCustom = backingDraft?.kind === "custom"
+              ? {
+                  key: backingDraft.previewUrl,
+                  src: backingDraft.previewUrl,
+                  isVideo: backingDraft.file.type.startsWith("video/"),
+                  label: backingDraft.file.name,
+                }
+              : !backingDraft && persistedBackingCustom
+                ? {
+                    key: persistedBackingCustom.id,
+                    src: `/api/uploads/${persistedBackingCustom.id}`,
+                    isVideo: persistedBackingCustom.isVideo,
+                    label: persistedBackingCustom.label,
+                  }
+                : null;
+            const effTabCustom = tabDraft?.kind === "custom"
+              ? {
+                  key: tabDraft.previewUrl,
+                  src: tabDraft.previewUrl,
+                  isVideo: tabDraft.file.type.startsWith("video/"),
+                  label: tabDraft.file.name,
+                }
+              : !tabDraft && persistedTabCustom
+                ? {
+                    key: persistedTabCustom.id,
+                    src: `/api/uploads/${persistedTabCustom.id}`,
+                    isVideo: persistedTabCustom.isVideo,
+                    label: persistedTabCustom.label,
+                  }
+                : null;
+
+            const effBackingVideoId = effBackingUrl ? getYouTubeId(effBackingUrl) : null;
+            const effTabVideoId = effTabUrl ? getYouTubeId(effTabUrl) : null;
 
             return (
               <TabsContent
@@ -574,22 +717,23 @@ export function SongDashboard({
                       </Button>
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {backingCustomTrack ? (
+                      {effBackingCustom ? (
                         <CustomMediaPreview
-                          src={`/api/uploads/${backingCustomTrack.id}`}
-                          isVideo={backingCustomTrack.isVideo}
+                          key={effBackingCustom.key}
+                          src={effBackingCustom.src}
+                          isVideo={effBackingCustom.isVideo}
                           coverArtUrl={coverArtUrl}
-                          label={backingCustomTrack.label}
+                          label={effBackingCustom.label}
                         />
-                      ) : isLazyLoading && roleGroup.backingTrackLink === null ? (
+                      ) : isLazyLoading && roleGroup.backingTrackLink === null && !backingDraft ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                           <p className="text-xs text-muted-foreground">
                             Searching YouTube backing track...
                           </p>
                         </div>
-                      ) : backingVideoId && roleGroup.backingTrackLink !== NO_VIDEO_SENTINEL ? (
-                        <YouTubePreview videoId={backingVideoId} />
+                      ) : effBackingVideoId ? (
+                        <YouTubePreview videoId={effBackingVideoId} />
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-xs text-muted-foreground mb-4 font-medium">
@@ -640,14 +784,15 @@ export function SongDashboard({
                       </Button>
                     </div>
                     <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {tabCustomTrack ? (
+                      {effTabCustom ? (
                         <CustomMediaPreview
-                          src={`/api/uploads/${tabCustomTrack.id}`}
-                          isVideo={tabCustomTrack.isVideo}
+                          key={effTabCustom.key}
+                          src={effTabCustom.src}
+                          isVideo={effTabCustom.isVideo}
                           coverArtUrl={coverArtUrl}
-                          label={tabCustomTrack.label}
+                          label={effTabCustom.label}
                         />
-                      ) : isLazyLoading && roleGroup.tabVideoLink === null ? (
+                      ) : isLazyLoading && roleGroup.tabVideoLink === null && !tabDraft ? (
                         <div className="flex flex-col items-center justify-center py-8">
                           <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                           <p className="text-xs text-muted-foreground">
@@ -656,8 +801,8 @@ export function SongDashboard({
                               : "Searching YouTube lesson..."}
                           </p>
                         </div>
-                      ) : tabVideoId && roleGroup.tabVideoLink !== NO_VIDEO_SENTINEL ? (
-                        <YouTubePreview videoId={tabVideoId} />
+                      ) : effTabVideoId ? (
+                        <YouTubePreview videoId={effTabVideoId} />
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-xs text-muted-foreground mb-4 font-medium">
@@ -803,6 +948,23 @@ export function SongDashboard({
             (rg) => rg.id === videoSelectorState.trackId
           );
           const role = matchingGroup ? matchingGroup.role : "Other";
+          const selectorCurrentUrl =
+            videoSelectorState.type === "backing"
+              ? matchingGroup?.backingTrackLink &&
+                matchingGroup.backingTrackLink !== NO_VIDEO_SENTINEL
+                ? matchingGroup.backingTrackLink
+                : null
+              : matchingGroup?.tabVideoLink &&
+                  matchingGroup.tabVideoLink !== NO_VIDEO_SENTINEL
+                ? matchingGroup.tabVideoLink
+                : null;
+          const selectorCurrentCustomTrackId =
+            videoSelectorState.type === "backing"
+              ? matchingGroup?.backingCustomTrackId ?? null
+              : matchingGroup?.tabCustomTrackId ?? null;
+          const selectorCurrentCustomTrack = selectorCurrentCustomTrackId
+            ? song.customTracks?.find((t) => t.id === selectorCurrentCustomTrackId) ?? null
+            : null;
           return (
             <VideoSelector
               isOpen={videoSelectorState.isOpen}
@@ -810,28 +972,26 @@ export function SongDashboard({
               trackId={videoSelectorState.trackId}
               type={videoSelectorState.type}
               role={role}
-              songId={song.id}
               instrumentName={videoSelectorState.instrumentName}
-              currentUrl={
-                videoSelectorState.type === "backing"
-                  ? matchingGroup?.backingTrackLink &&
-                    matchingGroup.backingTrackLink !== NO_VIDEO_SENTINEL
-                    ? matchingGroup.backingTrackLink
-                    : null
-                  : matchingGroup?.tabVideoLink &&
-                      matchingGroup.tabVideoLink !== NO_VIDEO_SENTINEL
-                    ? matchingGroup.tabVideoLink
-                    : null
-              }
-              currentCustomTrackId={
-                videoSelectorState.type === "backing"
-                  ? matchingGroup?.backingCustomTrackId ?? null
-                  : matchingGroup?.tabCustomTrackId ?? null
-              }
+              currentUrl={selectorCurrentUrl}
+              currentCustomTrackId={selectorCurrentCustomTrackId}
+              currentCustomTrack={selectorCurrentCustomTrack}
               songTitle={song.title}
               songArtist={song.artist}
-              onSave={handleSaveVideoLink}
-              onSaveCustom={handleSaveCustomArtifact}
+              draft={
+                mediaDrafts[
+                  `${videoSelectorState.trackId}:${videoSelectorState.type}`
+                ] ?? null
+              }
+              onDraftChange={(d) =>
+                handleDraftChange(
+                  videoSelectorState.trackId,
+                  videoSelectorState.type,
+                  selectorCurrentUrl,
+                  selectorCurrentCustomTrackId,
+                  d
+                )
+              }
             />
           );
         })()}

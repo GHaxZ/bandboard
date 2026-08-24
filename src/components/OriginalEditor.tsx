@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn, uuid } from "@/lib/utils";
@@ -639,11 +641,11 @@ export function OriginalEditor({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <textarea
+          <Textarea
             value={notesDraft}
             onChange={(e) => setNotesDraft(e.target.value)}
             placeholder="Jot down arrangement ideas, key changes, section notes..."
-            className="w-full min-h-[100px] bg-background border border-border text-foreground text-sm rounded-xl p-3 resize-y focus:outline-none focus:border-ring"
+            className="min-h-[100px] resize-y"
           />
         </CardContent>
       </Card>
@@ -732,17 +734,17 @@ export function OriginalEditor({
                       <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
                         Role
                       </label>
-                      <select
+                      <Select
                         value={track.role}
                         onChange={(e) => handleStemRoleChange(track.id, e.target.value as Role)}
-                        className="bg-background border border-border text-foreground focus:ring-1 focus:ring-ring focus:border-ring rounded-lg px-2.5 text-sm focus:outline-none h-9 flex-1"
+                        className="flex-1"
                       >
                         {INSTRUMENT_ROLES.map((r) => (
-                          <option key={r} value={r} className="bg-card">
+                          <option key={r} value={r}>
                             {ROLE_LABEL[r]}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 ))}

@@ -33,7 +33,7 @@ export function RehearsalDateTimeFields({
         disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl w-full"
+        className="rounded-xl w-full"
       />
     </div>
   );

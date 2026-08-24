@@ -256,7 +256,7 @@ export function SetlistManager({
       )}
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[80vh] flex flex-col p-6 bg-card border border-border text-foreground">
+        <DialogContent className="max-w-md w-[95vw] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
               <Music className="w-5 h-5 text-muted-foreground" />
@@ -307,7 +307,7 @@ export function SetlistManager({
             )}
           </div>
 
-          <DialogFooter className="pt-3 border-t border-border">
+          <DialogFooter>
             <Button
               onClick={() => setIsAddOpen(false)}
               className="w-full bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-semibold"

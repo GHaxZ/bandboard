@@ -10,6 +10,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { FileInput } from "@/components/ui/file-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, TriangleAlert } from "lucide-react";
@@ -102,7 +104,7 @@ export function UploadTrackDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
+      <DialogContent className="max-w-md w-[95vw]">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Upload className="w-5 h-5 text-muted-foreground" />
@@ -119,12 +121,7 @@ export function UploadTrackDialog({
             <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               File
             </Label>
-            <input
-              type="file"
-              accept={UPLOAD_ACCEPT}
-              onChange={handleFileChange}
-              className="w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"
-            />
+            <FileInput accept={UPLOAD_ACCEPT} onChange={handleFileChange} />
             {file && (
               <p className="text-[10px] text-muted-foreground">
                 {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
@@ -142,17 +139,13 @@ export function UploadTrackDialog({
             <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Role
             </Label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-              className="w-full bg-background border border-border text-foreground focus-visible:border-ring rounded-xl p-2 text-sm focus:outline-none h-10"
-            >
+            <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
               {INSTRUMENT_ROLES.map((r) => (
-                <option key={r} value={r} className="bg-card">
+                <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="space-y-1.5">
@@ -163,13 +156,13 @@ export function UploadTrackDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Bass stem, Rhythm guitar..."
-              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
+              className="rounded-xl"
             />
           </div>
 
           <FormError>{error}</FormError>
 
-          <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="ghost"

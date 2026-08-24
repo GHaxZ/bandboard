@@ -37,7 +37,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !loading && onClose()}>
-      <DialogContent className="max-w-sm w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
+      <DialogContent className="max-w-sm w-[95vw]">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-base font-bold text-foreground">{title}</DialogTitle>
           {description && (
@@ -46,7 +46,7 @@ export function ConfirmDialog({
             </DialogDescription>
           )}
         </DialogHeader>
-        <DialogFooter className="pt-4 gap-2 sm:gap-0">
+        <DialogFooter>
           <Button
             type="button"
             variant="ghost"

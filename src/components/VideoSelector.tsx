@@ -10,14 +10,27 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Button } from "@/components/ui/button";
+import { CustomMediaPreview } from "./CustomMediaPreview";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { searchYouTubeVideosAction } from "@/app/actions/songs";
-import { Loader2, Search, Play, Check, Video, Upload, Trash2, TriangleAlert } from "lucide-react";
+import { Loader2, Search, Play, Check, Video, Upload, TriangleAlert } from "lucide-react";
 import { getYouTubeQuery } from "@/lib/youtube-query";
-import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, UPLOAD_ACCEPT, browserCanPlay } from "@/lib/constants";
+import {
+  ALLOWED_UPLOAD_MIMES,
+  MAX_UPLOAD_BYTES,
+  UPLOAD_ACCEPT,
+  browserCanPlay,
+} from "@/lib/constants";
 import type { YouTubeVideo } from "@/lib/youtube";
+import type { CustomTrack } from "@/types/models";
+
+/** Staged (unsaved) media choice for one roleGroup slot. Owned by SongDashboard.
+ *  Replacing either source (YouTube ↔ file) implicitly removes the other on save. */
+export type MediaDraft =
+  | { kind: "youtube"; url: string }
+  | { kind: "custom"; file: File; previewUrl: string };
 
 interface VideoSelectorProps {
   isOpen: boolean;
@@ -25,14 +38,15 @@ interface VideoSelectorProps {
   trackId: string;
   type: "backing" | "tab";
   role: string;
-  songId: string;
   songTitle: string;
   songArtist: string;
   instrumentName: string;
   currentUrl: string | null;
   currentCustomTrackId: string | null;
-  onSave: (url: string | null) => Promise<void>;
-  onSaveCustom: (customTrackId: string | null) => Promise<void>;
+  /** Resolved bound track, so a saved file renders like a freshly staged one. */
+  currentCustomTrack: CustomTrack | null;
+  draft: MediaDraft | null;
+  onDraftChange: (draft: MediaDraft | null) => void;
 }
 
 export function VideoSelector({
@@ -41,41 +55,30 @@ export function VideoSelector({
   trackId,
   type,
   role,
-  songId,
   songTitle,
   songArtist,
   instrumentName,
   currentUrl,
   currentCustomTrackId,
-  onSave,
-  onSaveCustom,
+  currentCustomTrack,
+  draft,
+  onDraftChange,
 }: VideoSelectorProps) {
   const [query, setQuery] = useState("");
-  const [manualUrl, setManualUrl] = useState(currentUrl || "");
   const [results, setResults] = useState<YouTubeVideo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [customFile, setCustomFile] = useState<File | null>(null);
-  const [isUploadingCustom, setIsUploadingCustom] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
-  /** Persistent playback-support notice; shown while an undecodable file is selected. */
+  /** Persistent playback-support notice; shown while an undecodable file is staged. */
   const [customWarn, setCustomWarn] = useState<string | null>(null);
-  const [uploadedId, setUploadedId] = useState<string | null>(null);
 
   // Tracks the latest search request — responses from an older in-flight
   // request (auto-search on open racing a manual search) are ignored.
   const searchRequestIdRef = useRef(0);
 
-  const youtubeInUse = !currentCustomTrackId && !!currentUrl;
-  const customInUse = !!currentCustomTrackId;
-
   useEffect(() => {
     if (isOpen) {
-      setManualUrl(currentUrl || "");
-      setCustomFile(null);
       setCustomError(null);
       setCustomWarn(null);
-      setUploadedId(null);
       const defaultQuery = getYouTubeQuery(songArtist, songTitle, role, type, instrumentName);
       setQuery(defaultQuery);
       if (defaultQuery.trim()) {
@@ -91,7 +94,7 @@ export function VideoSelector({
           });
       }
     }
-  }, [isOpen, trackId, type, role, songTitle, songArtist, instrumentName, currentUrl]);
+  }, [isOpen, trackId, type, role, songTitle, songArtist, instrumentName]);
 
   async function handleSearch(searchQuery: string) {
     if (!searchQuery.trim()) return;
@@ -107,110 +110,77 @@ export function VideoSelector({
     }
   }
 
-  async function handleSelectVideo(url: string) {
-    setIsSaving(true);
-    try {
-      await onSave(url);
-      onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleSaveManual() {
-    setIsSaving(true);
-    try {
-      const url = manualUrl.trim() ? manualUrl.trim() : null;
-      await onSave(url);
-      onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   function handleCustomFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0];
-    if (!selected) return;
     // Clear the input so re-selecting the same file still fires onChange.
     e.target.value = "";
-    setCustomFile(selected);
-    setCustomError(null);
-    setCustomWarn(null);
-    setUploadedId(null);
-    // Auto-upload and save immediately on file selection
-    void handleUploadCustom(selected);
-  }
-
-  async function handleUploadCustom(file: File) {
-    if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) {
-      setCustomError(`File type not allowed: ${file.type}`);
+    if (!selected) return;
+    if (!ALLOWED_UPLOAD_MIMES.includes(selected.type)) {
+      setCustomError(`File type not allowed: ${selected.type}`);
       return;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (selected.size > MAX_UPLOAD_BYTES) {
       setCustomError(`File too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB).`);
       return;
     }
-    if (!browserCanPlay(file.type)) {
-      setCustomWarn(
-        `This browser can't decode ${file.type || "this format"}. It will still upload fine, but playback here may not work.`
-      );
-    }
-    setIsUploadingCustom(true);
     setCustomError(null);
-    try {
-      const form = new FormData();
-      form.append("songId", songId);
-      form.append("role", role);
-      form.append("label", file.name.replace(/\.[^.]+$/, ""));
-      form.append("file", file);
-      form.append("kind", "artifact");
-      const res = await fetch("/api/uploads", { method: "POST", body: form });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Upload failed (${res.status})`);
-      }
-      const data = await res.json();
-      toast.success("Custom file uploaded!");
-      setUploadedId(data.track.id);
-      await onSaveCustom(data.track.id);
-      // ponytail: keep dialog open after custom upload so the user can upload
-      // more or switch to a YouTube result. The "In use" badge updates via
-      // currentCustomTrackId after onRefresh. YouTube selection still closes
-      // the dialog (handleSelectVideo / handleSaveManual call onClose()).
-    } catch (e) {
-      setCustomError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setIsUploadingCustom(false);
-    }
+    setCustomWarn(
+      browserCanPlay(selected.type)
+        ? null
+        : `This browser can't decode ${selected.type || "this format"}. It will still upload fine, but playback here may not work.`
+    );
+    onDraftChange({
+      kind: "custom",
+      file: selected,
+      previewUrl: URL.createObjectURL(selected),
+    });
   }
 
-  async function handleRemoveCustom() {
-    setIsSaving(true);
-    try {
-      await onSaveCustom(null);
-      onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove");
-    } finally {
-      setIsSaving(false);
-    }
-  }
+  // --- What the dialog presents as "selected" ---
+  // Staged draft wins; otherwise mirror persisted state. Staging a custom
+  // file or a removal immediately deselects the YouTube side (the file
+  // replaces it on save); a YouTube draft deselects the custom file.
+  const shownUrl =
+    draft?.kind === "youtube"
+      ? draft.url
+      : draft || currentCustomTrackId
+        ? null
+        : currentUrl;
+  const stagedCustom = draft?.kind === "custom" ? draft : null;
+  // A bound (already saved) file shows the same card as a staged one — minus
+  // the pending note. Any staged draft hides it (replacement is implicit).
+  const shownCustom = stagedCustom
+    ? {
+        key: stagedCustom.previewUrl,
+        name: stagedCustom.file.name,
+        sizeBytes: stagedCustom.file.size,
+        previewUrl: stagedCustom.previewUrl,
+        isVideo: stagedCustom.file.type.startsWith("video/"),
+        pending: true,
+      }
+    : !draft && currentCustomTrack
+      ? {
+          key: currentCustomTrack.id,
+          name: currentCustomTrack.fileName || currentCustomTrack.label,
+          sizeBytes: currentCustomTrack.sizeBytes,
+          previewUrl: `/api/uploads/${currentCustomTrack.id}`,
+          isVideo: currentCustomTrack.isVideo,
+          pending: false,
+        }
+      : null;
+  const customHighlighted = !!shownCustom;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl max-h-[85vh] flex flex-col p-6 bg-card border border-border text-foreground">
+      <DialogContent className="max-w-md w-[95vw] max-h-[85vh] flex flex-col">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Video className="w-5 h-5 text-muted-foreground" />
             Change {type === "backing" ? "Backing Track" : "Tab Video"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Choose a video for <span className="font-bold text-foreground">{instrumentName}</span> on{" "}
-            {songTitle}.
+            Pick a source for <span className="font-bold text-foreground">{instrumentName}</span> on{" "}
+            {songTitle}. Your selection is applied when you save.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,7 +189,7 @@ export function VideoSelector({
           <div
             className={cn(
               "rounded-2xl border p-4 space-y-3 transition-colors",
-              youtubeInUse
+              shownUrl
                 ? "border-success/50 bg-success/5"
                 : "border-border bg-background/30"
             )}
@@ -229,43 +199,34 @@ export function VideoSelector({
               <span className="text-xs font-bold text-foreground uppercase tracking-wider flex-1">
                 YouTube
               </span>
-              {youtubeInUse && (
+              {shownUrl && (
                 <span className="flex items-center gap-0.5 text-[10px] font-bold text-success border border-success/40 bg-success/10 px-1.5 py-0.5 rounded-full">
-                  <Check className="w-2.5 h-2.5" /> In use
+                  <Check className="w-2.5 h-2.5" /> Selected
                 </span>
               )}
             </div>
 
             {/* Manual URL */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://youtube.com/watch?v=..."
-                value={manualUrl}
-                onChange={(e) => setManualUrl(e.target.value)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl text-xs"
-              />
-              <Button
-                onClick={handleSaveManual}
-                disabled={isSaving}
-                className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-semibold text-xs h-9"
-              >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-              </Button>
-            </div>
+            <Input
+              placeholder="https://youtube.com/watch?v=..."
+              value={shownUrl ?? ""}
+              onChange={(e) => onDraftChange({ kind: "youtube", url: e.target.value })}
+              className="text-xs"
+            />
 
             {/* Search */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-stretch">
               <Input
                 placeholder="Search YouTube..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch(query)}
-                className="bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl text-xs"
+                className="text-xs flex-1"
               />
               <Button
                 onClick={() => handleSearch(query)}
                 disabled={isLoading}
-                className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl"
+                variant="secondary"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               </Button>
@@ -284,17 +245,17 @@ export function VideoSelector({
                 </div>
               ) : (
                 results.map((video) => {
-                  const isCurrent = currentUrl === video.url && !currentCustomTrackId;
+                  const isSelected = !!shownUrl && shownUrl === video.url;
                   return (
                     <button
                       key={video.videoId}
-                      onClick={() => handleSelectVideo(video.url)}
-                      disabled={isSaving}
-                      className={`w-full text-left flex gap-3 p-2 rounded-xl border transition-all duration-200 ${
-                        isCurrent
-                          ? "bg-muted border-ring/50"
+                      onClick={() => onDraftChange({ kind: "youtube", url: video.url })}
+                      className={cn(
+                        "w-full text-left flex gap-3 p-2 rounded-xl border transition-all duration-200 cursor-pointer",
+                        isSelected
+                          ? "bg-accent-soft border-ring/60 ring-2 ring-ring/30"
                           : "bg-background/40 border-border/60 hover:bg-card/60 hover:border-ring/30"
-                      }`}
+                      )}
                     >
                       <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-background flex-shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -315,9 +276,9 @@ export function VideoSelector({
                         </div>
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] text-muted-foreground">{video.viewsText}</p>
-                          {isCurrent && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-foreground bg-muted px-1.5 py-0.5 rounded-full border border-dialog-border">
-                              <Check className="w-2.5 h-2.5" /> Current
+                          {isSelected && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded-full border border-success/40">
+                              <Check className="w-2.5 h-2.5" /> Selected
                             </span>
                           )}
                         </div>
@@ -333,7 +294,7 @@ export function VideoSelector({
           <div
             className={cn(
               "rounded-2xl border p-4 space-y-3 transition-colors",
-              customInUse
+              customHighlighted
                 ? "border-success/50 bg-success/5"
                 : "border-border bg-background/30"
             )}
@@ -343,50 +304,38 @@ export function VideoSelector({
               <span className="text-xs font-bold text-foreground uppercase tracking-wider flex-1">
                 Custom
               </span>
-              {customInUse && (
+              {customHighlighted && (
                 <span className="flex items-center gap-0.5 text-[10px] font-bold text-success border border-success/40 bg-success/10 px-1.5 py-0.5 rounded-full">
-                  <Check className="w-2.5 h-2.5" /> In use
+                  <Check className="w-2.5 h-2.5" /> Selected
                 </span>
               )}
             </div>
 
-            {currentCustomTrackId && (
-              <div className="flex items-center justify-between gap-2 bg-muted/30 border border-border rounded-xl p-3">
-                <span className="text-xs text-foreground font-medium truncate">
-                  Custom {type === "backing" ? "backing" : "tab"} file bound
+            {shownCustom && (
+              <div className="space-y-2 bg-muted/30 border border-border rounded-xl p-3">
+                <span className="text-xs text-foreground font-medium truncate block">
+                  {shownCustom.name}{" "}
+                  <span className="text-muted-foreground">
+                    ({(shownCustom.sizeBytes / 1024 / 1024).toFixed(1)} MB)
+                  </span>
                 </span>
-                <Button
-                  onClick={handleRemoveCustom}
-                  disabled={isSaving}
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 text-[10px] font-bold rounded-lg"
-                >
-                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                  Remove
-                </Button>
+                <CustomMediaPreview
+                  key={shownCustom.key}
+                  src={shownCustom.previewUrl}
+                  isVideo={shownCustom.isVideo}
+                  coverArtUrl={null}
+                  label={shownCustom.name}
+                />
+                {shownCustom.pending && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Uploads and applies when you save.
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="flex gap-2">
-              <input
-                type="file"
-                accept={UPLOAD_ACCEPT}
-                onChange={handleCustomFileChange}
-                disabled={isSaving || isUploadingCustom}
-                className="flex-1 w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"
-              />
-              {isUploadingCustom && (
-                <div className="flex items-center justify-center px-3">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                </div>
-              )}
-              {uploadedId && customFile && !isUploadingCustom && (
-                <div className="flex items-center justify-center px-3">
-                  <Check className="w-4 h-4 text-success" />
-                </div>
-              )}
-            </div>
+            <FileInput accept={UPLOAD_ACCEPT} onChange={handleCustomFileChange} />
+
             {customWarn && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-600/30 dark:border-amber-800 bg-amber-500/10 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                 <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
@@ -399,13 +348,9 @@ export function VideoSelector({
           </div>
         </div>
 
-        <DialogFooter className="mt-2 pt-3 border-t border-border">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
-          >
-            Cancel
+        <DialogFooter>
+          <Button onClick={onClose} className="rounded-xl font-bold px-5">
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>

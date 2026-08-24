@@ -94,7 +94,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 placeholder={mode === "register" ? "Choose a username" : "Your username"}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
+                className="block h-10 rounded-xl"
               />
             </div>
 
@@ -114,7 +114,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 placeholder={mode === "register" ? "Minimum 8 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
+                className="block h-10 rounded-xl"
               />
             </div>
 
@@ -135,7 +135,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                   placeholder="Repeat your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
+                  className="block h-10 rounded-xl"
                 />
                 {/* Always rendered so the mismatch hint never pushes content around */}
                 <p className={`text-xs font-semibold ${passwordMismatch ? "text-destructive" : "invisible"}`}>
@@ -160,7 +160,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                   placeholder="Ask your band admin for the code"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
-                  className="block h-10 bg-background border-border text-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl"
+                  className="block h-10 rounded-xl"
                 />
               </div>
             )}

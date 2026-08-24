@@ -101,7 +101,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
+      <DialogContent className="max-w-md w-[95vw]">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Music className="w-5 h-5 text-muted-foreground" />
@@ -158,7 +158,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Plush"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
+              className="rounded-xl"
             />
           </div>
 
@@ -176,13 +176,13 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               placeholder="e.g. Stone Temple Pilots"
               value={artist}
               onChange={(e) => setArtist(e.target.value)}
-              className="bg-background border-border text-foreground focus-visible:border-ring rounded-xl"
+              className="rounded-xl"
             />
           </div>
 
           <FormError>{error}</FormError>
 
-          <DialogFooter className="pt-3 border-t border-border gap-2 sm:gap-0">
+          <DialogFooter>
             <Button
               type="button"
               variant="ghost"

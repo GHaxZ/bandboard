@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { saveSongProgress } from "@/app/actions/user";
 import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -139,14 +140,14 @@ export function PracticeLogCard({
           <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
             Notes
           </label>
-          <textarea
+          <Textarea
             placeholder="Record highlights, difficult parts, or speed settings..."
             value={progressNotes}
             onChange={(e) => {
               setProgressNotes(e.target.value);
               setHasLocalEdits(true);
             }}
-            className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-muted-foreground"
+            className="h-24 resize-none text-xs"
           />
         </div>
       </CardContent>

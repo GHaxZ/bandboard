@@ -185,10 +185,34 @@
   animation: skipAlert 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Input focus glow — soft breathing halo instead of a hard ring */
+@keyframes fieldGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--ring) 14%, transparent),
+      0 0 10px color-mix(in oklab, var(--ring) 12%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent),
+      0 0 20px color-mix(in oklab, var(--ring) 20%, transparent);
+  }
+}
+
+.field-glow:focus-visible {
+  outline: none;
+  animation: fieldGlow 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-ping,
-  .animate-skip-alert {
+  .animate-skip-alert,
+  .field-glow:focus-visible {
     animation: none;
+  }
+  .field-glow:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
   }
 }
