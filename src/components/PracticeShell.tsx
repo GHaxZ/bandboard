@@ -14,15 +14,14 @@ import {
   ArrowLeft,
   Sliders,
   VolumeX,
-  Save,
   Trash2,
   Settings,
   Bookmark,
   Info,
   FileText,
   ExternalLink,
-  Loader2,
 } from "lucide-react";
+import { useSaveBar } from "@/hooks/use-save-bar";
 import { usePracticeControls } from "@/hooks/usePracticeControls";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { useIframeFocusGuard, blurActiveIframe } from "@/hooks/useIframeFocusGuard";
@@ -95,6 +94,19 @@ export function PracticeShell({
     onRefresh,
   });
   const { volume, setVolume, speed, setSpeed, markers, handleSaveCurrentTimeAsMarker, handleDeleteMarker } = practiceControls;
+
+  useSaveBar(
+    "sync-offsets",
+    coverState
+      ? {
+          label: "Sync offsets",
+          isDirty: coverState.hasUnsavedOffsets,
+          isSaving: coverState.isSavingOffsets,
+          onSave: coverState.handleSaveOffsets,
+          onRevert: coverState.revertOffsets,
+        }
+      : null
+  );
 
   // Skip overlay
   const { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer } = useSkipOverlay();
@@ -421,29 +433,6 @@ export function PracticeShell({
                         </div>
                       </div>
                     </div>
-
-                    <Button
-                      onClick={coverState.handleSaveOffsets}
-                      disabled={coverState.isSavingOffsets || !coverState.activeRoleGroup}
-                      className={cn(
-                        "w-full text-[11px] font-bold py-1.5 h-8 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-300",
-                        coverState.hasUnsavedOffsets && !coverState.isSavingOffsets
-                          ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
-                          : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
-                      )}
-                    >
-                      {coverState.isSavingOffsets ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-3 h-3" />
-                          Save Sync Offsets
-                        </>
-                      )}
-                    </Button>
                   </div>
                 )}
               </div>

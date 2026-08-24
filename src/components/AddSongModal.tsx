@@ -18,6 +18,7 @@ import { Loader2, Music, Plus, Compass } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { SongType } from "@/lib/constants";
 
 interface AddSongModalProps {
@@ -33,12 +34,12 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
   const [artist, setArtist] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   const isReady = title.trim().length > 0 && artist.trim().length > 0;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !artist.trim()) return;
+  async function doSubmit(): Promise<boolean> {
+    if (!title.trim() || !artist.trim()) return false;
 
     setIsLoading(true);
     setError(null);
@@ -53,9 +54,10 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           setMode("cover"); // reset even though onClose() skips handleOpenChange
           onSuccess();
           onClose();
-        } else {
-          setError(res.error || "An error occurred during ingestion.");
+          return true;
         }
+        setError(res.error || "An error occurred during ingestion.");
+        return false;
       } else {
         const res = await createOriginalSong(title, artist);
         if (res.success && res.songId) {
@@ -66,28 +68,39 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           onSuccess();
           onClose();
           router.push(`/songs/${res.songId}`);
-        } else {
-          setError(res.error || "Failed to create original song.");
+          return true;
         }
+        setError(res.error || "Failed to create original song.");
+        return false;
       }
     } catch (err) {
       console.error(err);
       setError("Failed to reach server. Please try again.");
+      return false;
     } finally {
       setIsLoading(false);
     }
   }
 
-  function handleOpenChange(open: boolean) {
-    if (!open && !isLoading) {
-      onClose();
-      setMode("cover");
-      setError(null);
-    }
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await doSubmit();
+  }
+
+  function closeAndReset() {
+    onClose();
+    setMode("cover");
+    setError(null);
+  }
+
+  function requestClose() {
+    if (isLoading) return;
+    if (isReady) setConfirmDiscardOpen(true);
+    else closeAndReset();
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
       <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
@@ -174,11 +187,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               type="button"
               variant="ghost"
               disabled={isLoading}
-              onClick={() => {
-                onClose();
-                setMode("cover");
-                setError(null);
-              }}
+              onClick={requestClose}
               className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
             >
               Cancel
@@ -189,7 +198,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
                 isReady && !isLoading
-                  ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse motion-reduce:animate-none"
+                  ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 motion-reduce:animate-none"
                   : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}
             >
@@ -206,6 +215,20 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ConfirmDialog
+        isOpen={confirmDiscardOpen}
+        onClose={() => setConfirmDiscardOpen(false)}
+        onConfirm={() => {
+          setConfirmDiscardOpen(false);
+          closeAndReset();
+        }}
+        title="Discard this song?"
+        description="The entered details will be lost."
+        confirmLabel="Discard"
+        cancelLabel="Keep Editing"
+        destructive
+      />
     </Dialog>
   );
 }

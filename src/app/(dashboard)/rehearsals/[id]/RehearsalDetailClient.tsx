@@ -16,6 +16,7 @@ import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
 import { getProgressMap } from "@/app/actions/user";
 import type { RehearsalDetails, Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface RehearsalDetailClientProps {
   rehearsalId: string;
@@ -39,6 +40,7 @@ export function RehearsalDetailClient({
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
 
   const activeSongId =
@@ -54,15 +56,14 @@ export function RehearsalDetailClient({
   }
 
   async function handleDeleteRehearsal() {
-    if (confirm("Are you sure you want to delete this rehearsal prep session?")) {
-      try {
-        const res = await deleteRehearsal(rehearsalId);
-        if (res.success) router.push("/rehearsals");
-        else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to delete rehearsal");
-      }
+    setConfirmDeleteOpen(false);
+    try {
+      const res = await deleteRehearsal(rehearsalId);
+      if (res.success) router.push("/rehearsals");
+      else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete rehearsal");
     }
   }
 
@@ -167,6 +168,16 @@ export function RehearsalDetailClient({
         onClose={() => setIsEditRehearsalOpen(false)}
         rehearsal={rehearsalDetails}
         onSuccess={refreshData}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteRehearsal}
+        title="Delete this rehearsal?"
+        description="The rehearsal prep session and its setlist will be permanently removed."
+        confirmLabel="Delete Session"
+        destructive
       />
     </div>
   );

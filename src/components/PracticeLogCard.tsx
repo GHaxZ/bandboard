@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { saveSongProgress } from "@/app/actions/user";
-import { Loader2, FileText, Save } from "lucide-react";
+import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrivateIndicator } from "./PrivateIndicator";
 import { PROGRESS_STATUSES } from "@/lib/constants";
 import { toast } from "sonner";
+import { useSaveBar } from "@/hooks/use-save-bar";
 
 interface PracticeLogCardProps {
   songId: string;
@@ -74,6 +75,20 @@ export function PracticeLogCard({
     }
   }
 
+  function handleRevert() {
+    setProgressStatus(initialStatus || "not_started");
+    setProgressNotes(initialNotes || "");
+    setHasLocalEdits(false);
+  }
+
+  useSaveBar(`practice-log-${songId}`, {
+    label: "Practice log",
+    isDirty: hasUnsavedProgress,
+    isSaving: isSavingProgress,
+    onSave: handleSaveProgress,
+    onRevert: handleRevert,
+  });
+
   return (
     <Card className={cn("border-border bg-card/40 rounded-2xl shadow-lg", className)}>
       <CardHeader className="pb-3">
@@ -134,29 +149,6 @@ export function PracticeLogCard({
             className="w-full bg-background border border-border rounded-xl text-xs text-foreground p-3 focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring resize-none h-24 placeholder:text-muted-foreground"
           />
         </div>
-
-        <Button
-          onClick={handleSaveProgress}
-          disabled={isSavingProgress}
-          className={cn(
-            "w-full text-xs font-bold py-2 h-10 flex items-center justify-center gap-1.5 transition-all duration-300 rounded-xl",
-            hasUnsavedProgress && !isSavingProgress
-              ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
-              : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
-          )}
-        >
-          {isSavingProgress ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-3.5 h-3.5" />
-              Save Practice Log
-            </>
-          )}
-        </Button>
       </CardContent>
     </Card>
   );

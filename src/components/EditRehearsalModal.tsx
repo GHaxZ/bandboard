@@ -19,6 +19,7 @@ import { Loader2, Calendar, Save } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface EditRehearsalModalProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
   const [notes, setNotes] = useState(rehearsal.notes || "");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   // Pre-compute the "original" snapshot for dirty detection (runs once per open)
   const original = useMemo(() => {
@@ -72,9 +74,8 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
     );
   }, [title, notes, dateTimeStr, original]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !dateTimeStr) return;
+  async function doSubmit(): Promise<boolean> {
+    if (!title.trim() || !dateTimeStr) return false;
 
     setIsLoading(true);
     setError(null);
@@ -87,19 +88,32 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
         toast.success("Rehearsal updated");
         onSuccess();
         onClose();
-      } else {
-        setError(res.error || "An error occurred.");
+        return true;
       }
+      setError(res.error || "An error occurred.");
+      return false;
     } catch (err) {
       console.error(err);
       setError("Failed to update rehearsal. Please check your input fields.");
+      return false;
     } finally {
       setIsLoading(false);
     }
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await doSubmit();
+  }
+
+  function requestClose() {
+    if (isLoading) return;
+    if (hasUnsavedChanges) setConfirmDiscardOpen(true);
+    else onClose();
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isLoading && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
       <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6 bg-card border border-border text-foreground">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
@@ -160,7 +174,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               type="button"
               variant="ghost"
               disabled={isLoading}
-              onClick={onClose}
+              onClick={requestClose}
               className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-transparent"
             >
               Cancel
@@ -171,7 +185,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
                 hasUnsavedChanges && !isLoading
-                  ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse motion-reduce:animate-none"
+                  ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 motion-reduce:animate-none"
                   : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}
             >
@@ -188,6 +202,20 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ConfirmDialog
+        isOpen={confirmDiscardOpen}
+        onClose={() => setConfirmDiscardOpen(false)}
+        onConfirm={() => {
+          setConfirmDiscardOpen(false);
+          onClose();
+        }}
+        title="Discard unsaved changes?"
+        description="Your edits to this rehearsal will be lost."
+        confirmLabel="Discard Changes"
+        cancelLabel="Keep Editing"
+        destructive
+      />
     </Dialog>
   );
 }

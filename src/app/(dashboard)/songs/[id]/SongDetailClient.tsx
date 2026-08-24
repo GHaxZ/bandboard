@@ -10,6 +10,7 @@ import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
 import { deleteSong, getSongDetails } from "@/app/actions/songs";
 import type { Song } from "@/types/models";
 import type { Role } from "@/lib/constants";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface SongDetailClientProps {
   songId: string;
@@ -28,6 +29,7 @@ export function SongDetailClient({
   const [, startTransition] = useTransition();
 
   const [song, setSong] = useState<Song>(initialSong);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   async function refreshData() {
     startTransition(async () => {
@@ -37,19 +39,14 @@ export function SongDetailClient({
   }
 
   async function handleDeleteSong() {
-    if (
-      confirm(
-        "Are you sure you want to delete this song and all its associated notation/media tracks?"
-      )
-    ) {
-      try {
-        const res = await deleteSong(songId);
-        if (res.success) router.push("/library");
-        else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to delete song");
-      }
+    setConfirmDeleteOpen(false);
+    try {
+      const res = await deleteSong(songId);
+      if (res.success) router.push("/library");
+      else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete song");
     }
   }
 
@@ -98,6 +95,16 @@ export function SongDetailClient({
           onRoleChange={handleRoleChange}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteSong}
+        title="Delete this song?"
+        description="The song and all its associated notation and media tracks will be permanently removed."
+        confirmLabel="Delete Song"
+        destructive
+      />
     </div>
   );
 }

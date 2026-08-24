@@ -11,6 +11,7 @@ import { getProgressMap } from "@/app/actions/user";
 import { getCoverArtUrl } from "@/components/CoverArt";
 import type { Song, ProgressMap, CustomTrack } from "@/types/models";
 import type { Role } from "@/lib/constants";
+import { navigateWithGuard, navigateBackWithGuard } from "@/stores/save-bar-store";
 
 interface PracticeModeClientProps {
   songId: string;
@@ -52,8 +53,11 @@ export function PracticeModeClient({
   }
 
   const onExit = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) router.back();
-    else router.push(`/songs/${songId}`);
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigateBackWithGuard();
+    } else {
+      navigateWithGuard(() => router.push(`/songs/${songId}`));
+    }
   };
 
   if (song.songType === "original") {

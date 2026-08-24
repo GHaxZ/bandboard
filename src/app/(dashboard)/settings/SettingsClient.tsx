@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveUserSettings } from "@/app/actions/user";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   logout,
   changeUsername,
@@ -44,6 +45,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
   const [savingPassword, setSavingPassword] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   async function handleInstrumentChange(val: Role) {
     if (savingInstrument) return;
@@ -99,13 +101,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
 
   async function handleDeleteAccount() {
     if (deleting) return;
-    if (
-      !window.confirm(
-        "Really delete your account? All your progress, notes, markers, and settings will be permanently removed."
-      )
-    ) {
-      return;
-    }
+    setConfirmDeleteOpen(false);
     setDeleting(true);
     try {
       const res = await deleteAccount(deletePassword);
@@ -280,7 +276,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 />
                 <Button
                   variant="danger-subtle"
-                  onClick={handleDeleteAccount}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   disabled={deleting || !deletePassword}
                   className="text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
                 >
@@ -301,6 +297,17 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteAccount}
+        title="Delete your account permanently?"
+        description="All your progress, notes, markers, and settings will be permanently removed."
+        confirmLabel="Delete Account"
+        destructive
+        loading={deleting}
+      />
     </div>
   );
 }

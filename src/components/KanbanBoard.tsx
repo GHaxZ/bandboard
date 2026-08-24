@@ -88,7 +88,7 @@ export function KanbanBoard({
             return (
               <div
                 key={column.id}
-                className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] flex-1 shadow-md h-[calc(100dvh-280px)] min-h-[480px]"
+                className="bg-card/40 border border-border rounded-2xl p-4 flex flex-col min-w-[320px] flex-1 shadow-md min-h-[480px]"
               >
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60 flex-shrink-0">
                   <div className="flex items-center gap-2">
@@ -108,7 +108,11 @@ export function KanbanBoard({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={cn(
-                        "flex flex-col gap-3 flex-1 overflow-y-auto pr-1.5 transition-all duration-200 rounded-xl",
+                        // ponytail: no overflow-y-auto here — a scrollable droppable
+                        // inside the board's overflow-x-auto triggers @hello-pangea/dnd's
+                        // unsupported nested-scroll-container warning. Columns grow with
+                        // content; the page scrolls vertically instead.
+                        "flex flex-col gap-3 flex-1 transition-all duration-200 rounded-xl",
                         snapshot.isDraggingOver ? "bg-muted/15" : ""
                       )}
                     >

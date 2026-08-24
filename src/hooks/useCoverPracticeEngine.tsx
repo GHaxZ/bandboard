@@ -32,6 +32,7 @@ export interface CoverState {
   isSavingOffsets: boolean;
   hasUnsavedOffsets: boolean;
   handleSaveOffsets: () => Promise<void>;
+  revertOffsets: () => void;
   getActiveCurrentTime: () => number;
   /** Saved offset of the ACTIVE slot — song time = raw player time − this. */
   displayOffset: number;
@@ -269,6 +270,10 @@ export function useCoverPracticeEngine({
     isSavingOffsets,
     hasUnsavedOffsets,
     handleSaveOffsets,
+    revertOffsets: () => {
+      setBackingOffset(String(backingOffsetVal));
+      setTabOffset(String(tabOffsetVal));
+    },
     getActiveCurrentTime: () => players.getActiveCurrentTime(),
     displayOffset: activeVideo === "backing" ? backingOffsetVal : tabOffsetVal,
     apiLoaded,

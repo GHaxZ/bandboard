@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn } from "@/lib/utils";
 import {
   INSTRUMENT_ROLES,
   ROLE_LABEL,
@@ -166,12 +165,7 @@ export function UploadTrackDialog({
             <Button
               type="submit"
               disabled={!file}
-              className={cn(
-                "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
-                file
-                  ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse motion-reduce:animate-none"
-                  : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
-              )}
+              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5"
             >
               <Upload className="w-4 h-4" /> Add to Draft
             </Button>

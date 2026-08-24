@@ -18,9 +18,6 @@ import {
   ArrowLeft,
   Music,
   ZoomIn,
-  Save,
-  RotateCcw,
-  Loader2,
   Image as ImageIcon,
   FileText,
 } from "lucide-react";
@@ -48,6 +45,8 @@ import { normalizeTuning } from "@/lib/tunings";
 import type { Role } from "@/lib/constants";
 import type { Song, CustomTrack } from "@/types/models";
 import { usePlayerStore } from "@/stores/player-store";
+import { useSaveBar } from "@/hooks/use-save-bar";
+import { navigateWithGuard } from "@/stores/save-bar-store";
 
 interface OriginalEditorProps {
   song: Song;
@@ -210,6 +209,14 @@ export function OriginalEditor({
 
   const isDirty = metaDirty || stemsDirty;
 
+  useSaveBar("original-editor", {
+    label: "Original song editor",
+    isDirty,
+    isSaving,
+    onSave: handleSaveAll,
+    onRevert: handleDiscard,
+  });
+
   // --- Tuning roles to show ---
   // Tuning only for Guitar and Bass
   const hasGuitarStems = useMemo(() => activeStems.some((t) => t.role === "Guitar"), [activeStems]);
@@ -331,10 +338,7 @@ export function OriginalEditor({
   }
 
   function handleBack() {
-    if (isDirty) {
-      if (!confirm("You have unsaved changes. Leave anyway?")) return;
-    }
-    router.push(`/songs/${song.id}`);
+    navigateWithGuard(() => router.push(`/songs/${song.id}`));
   }
 
   function handleDiscard() {
@@ -492,36 +496,6 @@ export function OriginalEditor({
             {song.title} by {song.artist}
           </p>
         </div>
-        {isDirty && (
-          <Button
-            onClick={handleDiscard}
-            disabled={isSaving}
-            variant="ghost"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl border border-border h-9 text-xs font-bold flex items-center gap-1.5"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Discard
-          </Button>
-        )}
-        <Button
-          onClick={handleSaveAll}
-          disabled={isSaving || !isDirty}
-          className={cn(
-            "h-9 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all duration-300",
-            isDirty && !isSaving
-              ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 animate-pulse"
-              : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
-          )}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-3.5 h-3.5" /> Save All
-            </>
-          )}
-        </Button>
       </div>
 
       {/* Song Metadata */}
