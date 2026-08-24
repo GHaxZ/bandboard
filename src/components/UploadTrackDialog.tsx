@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload } from "lucide-react";
+import { Upload, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import {
@@ -20,6 +20,8 @@ import {
   ROLE_LABEL,
   MAX_UPLOAD_BYTES,
   ALLOWED_UPLOAD_MIMES,
+  UPLOAD_ACCEPT,
+  browserCanPlay,
 } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
 
@@ -41,6 +43,8 @@ export function UploadTrackDialog({
   const [role, setRole] = useState<Role>(defaultRole);
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** Persistent playback-support notice; shown while an undecodable file is selected. */
+  const [warn, setWarn] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -48,6 +52,7 @@ export function UploadTrackDialog({
       setRole(defaultRole);
       setLabel("");
       setError(null);
+      setWarn(null);
     }
   }, [isOpen, defaultRole]);
 
@@ -56,6 +61,11 @@ export function UploadTrackDialog({
     if (!selected) return;
     setFile(selected);
     setError(null);
+    setWarn(
+      browserCanPlay(selected.type)
+        ? null
+        : `This browser can't decode ${selected.type || "this format"}. It will still upload fine, but playback here may not work.`
+    );
     if (!label.trim()) {
       const nameWithoutExt = selected.name.replace(/\.[^.]+$/, "");
       setLabel(nameWithoutExt);
@@ -77,7 +87,7 @@ export function UploadTrackDialog({
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      setError("File too large (max 100MB).");
+      setError(`File too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB).`);
       return;
     }
     toast.success("Track added to draft");
@@ -111,7 +121,7 @@ export function UploadTrackDialog({
             </Label>
             <input
               type="file"
-              accept="audio/*"
+              accept={UPLOAD_ACCEPT}
               onChange={handleFileChange}
               className="w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"
             />
@@ -119,6 +129,12 @@ export function UploadTrackDialog({
               <p className="text-[10px] text-muted-foreground">
                 {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
               </p>
+            )}
+            {warn && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-600/30 dark:border-amber-800 bg-amber-500/10 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span className="leading-snug">{warn}</span>
+              </div>
             )}
           </div>
 

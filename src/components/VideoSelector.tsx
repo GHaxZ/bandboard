@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { searchYouTubeVideosAction } from "@/app/actions/songs";
-import { Loader2, Search, Play, Check, Video, Upload, Trash2 } from "lucide-react";
+import { Loader2, Search, Play, Check, Video, Upload, Trash2, TriangleAlert } from "lucide-react";
 import { getYouTubeQuery } from "@/lib/youtube-query";
-import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/constants";
+import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, UPLOAD_ACCEPT, browserCanPlay } from "@/lib/constants";
 import type { YouTubeVideo } from "@/lib/youtube";
 
 interface VideoSelectorProps {
@@ -58,6 +58,8 @@ export function VideoSelector({
   const [customFile, setCustomFile] = useState<File | null>(null);
   const [isUploadingCustom, setIsUploadingCustom] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
+  /** Persistent playback-support notice; shown while an undecodable file is selected. */
+  const [customWarn, setCustomWarn] = useState<string | null>(null);
   const [uploadedId, setUploadedId] = useState<string | null>(null);
 
   // Tracks the latest search request — responses from an older in-flight
@@ -72,6 +74,7 @@ export function VideoSelector({
       setManualUrl(currentUrl || "");
       setCustomFile(null);
       setCustomError(null);
+      setCustomWarn(null);
       setUploadedId(null);
       const defaultQuery = getYouTubeQuery(songArtist, songTitle, role, type, instrumentName);
       setQuery(defaultQuery);
@@ -136,6 +139,7 @@ export function VideoSelector({
     e.target.value = "";
     setCustomFile(selected);
     setCustomError(null);
+    setCustomWarn(null);
     setUploadedId(null);
     // Auto-upload and save immediately on file selection
     void handleUploadCustom(selected);
@@ -147,8 +151,13 @@ export function VideoSelector({
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      setCustomError("File too large (max 100MB).");
+      setCustomError(`File too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB).`);
       return;
+    }
+    if (!browserCanPlay(file.type)) {
+      setCustomWarn(
+        `This browser can't decode ${file.type || "this format"}. It will still upload fine, but playback here may not work.`
+      );
     }
     setIsUploadingCustom(true);
     setCustomError(null);
@@ -362,7 +371,7 @@ export function VideoSelector({
             <div className="flex gap-2">
               <input
                 type="file"
-                accept="audio/*,video/*"
+                accept={UPLOAD_ACCEPT}
                 onChange={handleCustomFileChange}
                 disabled={isSaving || isUploadingCustom}
                 className="flex-1 w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-btn-bg file:text-foreground file:font-bold file:cursor-pointer file:hover:bg-btn-hover cursor-pointer bg-background border border-border rounded-xl p-2"
@@ -378,6 +387,12 @@ export function VideoSelector({
                 </div>
               )}
             </div>
+            {customWarn && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-600/30 dark:border-amber-800 bg-amber-500/10 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span className="leading-snug">{customWarn}</span>
+              </div>
+            )}
             {customError && (
               <p className="text-[10px] text-destructive font-medium">{customError}</p>
             )}

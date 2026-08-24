@@ -18,6 +18,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'audio/wav': '.wav',
   'audio/x-wav': '.wav',
   'audio/wave': '.wav',
+  'audio/vnd.wave': '.wav',
   'audio/ogg': '.ogg',
   'audio/flac': '.flac',
   'audio/x-flac': '.flac',
@@ -25,6 +26,9 @@ const MIME_TO_EXT: Record<string, string> = {
   'audio/m4a': '.m4a',
   'audio/x-m4a': '.m4a',
   'audio/aac': '.aac',
+  'audio/aiff': '.aiff',
+  'audio/x-aiff': '.aif',
+  'audio/opus': '.opus',
   'video/mp4': '.mp4',
   'video/webm': '.webm',
   'video/quicktime': '.mov',
@@ -46,6 +50,9 @@ const EXT_TO_MIME: Record<string, string> = {
   '.flac': 'audio/flac',
   '.m4a': 'audio/mp4',
   '.aac': 'audio/aac',
+  '.aif': 'audio/aiff',
+  '.aiff': 'audio/aiff',
+  '.opus': 'audio/opus',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
@@ -103,9 +110,13 @@ const MAGIC_SIGNATURES: Record<string, number[][]> = {
   'audio/wav': [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
   'audio/x-wav': [[0x52, 0x49, 0x46, 0x46]],
   'audio/wave': [[0x52, 0x49, 0x46, 0x46]],
+  'audio/vnd.wave': [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
   'audio/ogg': [[0x4F, 0x67, 0x67, 0x53]], // "OggS"
   'audio/flac': [[0x66, 0x4C, 0x61, 0x43]], // "fLaC"
   'audio/x-flac': [[0x66, 0x4C, 0x61, 0x43]],
+  'audio/aiff': [[0x46, 0x4F, 0x52, 0x4D]], // "FORM"
+  'audio/x-aiff': [[0x46, 0x4F, 0x52, 0x4D]],
+  'audio/opus': [[0x4F, 0x67, 0x67, 0x53]], // OggS container,
   'audio/mp4': [
     [0x00, 0x00, 0x00],
     [0x66, 0x74, 0x79, 0x70], // "ftyp" (offset 4)

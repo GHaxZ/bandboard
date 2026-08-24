@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // Keep in sync with UPLOAD_LIMITS.proxyCap in src/lib/constants.ts.
-const PROXY_BODY_CAP = "100mb";
+const PROXY_BODY_CAP = "250mb";
 
 const nextConfig: NextConfig = {
   output: "standalone",

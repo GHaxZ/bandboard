@@ -134,6 +134,7 @@ export const ALLOWED_UPLOAD_MIMES = [
   'audio/wav',
   'audio/x-wav',
   'audio/wave',
+  'audio/vnd.wave',
   'audio/ogg',
   'audio/flac',
   'audio/x-flac',
@@ -141,19 +142,34 @@ export const ALLOWED_UPLOAD_MIMES = [
   'audio/m4a',
   'audio/x-m4a',
   'audio/aac',
+  'audio/aiff',
+  'audio/x-aiff',
+  'audio/opus',
   'video/mp4',
   'video/webm',
   'video/quicktime',
   'video/x-matroska',
 ];
 
-export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+// ponytail: uploads buffer fully in RAM (route.ts arrayBuffer()); 250MB peaks
+// are fine on LAN hardware. Switch to streamed writes if RAM becomes an issue.
+export const MAX_UPLOAD_BYTES = 250 * 1024 * 1024;
+
+/** File-picker accept value. Extensions listed explicitly because OS pickers
+ *  don't map every allowed MIME under audio/* (e.g. .aiff), which hides files
+ *  the server would happily accept. */
+export const UPLOAD_ACCEPT = [
+  'audio/*',
+  'video/*',
+  '.mp3', '.wav', '.aif', '.aiff', '.opus', '.flac', '.ogg',
+  '.m4a', '.aac', '.mp4', '.webm', '.mov', '.mkv',
+].join(',');
 
 /** Unified upload limits for stems, cover art, and the proxy cap. */
 export const UPLOAD_LIMITS = {
   stem: MAX_UPLOAD_BYTES,
   coverArt: 5 * 1024 * 1024,
-  proxyCap: '100mb',
+  proxyCap: '250mb',
 } as const;
 
 export const MULTITRACK_DRIFT_MS = 200;
@@ -195,4 +211,28 @@ export const RATE_LIMITS = {
 
 export const MAX_LOGIN_FAILURES = 5; // per device (unchanged behavior)
 export const MAX_IP_LOGIN_FAILURES = 30; // per IP, catches cookie rotation
+
+// ---------------------------------------------------------------------------
+// Browser playback probe — non-blocking warning at file pick time.
+// canPlayType reports '' for containers it actually plays via sniffing
+// (.mov/h264, wav aliases), so map accepted mimes to canonical probes first.
+// ponytail: unmapped types (mkv, ogg on Safari) intentionally warn everywhere.
+// ---------------------------------------------------------------------------
+const CANPLAY_ALIAS: Record<string, string> = {
+  'audio/mp3': 'audio/mpeg',
+  'audio/x-wav': 'audio/wav',
+  'audio/wave': 'audio/wav',
+  'audio/vnd.wave': 'audio/wav',
+  'audio/x-flac': 'audio/flac',
+  'audio/m4a': 'audio/mp4',
+  'audio/x-m4a': 'audio/mp4',
+  'audio/x-aiff': 'audio/aiff',
+  'video/quicktime': 'video/mp4',
+};
+
+export function browserCanPlay(mime: string): boolean {
+  if (typeof window === 'undefined') return true;
+  const el = document.createElement(mime.startsWith('video/') ? 'video' : 'audio');
+  return el.canPlayType(CANPLAY_ALIAS[mime] ?? mime) !== '';
+}
 export const LOGIN_FAILURE_WINDOW_MS = 5 * 60 * 1000;
