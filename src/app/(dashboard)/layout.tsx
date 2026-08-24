@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AudioLines } from "lucide-react";
-import { NavLinks } from "@/components/NavLinks";
+import { NavTabs, MobileTabBar } from "@/components/NavLinks";
 
 export default function DashboardLayout({
   children,
@@ -14,23 +14,19 @@ export default function DashboardLayout({
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent-text text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20">
             <AudioLines className="w-5 h-5" strokeWidth={2.5} />
           </div>
-          <div>
-            <h1 className="text-base font-heading font-bold tracking-tight text-foreground leading-none">
-              BandBoard
-            </h1>
-            <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" /> Live
-              Setlist Sync
-            </span>
-          </div>
+          <h1 className="text-xl font-heading font-bold tracking-tight text-foreground leading-none">
+            BandBoard
+          </h1>
         </Link>
 
-        <NavLinks />
+        <NavTabs />
       </header>
 
       <main className="flex-1 w-full max-w-none px-4 md:px-8 py-6 pb-16 md:pb-6 space-y-6">
         {children}
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }
