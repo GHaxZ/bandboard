@@ -5,18 +5,30 @@ import type { Role, ProgressStatus } from '@/lib/constants';
 // ---------------------------------------------------------------------------
 // songs
 // ---------------------------------------------------------------------------
-export const songs = sqliteTable('songs', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  artist: text('artist').notNull(),
-  songsterrId: integer('songsterr_id'),
-  albumArt: text('album_art'),
-  lyricsUrl: text('lyrics_url'),
-  songType: text('song_type').$type<'cover' | 'original'>().notNull().default('cover'),
-  tunings: text('tunings'),
-  coverArtStoredName: text('cover_art_stored_name'),
-  createdAt: integer('created_at').notNull(),
-});
+export const songs = sqliteTable(
+  'songs',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    artist: text('artist').notNull(),
+    songsterrId: integer('songsterr_id'),
+    albumArt: text('album_art'),
+    lyricsUrl: text('lyrics_url'),
+    songType: text('song_type').$type<'cover' | 'original'>().notNull().default('cover'),
+    tunings: text('tunings'),
+    coverArtStoredName: text('cover_art_stored_name'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    // Race-proof duplicate guard behind the findDuplicate() pre-check
+    // (TOCTOU fix): same lower(title)+lower(artist)+song_type is impossible.
+    uniqueIndex('songs_title_artist_type_unique').on(
+      sql`lower(${table.title})`,
+      sql`lower(${table.artist})`,
+      table.songType
+    ),
+  ]
+);
 
 // ---------------------------------------------------------------------------
 // roleGroups — one instrument role within a song, owns backing/tab YT links
@@ -182,6 +194,15 @@ export const sessions = sqliteTable(
   },
   (table) => [index('sessions_user_id_idx').on(table.userId)]
 );
+
+// ---------------------------------------------------------------------------
+// loginFailures — persistent brute-force counters (survive restarts)
+// ---------------------------------------------------------------------------
+export const loginFailures = sqliteTable('login_failures', {
+  key: text('key').primaryKey(), // "device:<uuid>" or "ip:<addr>"
+  count: integer('count').notNull(),
+  lastAt: integer('last_at').notNull(),
+});
 
 // ---------------------------------------------------------------------------
 // Relations

@@ -180,3 +180,19 @@ export const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
 export const UID_COOKIE = 'bandboard_uid';
 /** Session token → sessions table row. */
 export const SESSION_COOKIE = 'bandboard_session';
+
+// ---------------------------------------------------------------------------
+// Rate limiting — single source of truth (LAN-generous; tune if exposed)
+// ---------------------------------------------------------------------------
+export const RATE_LIMITS = {
+  /** Stem + cover-art uploads per user. */
+  uploads: { max: 20, windowMs: 10 * 60 * 1000 },
+  /** YouTube scrape / metadata enrichment actions per user. */
+  scrape: { max: 20, windowMs: 60 * 1000 },
+  /** Registration attempts per device. */
+  register: { max: 5, windowMs: 10 * 60 * 1000 },
+} as const;
+
+export const MAX_LOGIN_FAILURES = 5; // per device (unchanged behavior)
+export const MAX_IP_LOGIN_FAILURES = 30; // per IP, catches cookie rotation
+export const LOGIN_FAILURE_WINDOW_MS = 5 * 60 * 1000;

@@ -3,7 +3,8 @@ import { db } from '@/db';
 import { songs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { requireAuth, AuthError } from '@/lib/auth';
-import { UPLOAD_LIMITS } from '@/lib/constants';
+import { UPLOAD_LIMITS, RATE_LIMITS } from '@/lib/constants';
+import { rateLimit } from '@/lib/rate-limit';
 import {
   ensureUploadDir,
   storedPath,
@@ -24,7 +25,10 @@ const ALLOWED_IMAGE_MIMES = new Set([
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!rateLimit(`uploads:${user.id}`, RATE_LIMITS.uploads.max, RATE_LIMITS.uploads.windowMs)) {
+      return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
+    }
 
     const formData = await req.formData();
     const songId = formData.get('songId');

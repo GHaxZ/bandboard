@@ -7,25 +7,22 @@ import { db } from '@/db';
 import { sessions, users, userSettings, userSongProgress } from '@/db/schema';
 import { safeEqual } from '@/lib/utils';
 import { getSessionUser, hashPassword, verifyPassword } from '@/lib/auth';
-import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE } from '@/lib/constants';
+import {
+  rateLimit,
+  getClientKey,
+  isLoginBlocked,
+  recordLoginFailure,
+  clearLoginFailures,
+} from '@/lib/rate-limit';
+import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE, RATE_LIMITS } from '@/lib/constants';
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
 
-// Brute-force guard for the login oracle: per-device failure counter with a
-// fixed delay. In-memory (single-process LAN app);
-// ponytail: swap for persistent/IP-based limiting if ever exposed publicly.
-const MAX_FAILURES = 5;
-const FAILURE_WINDOW_MS = 5 * 60 * 1000;
+// Fixed delay on every auth attempt so online brute force can't run fast.
 const BASE_DELAY_MS = 300;
-const failures = new Map<string, { count: number; lastAt: number }>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function getDeviceKey(): Promise<string> {
-  const cookieStore = await cookies();
-  return cookieStore.get(UID_COOKIE)?.value ?? 'unknown';
 }
 
 /** Create the session row + set the cookie. Called after verified register/login. */
@@ -77,6 +74,11 @@ export async function register(
       return { success: false, error: 'Incorrect band invite code.' };
     }
 
+    const { device } = await getClientKey();
+    if (!rateLimit(`register:${device}`, RATE_LIMITS.register.max, RATE_LIMITS.register.windowMs)) {
+      return { success: false, error: 'Too many attempts. Try again later.' };
+    }
+
     const cookieStore = await cookies();
     const uid = cookieStore.get(UID_COOKIE)?.value;
     if (!uid) {
@@ -118,9 +120,8 @@ export async function login(
     // than ~3 guesses/second per device.
     await sleep(BASE_DELAY_MS);
 
-    const deviceKey = await getDeviceKey();
-    const rec = failures.get(deviceKey);
-    if (rec && rec.count >= MAX_FAILURES && Date.now() - rec.lastAt < FAILURE_WINDOW_MS) {
+    const { ip, device } = await getClientKey();
+    if (await isLoginBlocked(ip, device)) {
       return { success: false, error: 'Too many attempts. Try again in a few minutes.' };
     }
 
@@ -133,12 +134,13 @@ export async function login(
 
     const ok = rows[0] ? verifyPassword(password, rows[0].passwordHash) : false;
     if (!ok || !rows[0]) {
-      const withinWindow = rec && Date.now() - rec.lastAt < FAILURE_WINDOW_MS;
-      failures.set(deviceKey, { count: withinWindow ? rec.count + 1 : 1, lastAt: Date.now() });
+      // Counters live in the login_failures table — they survive restarts and
+      // are tracked per device AND per IP (higher IP threshold).
+      await recordLoginFailure(ip, device);
       return { success: false, error: 'Incorrect username or password.' };
     }
 
-    failures.delete(deviceKey);
+    await clearLoginFailures(ip, device);
     await startSession(rows[0].id);
     return { success: true };
   } catch (error) {

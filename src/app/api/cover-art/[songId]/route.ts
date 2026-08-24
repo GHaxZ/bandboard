@@ -3,9 +3,9 @@ import { db } from '@/db';
 import { songs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { storedPath, mimeForExt } from '@/lib/uploads';
-import { statSync, createReadStream } from 'fs';
-import { Readable } from 'stream';
+import { statSync } from 'fs';
 import { parseRange } from '@/lib/http-range';
+import { createFileWebStream } from '@/lib/file-stream';
 import { requireAuth, AuthError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -43,8 +43,7 @@ export async function GET(
         });
       }
       const { start, end } = r;
-      const stream = createReadStream(filePath, { start, end });
-      const webStream = Readable.toWeb(stream) as ReadableStream;
+      const webStream = createFileWebStream(filePath, { start, end });
       return new NextResponse(webStream, {
         status: 206,
         headers: {
@@ -58,8 +57,7 @@ export async function GET(
       });
     }
 
-    const stream = createReadStream(filePath);
-    const webStream = Readable.toWeb(stream) as ReadableStream;
+    const webStream = createFileWebStream(filePath);
     return new NextResponse(webStream, {
       status: 200,
       headers: {

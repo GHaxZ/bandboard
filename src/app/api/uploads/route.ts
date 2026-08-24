@@ -4,9 +4,10 @@ import { songs, customTracks } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { INSTRUMENT_ROLES } from '@/lib/constants';
 import type { Role } from '@/lib/constants';
-import { UPLOAD_LIMITS } from '@/lib/constants';
+import { UPLOAD_LIMITS, RATE_LIMITS } from '@/lib/constants';
 import { ensureUploadDir, allowedMime, extForMime, storedPath, validateMagicBytes, deleteStoredFile } from '@/lib/uploads';
 import { requireAuth, AuthError } from '@/lib/auth';
+import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import type { CustomTrack } from '@/types/models';
 
@@ -16,7 +17,10 @@ const VALID_ROLES = INSTRUMENT_ROLES as readonly string[];
 
 export async function POST(request: Request) {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!rateLimit(`uploads:${user.id}`, RATE_LIMITS.uploads.max, RATE_LIMITS.uploads.windowMs)) {
+      return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
+    }
 
     // Reject oversized uploads before buffering the body into memory. The
     // proxy cap is '100mb'; formData() would otherwise buffer it fully.

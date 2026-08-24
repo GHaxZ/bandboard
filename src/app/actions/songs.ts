@@ -17,6 +17,8 @@ import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
 import { deleteCustomTrack } from "@/app/actions/customTracks";
 import { requireAuth, AuthError } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/constants";
 import type { Song } from "@/types/models";
 import { mapSong } from "@/lib/serialize";
 
@@ -45,12 +47,20 @@ async function findDuplicate(
   return !!row;
 }
 
+/** Per-user limiter for actions that hit external services (YouTube/Songsterr/metadata). */
+function scrapeAllowed(userId: string): boolean {
+  return rateLimit(`scrape:${userId}`, RATE_LIMITS.scrape.max, RATE_LIMITS.scrape.windowMs);
+}
+
 export async function ingestSongData(
   title: string,
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!scrapeAllowed(user.id)) {
+      return { success: false, error: "Too many requests. Try again in a minute." };
+    }
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
     if (!formattedTitle || !formattedArtist) {
@@ -144,6 +154,10 @@ export async function ingestSongData(
     return { success: true, songId };
   } catch (error) {
     if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    // The unique index is the race-proof backstop behind findDuplicate().
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
+      return { success: false, error: "This cover song is already in your library." };
+    }
     console.error("Song ingestion failed:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -154,7 +168,10 @@ export async function createOriginalSong(
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!scrapeAllowed(user.id)) {
+      return { success: false, error: "Too many requests. Try again in a minute." };
+    }
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
     if (!formattedTitle || !formattedArtist) {
@@ -184,6 +201,9 @@ export async function createOriginalSong(
     return { success: true, songId };
   } catch (error) {
     if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
+      return { success: false, error: "An original song with this title and artist already exists." };
+    }
     console.error("Failed to create original song:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -246,6 +266,9 @@ export async function updateOriginalMetadata(
     return { success: true };
   } catch (error) {
     if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
+      return { success: false, error: "An original song with this title and artist already exists." };
+    }
     console.error("Failed to update original metadata:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -401,7 +424,10 @@ export async function lazyLoadTrackMedia(
   roleGroupId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!scrapeAllowed(user.id)) {
+      return { success: false, error: "Too many requests. Try again in a minute." };
+    }
     const roleGroup = await db.query.roleGroups.findFirst({
       where: eq(roleGroups.id, roleGroupId),
       with: { song: true, tracks: true },
@@ -456,7 +482,8 @@ export async function lazyLoadTrackMedia(
 // ---------------------------------------------------------------------------
 export async function searchYouTubeVideosAction(query: string) {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!scrapeAllowed(user.id)) return [];
     const results = await searchYouTube(query);
     return results.slice(0, 10);
   } catch (error) {
@@ -473,7 +500,10 @@ export async function refreshSongMetadata(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    if (!scrapeAllowed(user.id)) {
+      return { success: false, error: "Too many requests. Try again in a minute." };
+    }
     const song = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!song) return { success: false, error: "Song not found" };
 

@@ -3,10 +3,10 @@ import { db } from '@/db';
 import { customTracks } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
-import { Readable } from 'stream';
 import { storedPath, mimeForExt } from '@/lib/uploads';
 import { ALLOWED_UPLOAD_MIMES } from '@/lib/constants';
 import { parseRange } from '@/lib/http-range';
+import { createFileWebStream } from '@/lib/file-stream';
 import { requireAuth, AuthError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -65,8 +65,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       }
       const { start, end } = range;
       const contentLength = end - start + 1;
-      const nodeStream = fs.createReadStream(filePath, { start, end });
-      const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+      const webStream = createFileWebStream(filePath, { start, end });
 
       return new NextResponse(webStream, {
         status: 206,
@@ -80,8 +79,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       });
     }
 
-    const nodeStream = fs.createReadStream(filePath);
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    const webStream = createFileWebStream(filePath);
 
     return new NextResponse(webStream, {
       status: 200,
