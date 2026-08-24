@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RehearsalDateTimeFields, toTimestamp } from "./RehearsalDateTimeFields";
+import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
 import { createRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -28,33 +28,29 @@ interface AddRehearsalModalProps {
 
 export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalModalProps) {
   const [title, setTitle] = useState("");
-  const [dateStr, setDateStr] = useState("");
-  const [hourStr, setHourStr] = useState("19");
-  const [minuteStr, setMinuteStr] = useState("00");
+  const [dateTimeStr, setDateTimeStr] = useState("");
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isReady = title.trim().length > 0 && dateStr.length > 0;
+  const isReady = title.trim().length > 0 && dateTimeStr.length > 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !dateStr) return;
+    if (!title.trim() || !dateTimeStr) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = toTimestamp(dateStr, hourStr, minuteStr);
+      const timestamp = new Date(dateTimeStr).getTime();
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
 
       const res = await createRehearsal(title, timestamp, notes);
       if (res.success && res.rehearsalId) {
         toast.success("Rehearsal created");
         setTitle("");
-        setDateStr("");
-        setHourStr("19");
-        setMinuteStr("00");
+        setDateTimeStr("");
         setNotes("");
         onSuccess(res.rehearsalId);
         onClose();
@@ -103,12 +99,8 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
           </div>
 
           <RehearsalDateTimeFields
-            dateStr={dateStr}
-            setDateStr={setDateStr}
-            hourStr={hourStr}
-            setHourStr={setHourStr}
-            minuteStr={minuteStr}
-            setMinuteStr={setMinuteStr}
+            value={dateTimeStr}
+            onChange={setDateTimeStr}
             disabled={isLoading}
           />
 

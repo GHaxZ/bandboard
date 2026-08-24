@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RehearsalDateTimeFields, toTimestamp } from "./RehearsalDateTimeFields";
+import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
 import { updateRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -32,30 +32,15 @@ interface EditRehearsalModalProps {
   onSuccess: () => void;
 }
 
-function computeDateParts(ts: number) {
+function toDateTimeLocal(ts: number): string {
   const d = new Date(ts);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  let hours = d.getHours();
-  const rawMins = d.getMinutes();
-  let roundedMins = Math.round(rawMins / 5) * 5;
-  if (roundedMins === 60) {
-    // e.g. 19:58 → 20:00, not a clamped 19:55 (the old code snapped
-    // backwards and could never pre-fill :00 of the next hour).
-    roundedMins = 0;
-    hours = (hours + 1) % 24;
-  }
-  const hourStr = String(hours).padStart(2, "0");
-  const minutes = String(roundedMins).padStart(2, "0");
-  return { year, month, day, hours: hourStr, minutes, dateStr: `${year}-${month}-${day}` };
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: EditRehearsalModalProps) {
   const [title, setTitle] = useState(rehearsal.title);
-  const [dateStr, setDateStr] = useState("");
-  const [hourStr, setHourStr] = useState("19");
-  const [minuteStr, setMinuteStr] = useState("00");
+  const [dateTimeStr, setDateTimeStr] = useState("");
   const [notes, setNotes] = useState(rehearsal.notes || "");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +51,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
     return {
       title: rehearsal.title,
       notes: rehearsal.notes || "",
-      ...computeDateParts(rehearsal.date),
+      dateTime: toDateTimeLocal(rehearsal.date),
     };
   }, [isOpen, rehearsal]);
 
@@ -74,10 +59,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
     if (isOpen && rehearsal) {
       setTitle(rehearsal.title);
       setNotes(rehearsal.notes || "");
-      const parts = computeDateParts(rehearsal.date);
-      setDateStr(parts.dateStr);
-      setHourStr(parts.hours);
-      setMinuteStr(parts.minutes);
+      setDateTimeStr(toDateTimeLocal(rehearsal.date));
     }
   }, [isOpen, rehearsal]);
 
@@ -86,21 +68,19 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
     return (
       title !== original.title ||
       notes !== original.notes ||
-      dateStr !== original.dateStr ||
-      hourStr !== original.hours ||
-      minuteStr !== original.minutes
+      dateTimeStr !== original.dateTime
     );
-  }, [title, notes, dateStr, hourStr, minuteStr, original]);
+  }, [title, notes, dateTimeStr, original]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !dateStr) return;
+    if (!title.trim() || !dateTimeStr) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = toTimestamp(dateStr, hourStr, minuteStr);
+      const timestamp = new Date(dateTimeStr).getTime();
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
       const res = await updateRehearsal(rehearsal.id, title, timestamp, notes);
       if (res.success) {
@@ -151,12 +131,8 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
           </div>
 
           <RehearsalDateTimeFields
-            dateStr={dateStr}
-            setDateStr={setDateStr}
-            hourStr={hourStr}
-            setHourStr={setHourStr}
-            minuteStr={minuteStr}
-            setMinuteStr={setMinuteStr}
+            value={dateTimeStr}
+            onChange={setDateTimeStr}
             disabled={isLoading}
           />
 
@@ -191,7 +167,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, onSuccess }: Ed
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !dateStr}
+              disabled={isLoading || !title.trim() || !dateTimeStr}
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
                 hasUnsavedChanges && !isLoading

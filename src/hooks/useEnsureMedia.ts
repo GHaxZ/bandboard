@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { lazyLoadTrackMedia } from "@/app/actions/songs";
 
 // Module-scoped attempt log: lazy-load at most once per roleGroup per session.
@@ -17,7 +17,7 @@ interface UseEnsureMediaOpts {
 /**
  * Trigger a one-shot lazy YouTube lookup for a role group missing its media
  * links (PLAN §9.8). Safe to call on every render; the module set + guards
- * make it idempotent.
+ * make it idempotent. Returns true while the lookup is in flight.
  */
 export function useEnsureMedia({
   roleGroupId,
@@ -25,7 +25,9 @@ export function useEnsureMedia({
   backingTrackLink,
   tabVideoLink,
   onLoaded,
-}: UseEnsureMediaOpts) {
+}: UseEnsureMediaOpts): boolean {
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
     if (!roleGroupId || role === "Other") return;
     // If either link is still genuinely null (not the 'none' sentinel), and we
@@ -34,10 +36,9 @@ export function useEnsureMedia({
     const needsTab = tabVideoLink === null;
     if ((!needsBacking && !needsTab) || attempted.has(roleGroupId)) return;
 
-    let mounted = true;
+    setIsLoading(true);
     lazyLoadTrackMedia(roleGroupId)
       .then((res) => {
-        if (!mounted) return;
         // Only record a completed attempt on success — a transient failure
         // (network hiccup) should not permanently disable lazy-loading for
         // this role group for the whole session.
@@ -48,13 +49,10 @@ export function useEnsureMedia({
       })
       .catch((err) => {
         console.error("useEnsureMedia failed:", err);
-      });
-
-    return () => {
-      mounted = false;
-    };
+      })
+      .finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleGroupId, role, backingTrackLink, tabVideoLink]);
+
+  return isLoading;
 }
-
-

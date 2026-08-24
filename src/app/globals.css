@@ -151,11 +151,13 @@
   summary {
     cursor: pointer;
   }
-  /* Native date inputs should use dark color scheme in dark mode */
-  input[type="date"] {
+  /* Native date/time inputs should use matching color scheme */
+  input[type="date"],
+  input[type="datetime-local"] {
     color-scheme: light;
   }
-  .dark input[type="date"] {
+  .dark input[type="date"],
+  .dark input[type="datetime-local"] {
     color-scheme: dark;
   }
 }

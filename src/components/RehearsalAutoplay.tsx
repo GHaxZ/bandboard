@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Play,
   Pause,
@@ -15,6 +15,7 @@ import {
   Volume2,
   VolumeX,
   Gauge,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,8 +27,10 @@ import { CustomPlaybackHUD } from "./CustomPlaybackHUD";
 import { ClientDate } from "./ClientDate";
 import { toast } from "sonner";
 import { getUserSettings, saveUserSettings } from "@/app/actions/user";
-import type { RehearsalDetails, ProgressMap } from "@/types/models";
+import type { RehearsalDetails, ProgressMap, Song } from "@/types/models";
 import { resolveBackingMedia } from "@/lib/backing-media";
+import { getSongDetails, lazyLoadTrackMedia } from "@/app/actions/songs";
+import { getYouTubeId } from "@/lib/youtube";
 import { useAutoplayEngine } from "@/hooks/useAutoplayEngine";
 import { useIframeFocusGuard, blurActiveIframe } from "@/hooks/useIframeFocusGuard";
 import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
@@ -50,7 +53,15 @@ export function RehearsalAutoplay({
   preferredInstrument,
   progressMap,
 }: RehearsalAutoplayProps) {
-  const queue = [...rehearsal.rehearsalSongs].sort((a, b) => a.sortOrder - b.sortOrder);
+  // Songs refreshed after an in-session lazy media load override the props.
+  const [songOverrides, setSongOverrides] = useState<Record<string, Song>>({});
+  const queue = useMemo(
+    () =>
+      [...rehearsal.rehearsalSongs]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((rs) => ({ ...rs, song: songOverrides[rs.songId] ?? rs.song })),
+    [rehearsal.rehearsalSongs, songOverrides]
+  );
 
   // Store-backed state
   const currentIndex = usePlayerStore((s) => s.currentIndex);
@@ -128,25 +139,131 @@ export function RehearsalAutoplay({
   }, [countdown, countdownPaused, sessionStarted, currentIndex, queue.length]);
 
   const currentSong = queue[currentIndex]?.song;
+  // The role group matching the requested instrument (covers only).
+  const preferredRoleGroup = useMemo(
+    () =>
+      currentSong && currentSong.songType === "cover"
+        ? currentSong.roleGroups.find(
+            (rg) =>
+              rg.role !== "Other" &&
+              rg.role.toLowerCase() === instrumentPreference.toLowerCase()
+          )
+        : undefined,
+    [currentSong, instrumentPreference]
+  );
+  // Role groups whose lazy lookup failed (rate limit, network) — they stop
+  // counting as "searching" so the ladder fallback / no-video path resumes.
+  const [lazyFailedIds, setLazyFailedIds] = useState<Set<string>>(new Set());
+  // True when the requested instrument's group exists but its media still
+  // needs a first-time lookup (null links = never searched, vs 'none'
+  // sentinel = searched with no results). Computable during render, so the
+  // spinner can appear before the fetch effect has run — no overlay flash.
+  const preferredUncached = useMemo(
+    () =>
+      !!preferredRoleGroup &&
+      preferredRoleGroup.backingCustomTrackId === null &&
+      preferredRoleGroup.tabCustomTrackId === null &&
+      !getYouTubeId(preferredRoleGroup.backingTrackLink) &&
+      !getYouTubeId(preferredRoleGroup.tabVideoLink) &&
+      (preferredRoleGroup.backingTrackLink === null ||
+        preferredRoleGroup.tabVideoLink === null),
+    [preferredRoleGroup]
+  );
   // Memoized so useAutoplayEngine's internal memos (renderMedia, mute/solo
   // wiring) don't churn on every render — without this, the 60fps multitrack
   // tick re-renders the entire autoplay tree each frame.
-  const backingMedia = useMemo(
-    () =>
-      currentSong
-        ? resolveBackingMedia(currentSong, instrumentPreference, progressMap[currentSong.id])
-        : { kind: 'none' as const },
-    [currentSong, instrumentPreference, progressMap]
-  );
+  const backingMedia = useMemo(() => {
+    const resolved = currentSong
+      ? resolveBackingMedia(currentSong, instrumentPreference, progressMap[currentSong.id])
+      : { kind: 'none' as const };
+    // Single-practice parity: if the requested instrument's own role group
+    // exists but has no usable media yet, don't silently fall back to another
+    // instrument's cached video — surface the missing-media path instead
+    // (loading spinner while the lookup runs, ladder fallback on failure).
+    if (preferredRoleGroup && preferredUncached && !lazyFailedIds.has(preferredRoleGroup.id)) {
+      return { kind: 'none' as const };
+    }
+    return resolved;
+  }, [currentSong, instrumentPreference, progressMap, preferredRoleGroup, preferredUncached, lazyFailedIds]);
   const customTrack = backingMedia.kind === 'custom-file'
     ? currentSong?.customTracks?.find((t) => t.id === backingMedia.customTrackId)
     : undefined;
   const coverArtUrl = currentSong ? getCoverArtUrl(currentSong) : null;
   const upcomingSong = !sessionStarted ? currentSong : queue[currentIndex + 1]?.song;
 
+  // Lazy-fill uncached cover media: preferred instrument's role group first,
+  // then remaining groups one at a time. Mirrors detail-page/single-practice
+  // behavior so uncached songs play instead of being skipped.
+  const [lazyLoadingRoleId, setLazyLoadingRoleId] = useState<string | null>(null);
+  const lazyInflightRef = useRef<string | null>(null);
+  const lazyAttemptedRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!currentSong || currentSong.songType !== "cover") return;
+    if (lazyInflightRef.current) return;
+    const standard = currentSong.roleGroups.filter((rg) => rg.role !== "Other");
+    const preferred = standard.find(
+      (rg) => rg.role.toLowerCase() === instrumentPreference.toLowerCase()
+    );
+    const ordered = preferred
+      ? [preferred, ...standard.filter((g) => g.id !== preferred.id)]
+      : standard;
+    const next = ordered.find(
+      (rg) =>
+        !lazyAttemptedRef.current.has(rg.id) &&
+        (rg.backingTrackLink === null || rg.tabVideoLink === null)
+    );
+    if (!next) return;
+    lazyInflightRef.current = next.id;
+    setLazyLoadingRoleId(next.id);
+    lazyLoadTrackMedia(next.id)
+      .then((res) => {
+        if (!res.success) {
+          // e.g. rate-limited: stop showing the spinner; retried on the next
+          // song/instrument trigger (not added to lazyAttemptedRef).
+          setLazyFailedIds((prev) => new Set(prev).add(next.id));
+          return;
+        }
+        lazyAttemptedRef.current.add(next.id);
+        return getSongDetails(currentSong.id).then((updated) => {
+          if (updated) {
+            setSongOverrides((prev) => ({ ...prev, [updated.id]: updated }));
+          }
+        });
+      })
+      .catch((err) => {
+        console.error("Lazy media load failed:", err);
+        setLazyFailedIds((prev) => new Set(prev).add(next.id));
+      })
+      .finally(() => {
+        lazyInflightRef.current = null;
+        setLazyLoadingRoleId(null);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong, instrumentPreference]);
+
+  const isLazyLoading = lazyLoadingRoleId !== null;
+  // Render-time derivation: true the instant the requested instrument's media
+  // is missing-but-fetchable, even before the fetch effect has run — prevents
+  // a one-frame flash of the "No Backing Track Found" overlay.
+  const preferredSearching =
+    preferredUncached &&
+    !!preferredRoleGroup &&
+    !lazyFailedIds.has(preferredRoleGroup.id);
+  const isMediaSearching = isLazyLoading || preferredSearching;
+  const loadingRg = currentSong?.roleGroups.find((g) => g.id === lazyLoadingRoleId);
+  const lazyLoadingText = !loadingRg
+    ? "Searching YouTube..."
+    : loadingRg.backingTrackLink === null
+      ? "Searching YouTube backing track..."
+      : loadingRg.role === "Vocals"
+        ? "Searching original song..."
+        : "Searching YouTube lesson...";
+
   // No-video path: 4s timer then advance
   useEffect(() => {
     if (!sessionStarted || finished) return;
+    if (isMediaSearching) return; // don't force-skip while searching for media
     if (backingMedia.kind !== "none" || skipReason !== "no_video") return;
     const t = setTimeout(() => {
       // treat as ended
@@ -160,7 +277,7 @@ export function RehearsalAutoplay({
     }, NO_VIDEO_SKIP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStarted, finished, backingMedia.kind, skipReason, currentIndex, queue.length]);
+  }, [sessionStarted, finished, backingMedia.kind, skipReason, currentIndex, queue.length, isMediaSearching]);
 
   // Detect no-video on song change once session started. skipReason is a dep:
   // when the countdown advances to the next (also media-less) song it resets
@@ -168,13 +285,13 @@ export function RehearsalAutoplay({
   // the re-trigger never fires and the session stalls on the overlay.
   useEffect(() => {
     if (!sessionStarted || finished) return;
-    if (backingMedia.kind === "none" && skipReason !== "no_video") {
+    if (backingMedia.kind === "none" && skipReason !== "no_video" && !isMediaSearching) {
       triggerNoVideo();
-    } else if (backingMedia.kind !== "none" && skipReason === "no_video") {
+    } else if ((backingMedia.kind !== "none" || isMediaSearching) && skipReason === "no_video") {
       clearSkipReason();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backingMedia.kind, sessionStarted, skipReason]);
+  }, [backingMedia.kind, sessionStarted, skipReason, isMediaSearching]);
 
   // Multistem autostart: play when session starts or song changes (but don't force-play after a user pause)
   useEffect(() => {
@@ -212,6 +329,13 @@ export function RehearsalAutoplay({
     onSeekForward: () => {
       seekBy(SEEK_STEP_S);
       triggerSkipOverlay("forward");
+    },
+    onJumpToStart: () => {
+      const off =
+        backingMedia.kind === "youtube" || backingMedia.kind === "custom-file"
+          ? backingMedia.offset
+          : 0;
+      autoplaySeekTo(off);
     },
   });
 
@@ -325,6 +449,11 @@ export function RehearsalAutoplay({
                     get isPlaying() { return usePlayerStore.getState().isPlaying; },
                   }}
                   isPlaying={isPlaying}
+                  timeOffset={
+                    backingMedia.kind === "youtube" || backingMedia.kind === "custom-file"
+                      ? backingMedia.offset
+                      : 0
+                  }
                 />
               )}
 
@@ -409,8 +538,16 @@ export function RehearsalAutoplay({
                 </div>
               )}
 
-              {/* No-video overlay */}
+              {/* No-video overlay (or first-time media search indicator) */}
               {backingMedia.kind === "none" && countdown === null && !finished && currentSong && sessionStarted && (
+                isMediaSearching ? (
+                  <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                      <p className="text-xs text-muted-foreground">{lazyLoadingText}</p>
+                    </div>
+                  </div>
+                ) : (
                 <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                   <div className="space-y-3 max-w-md flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/40 flex items-center justify-center text-destructive mb-2">
@@ -432,6 +569,7 @@ export function RehearsalAutoplay({
                     </div>
                   </div>
                 </div>
+                )
               )}
 
               {/* Finished overlay */}

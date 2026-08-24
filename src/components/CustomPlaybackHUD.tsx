@@ -11,6 +11,8 @@ interface CustomPlaybackHUDProps {
   canToggle?: boolean;
   onToggle?: () => void;
   activeVideoLabel?: string;
+  /** Active slot's sync offset — clock displays song time (raw − offset). */
+  timeOffset?: number;
   /** When true, hides the custom center play/pause button and sets the root
    * overlay to pointer-events:none so the YouTube iframe beneath receives
    * clicks and hover events. A transparent child overlay toggles
@@ -27,6 +29,7 @@ export function CustomPlaybackHUD({
   canToggle = false,
   onToggle,
   activeVideoLabel,
+  timeOffset = 0,
   youTubeMode = false,
 }: CustomPlaybackHUDProps) {
   const [showControls, setShowControls] = useState(true);
@@ -261,7 +264,7 @@ export function CustomPlaybackHUD({
 
             {/* Time display */}
             <span className="text-[11px] font-mono text-white/80 select-none">
-              {formatTime(displayTime)} / {formatTime(duration)}
+              {formatTime(displayTime - timeOffset)} / {formatTime(duration - timeOffset)}
             </span>
           </div>
 

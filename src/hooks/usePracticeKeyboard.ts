@@ -8,6 +8,7 @@ interface PracticeKeyboardConfig {
   onSeekBackward?: () => void;
   onSeekForward?: () => void;
   onMarkerJump?: (index: number) => void;
+  onJumpToStart?: () => void;
 }
 
 /** Global keyboard shortcuts for the player surfaces (PLAN §9.6). */
@@ -71,6 +72,17 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
             (active as HTMLElement).blur();
           }
           configRef.current.onSeekForward();
+        }
+        return;
+      }
+      if (e.key === "0") {
+        if (configRef.current.onJumpToStart) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (active && active !== document.body) {
+            (active as HTMLElement).blur();
+          }
+          configRef.current.onJumpToStart();
         }
         return;
       }

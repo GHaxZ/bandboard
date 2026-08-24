@@ -11,6 +11,7 @@ import { getCoverArtUrl } from "@/components/CoverArt";
 import { resolveOffsets } from "@/types/models";
 import { saveStartOffsets } from "@/app/actions/user";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import type { PlaybackEngine } from "@/lib/media-controller";
 import type { Song, ProgressMap, Track, RoleGroup } from "@/types/models";
 import type { Role } from "@/lib/constants";
@@ -32,6 +33,8 @@ export interface CoverState {
   hasUnsavedOffsets: boolean;
   handleSaveOffsets: () => Promise<void>;
   getActiveCurrentTime: () => number;
+  /** Saved offset of the ACTIVE slot — song time = raw player time − this. */
+  displayOffset: number;
   apiLoaded: boolean;
 }
 
@@ -156,7 +159,7 @@ export function useCoverPracticeEngine({
   }, [song.id, activeTrackId]);
 
   // Lazy-load missing media
-  useEnsureMedia({
+  const isLazyLoadingMedia = useEnsureMedia({
     roleGroupId: activeRoleGroup?.id ?? null,
     role: activeRoleGroup?.role ?? "Other",
     backingTrackLink: activeRoleGroup?.backingTrackLink ?? null,
@@ -267,6 +270,7 @@ export function useCoverPracticeEngine({
     hasUnsavedOffsets,
     handleSaveOffsets,
     getActiveCurrentTime: () => players.getActiveCurrentTime(),
+    displayOffset: activeVideo === "backing" ? backingOffsetVal : tabOffsetVal,
     apiLoaded,
   };
 
@@ -372,6 +376,25 @@ export function useCoverPracticeEngine({
         {((activeVideo === "backing" && !backingReady) || (activeVideo === "tab" && !tabReady)) && (
           <div className="absolute inset-0 flex items-center justify-center">
             {(() => {
+              const activeSlotUncached =
+                (activeVideo === "backing"
+                  ? activeRoleGroup?.backingTrackLink
+                  : activeRoleGroup?.tabVideoLink) === null;
+              // Same first-time-lookup indicator as the song detail page.
+              if (isLazyLoadingMedia && activeSlotUncached) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {activeVideo === "backing"
+                        ? "Searching YouTube backing track..."
+                        : isVocals
+                          ? "Searching original song..."
+                          : "Searching YouTube lesson..."}
+                    </p>
+                  </div>
+                );
+              }
               const artUrl = getCoverArtUrl(song);
               if (artUrl) {
                 return (

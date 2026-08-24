@@ -82,13 +82,16 @@ export function PracticeShell({
   initialVolume = 100,
   initialSpeed = 1.0,
 }: PracticeShellProps) {
+  // Song-time offset of the ACTIVE slot (saved values — what the engines use).
+  const displayOffset = coverState?.displayOffset ?? 0;
+
   // Shared volume/speed/markers (identical across cover and original).
   const practiceControls = usePracticeControls({
     songId: song.id,
     initialVolume,
     initialSpeed,
     initialMarkers: progressMap[song.id]?.practiceMarkers ?? [],
-    getCurrentTime: () => engine.getCurrentTime(),
+    getCurrentTime: () => engine.getCurrentTime() - displayOffset,
     onRefresh,
   });
   const { volume, setVolume, speed, setSpeed, markers, handleSaveCurrentTimeAsMarker, handleDeleteMarker } = practiceControls;
@@ -111,8 +114,9 @@ export function PracticeShell({
       triggerSkipOverlay("forward");
     },
     onMarkerJump: (index) => {
-      if (index < markers.length) engine.seekTo(markers[index]);
+      if (index < markers.length) engine.seekTo(markers[index] + displayOffset);
     },
+    onJumpToStart: () => engine.seekTo(displayOffset),
   });
 
   // Focus guard (safe to call unconditionally — checks for iframe presence)
@@ -179,6 +183,7 @@ export function PracticeShell({
                 canToggle={capabilities.canToggle}
                 onToggle={onToggleVideo}
                 activeVideoLabel={coverState?.activeVideo}
+                timeOffset={displayOffset}
                 youTubeMode={youTubeMode}
               />
             )}
@@ -274,34 +279,45 @@ export function PracticeShell({
                     Save Current Time
                   </Button>
 
-                  {markers.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 scrollbar-thin">
-                      {markers.map((time, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7"
-                        >
-                          <button
-                            onClick={() => engine.seekTo(time)}
-                            className="text-[10px] font-bold text-accent-text hover:text-foreground px-2 h-full hover:bg-primary/10 transition-all cursor-pointer border-0 flex items-center"
-                            title={`Jump to marker ${idx + 1}`}
-                          >
-                            <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
-                              {idx + 1}
-                            </kbd>
-                            {time.toFixed(1)}s
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMarker(idx)}
-                            className="text-muted-foreground hover:text-destructive px-1.5 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
-                            title="Delete marker"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      ))}
+                  <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 scrollbar-thin">
+                    {/* Static start-of-song chip — hotkey 0, not deletable */}
+                    <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7">
+                      <button
+                        onClick={() => engine.seekTo(displayOffset)}
+                        className="text-[10px] font-bold text-accent-text hover:text-foreground px-2 h-full hover:bg-primary/10 transition-all cursor-pointer border-0 flex items-center"
+                        title="Jump to beginning (hotkey 0)"
+                      >
+                        <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
+                          0
+                        </kbd>
+                        0.0s
+                      </button>
                     </div>
-                  )}
+                    {markers.map((time, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7"
+                      >
+                        <button
+                          onClick={() => engine.seekTo(time + displayOffset)}
+                          className="text-[10px] font-bold text-accent-text hover:text-foreground px-2 h-full hover:bg-primary/10 transition-all cursor-pointer border-0 flex items-center"
+                          title={`Jump to marker ${idx + 1}`}
+                        >
+                          <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
+                            {idx + 1}
+                          </kbd>
+                          {time.toFixed(1)}s
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMarker(idx)}
+                          className="text-muted-foreground hover:text-destructive px-1.5 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
+                          title="Delete marker"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Col 3: offsets — only when hasOffsets */}
