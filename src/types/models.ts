@@ -1,4 +1,4 @@
-import type { Role, ProgressStatus, SongType } from '@/lib/constants';
+import type { Role, ProgressStatus, SongType, RehearsalType } from '@/lib/constants';
 
 // ---------------------------------------------------------------------------
 // Plain serializable shapes matching Drizzle rows (with nested relations).
@@ -68,6 +68,8 @@ export interface RehearsalSong {
   rehearsalId: string;
   songId: string;
   sortOrder: number;
+  addedBy: string | null;
+  addedAt: number | null;
   song: Song;
 }
 
@@ -76,7 +78,13 @@ export interface Rehearsal {
   title: string;
   date: number;
   notes: string | null;
+  type: RehearsalType;
+  votingEndsAt: number | null;
+  songSelectionCount: number | null;
+  finalizedAt: number | null;
   rehearsalSongs: { song: Song }[];
+  /** Vote rehearsals only: total toggle-votes across all candidates. */
+  voteCount?: number;
 }
 
 export interface RehearsalDetails {
@@ -84,7 +92,45 @@ export interface RehearsalDetails {
   title: string;
   date: number;
   notes: string | null;
+  type: RehearsalType;
+  votingEndsAt: number | null;
+  songSelectionCount: number | null;
+  finalizedAt: number | null;
   rehearsalSongs: RehearsalSong[];
+}
+
+// ---------------------------------------------------------------------------
+// Song vote state (open voting page). Candidates are the rows of
+// rehearsal_songs; ranking is derived, not stored.
+// ---------------------------------------------------------------------------
+export interface VotingCandidate {
+  song: Song;
+  addedAt: number;
+  addedByUsername: string | null;
+  voteCount: number;
+  votedByMe: boolean;
+  commentCount: number;
+  /** A comment newer than my read watermark, not authored by me. */
+  hasUnreadComments: boolean;
+}
+
+export interface VotingState {
+  id: string;
+  title: string;
+  date: number;
+  notes: string | null;
+  votingEndsAt: number;
+  songSelectionCount: number;
+  finalizedAt: number | null;
+  candidates: VotingCandidate[];
+}
+
+export interface SongComment {
+  id: string;
+  userUuid: string;
+  username: string | null;
+  body: string;
+  createdAt: number;
 }
 
 // ---------------------------------------------------------------------------

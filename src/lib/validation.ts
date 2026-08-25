@@ -5,6 +5,7 @@ import {
   SPEED_MAX,
   MAX_MARKERS,
   PROGRESS_STATUSES,
+  VOTE_SELECTION_MIN,
 } from './constants';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,18 @@ export function validateRehearsal(r: Record<string, unknown>): string | null {
   }
   if (r.date !== undefined && (typeof r.date !== 'number' || !Number.isInteger(r.date))) {
     return 'date must be an integer (Unix ms)';
+  }
+  if (r.type === 'vote') {
+    if (typeof r.votingEndsAt !== 'number' || !Number.isInteger(r.votingEndsAt)) {
+      return 'votingEndsAt must be an integer (Unix ms)';
+    }
+    if (
+      typeof r.songSelectionCount !== 'number' ||
+      !Number.isInteger(r.songSelectionCount) ||
+      r.songSelectionCount < VOTE_SELECTION_MIN
+    ) {
+      return `songSelectionCount must be an integer of at least ${VOTE_SELECTION_MIN}`;
+    }
   }
   return null;
 }

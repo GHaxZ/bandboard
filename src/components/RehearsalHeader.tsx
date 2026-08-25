@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Edit, Sliders, ListMusic, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, Sliders, ListMusic, Trash2, Vote as VoteIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientDate } from "./ClientDate";
 
@@ -12,6 +12,8 @@ interface RehearsalHeaderProps {
   activeTab: "setlist" | "kanban";
   onEdit: () => void;
   onDelete: () => void;
+  /** Present on manual sessions / finished votes → offers re-voting. */
+  onConvertToVote?: () => void;
 }
 
 /** Title/date header + Edit/Delete actions + tab switcher, shared by the
@@ -23,6 +25,7 @@ export function RehearsalHeader({
   activeTab,
   onEdit,
   onDelete,
+  onConvertToVote,
 }: RehearsalHeaderProps) {
   return (
     <>
@@ -45,6 +48,15 @@ export function RehearsalHeader({
         </div>
 
         <div className="flex items-center gap-2">
+          {onConvertToVote && (
+            <Button
+              variant="secondary"
+              onClick={onConvertToVote}
+              className="rounded-xl text-xs font-bold px-3.5 h-9"
+            >
+              <VoteIcon className="w-3.5 h-3.5 mr-1" /> Turn into Vote
+            </Button>
+          )}
           <Button
             variant="secondary"
             onClick={onEdit}

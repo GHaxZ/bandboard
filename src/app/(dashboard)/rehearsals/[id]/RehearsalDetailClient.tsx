@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { RehearsalHeader } from "@/components/RehearsalHeader";
 import { EditRehearsalModal } from "@/components/EditRehearsalModal";
+import { ConvertToVoteModal } from "@/components/ConvertToVoteModal";
 import { SetlistManager } from "@/components/SetlistManager";
 import { SongDashboard } from "@/components/SongDashboard";
 import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
@@ -40,8 +41,14 @@ export function RehearsalDetailClient({
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
+
+  // Manual sessions AND finished votes can (re-)start a voting. Open votes
+  // render VotingClient instead of this component, so they never get here.
+  const canConvertToVote =
+    rehearsalDetails.type === "manual" || !!rehearsalDetails.finalizedAt;
 
   const activeSongId =
     searchParams.get("song") || rehearsalDetails.rehearsalSongs[0]?.songId || null;
@@ -82,6 +89,7 @@ export function RehearsalDetailClient({
         activeTab="setlist"
         onEdit={() => setIsEditRehearsalOpen(true)}
         onDelete={handleDeleteRehearsal}
+        onConvertToVote={canConvertToVote ? () => setIsConvertOpen(true) : undefined}
       />
 
       <div className="space-y-6">
@@ -168,6 +176,23 @@ export function RehearsalDetailClient({
         onClose={() => setIsEditRehearsalOpen(false)}
         rehearsal={rehearsalDetails}
         onSuccess={refreshData}
+      />
+
+      <ConvertToVoteModal
+        isOpen={isConvertOpen}
+        onClose={() => setIsConvertOpen(false)}
+        rehearsal={{
+          id: rehearsalDetails.id,
+          title: rehearsalDetails.title,
+          date: rehearsalDetails.date,
+          notes: rehearsalDetails.notes,
+          votingEndsAt: rehearsalDetails.votingEndsAt,
+          songSelectionCount: rehearsalDetails.songSelectionCount,
+        }}
+        onSuccess={() => {
+          // The server now classifies this as an open vote — swap views.
+          router.refresh();
+        }}
       />
 
       <ConfirmDialog

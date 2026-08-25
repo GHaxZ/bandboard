@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,15 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
-import { updateRehearsal } from "@/app/actions/rehearsals";
-import { Loader2, Calendar, Save } from "lucide-react";
+import { convertRehearsalToVote } from "@/app/actions/votes";
+import { Loader2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN } from "@/lib/constants";
 
-interface EditRehearsalModalProps {
+interface ConvertToVoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   rehearsal: {
@@ -30,9 +30,10 @@ interface EditRehearsalModalProps {
     title: string;
     date: number;
     notes: string | null;
+    /** Previous vote settings — used for autofill when re-voting. */
+    votingEndsAt: number | null;
+    songSelectionCount: number | null;
   };
-  /** Present while editing an open vote: shows + submits the vote settings. */
-  voting?: { votingEndsAt: number; songSelectionCount: number } | null;
   onSuccess: () => void;
 }
 
@@ -42,7 +43,17 @@ function toDateTimeLocal(ts: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSuccess }: EditRehearsalModalProps) {
+/** Default end: 24h before the rehearsal, but never less than 1h from now. */
+function defaultVotingEnd(rehearsalDate: number): number {
+  return Math.max(Date.now() + 60 * 60 * 1000, rehearsalDate - 24 * 60 * 60 * 1000);
+}
+
+export function ConvertToVoteModal({
+  isOpen,
+  onClose,
+  rehearsal,
+  onSuccess,
+}: ConvertToVoteModalProps) {
   const [title, setTitle] = useState(rehearsal.title);
   const [dateTimeStr, setDateTimeStr] = useState("");
   const [notes, setNotes] = useState(rehearsal.notes || "");
@@ -52,78 +63,52 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
-  // Pre-compute the "original" snapshot for dirty detection (runs once per open)
-  const original = useMemo(() => {
-    if (!isOpen || !rehearsal) return null;
-    return {
-      title: rehearsal.title,
-      notes: rehearsal.notes || "",
-      dateTime: toDateTimeLocal(rehearsal.date),
-      ...(voting
-        ? {
-            votingEnds: toDateTimeLocal(voting.votingEndsAt),
-            selectionCount: String(voting.songSelectionCount),
-          }
-        : {}),
-    };
-  }, [isOpen, rehearsal, voting]);
-
+  // Autofill everything: session fields from the rehearsal, vote settings
+  // from its previous vote state when it has one.
   useEffect(() => {
-    if (isOpen && rehearsal) {
-      setTitle(rehearsal.title);
-      setNotes(rehearsal.notes || "");
-      setDateTimeStr(toDateTimeLocal(rehearsal.date));
-      if (voting) {
-        setVotingEndsStr(toDateTimeLocal(voting.votingEndsAt));
-        setSelectionCount(String(voting.songSelectionCount));
-      }
-    }
-  }, [isOpen, rehearsal, voting]);
+    if (!isOpen) return;
+    setTitle(rehearsal.title);
+    setNotes(rehearsal.notes || "");
+    setDateTimeStr(toDateTimeLocal(rehearsal.date));
+    setVotingEndsStr(
+      toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date))
+    );
+    setSelectionCount(String(rehearsal.songSelectionCount ?? 3));
+  }, [isOpen, rehearsal]);
 
   const hasUnsavedChanges = useMemo(() => {
-    if (!original) return false;
-    if (
-      title !== original.title ||
-      notes !== original.notes ||
-      dateTimeStr !== original.dateTime
-    ) {
-      return true;
-    }
-    if (voting && original.votingEnds !== undefined) {
-      return (
-        votingEndsStr !== original.votingEnds ||
-        selectionCount !== original.selectionCount
-      );
-    }
-    return false;
-  }, [title, notes, dateTimeStr, votingEndsStr, selectionCount, original, voting]);
+    if (!isOpen) return false;
+    return (
+      title !== rehearsal.title ||
+      notes !== (rehearsal.notes || "") ||
+      dateTimeStr !== toDateTimeLocal(rehearsal.date) ||
+      votingEndsStr !==
+        toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date)) ||
+      selectionCount !== String(rehearsal.songSelectionCount ?? 3)
+    );
+  }, [isOpen, title, notes, dateTimeStr, votingEndsStr, selectionCount, rehearsal]);
 
   async function doSubmit(): Promise<boolean> {
-    if (!title.trim() || !dateTimeStr) return false;
+    if (!title.trim() || !dateTimeStr || !votingEndsStr) return false;
 
     setIsLoading(true);
     setError(null);
 
     try {
       const timestamp = new Date(dateTimeStr).getTime();
-      if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
-
-      let opts: { votingEndsAt: number; songSelectionCount: number } | undefined;
-      if (voting) {
-        const endsTs = new Date(votingEndsStr).getTime();
-        if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
-        const count = Math.round(Number(selectionCount));
-        if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
-          setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
-          setIsLoading(false);
-          return false;
-        }
-        opts = { votingEndsAt: endsTs, songSelectionCount: count };
+      const endsTs = new Date(votingEndsStr).getTime();
+      if (isNaN(timestamp) || isNaN(endsTs)) throw new Error("Invalid date or time selected");
+      const count = Math.round(Number(selectionCount));
+      if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
+        setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
+        setIsLoading(false);
+        return false;
       }
 
-      const res = await updateRehearsal(rehearsal.id, title, timestamp, notes, opts);
+      // Title/date/notes edits ride along with the conversion.
+      const res = await convertRehearsalToVote(rehearsal.id, endsTs, count);
       if (res.success) {
-        toast.success("Rehearsal updated");
+        toast.success("Voting created");
         onSuccess();
         onClose();
         return true;
@@ -132,7 +117,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
       return false;
     } catch (err) {
       console.error(err);
-      setError("Failed to update rehearsal. Please check your input fields.");
+      setError("Failed to create the voting. Please verify your inputs.");
       return false;
     } finally {
       setIsLoading(false);
@@ -155,27 +140,29 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
       <DialogContent className="max-w-md w-[95vw]">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
-            <Calendar className="w-5 h-5 text-muted-foreground" />
-            Edit Rehearsal Details
+            <VoteIcon className="w-5 h-5 text-muted-foreground" />
+            Turn into Song Vote
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Modify title, date/time scheduling, and instructions for this rehearsal session.
+            The current setlist becomes the candidate list. Members nominate and vote; the top
+            songs become the new setlist when the voting ends.
+            {rehearsal.votingEndsAt !== null &&
+              " Previous votes and comments from earlier rounds are restored."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
           <div className="space-y-1.5">
             <Label
-              htmlFor="editRehearsalTitle"
+              htmlFor="convertTitle"
               className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
             >
               Rehearsal Title
             </Label>
             <Input
-              id="editRehearsalTitle"
+              id="convertTitle"
               required
               disabled={isLoading}
-              placeholder="e.g. Rehearsal Prep - June 24"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="rounded-xl"
@@ -183,64 +170,60 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
           </div>
 
           <RehearsalDateTimeFields
+            id="convertDateTime"
             value={dateTimeStr}
             onChange={setDateTimeStr}
             disabled={isLoading}
           />
 
-          {voting && (
-            <>
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="editVotingEnds"
-                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                >
-                  Voting Ends
-                </Label>
-                <Input
-                  id="editVotingEnds"
-                  type="datetime-local"
-                  required
-                  disabled={isLoading}
-                  value={votingEndsStr}
-                  onChange={(e) => setVotingEndsStr(e.target.value)}
-                  className="rounded-xl w-full"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="editSelectionCount"
-                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                >
-                  Songs to Select
-                </Label>
-                <Input
-                  id="editSelectionCount"
-                  type="number"
-                  min={VOTE_SELECTION_MIN}
-                  required
-                  disabled={isLoading}
-                  value={selectionCount}
-                  onChange={(e) => setSelectionCount(e.target.value)}
-                  className="rounded-xl w-full"
-                />
-              </div>
-            </>
-          )}
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="convertVotingEnds"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
+              Voting Ends
+            </Label>
+            <Input
+              id="convertVotingEnds"
+              type="datetime-local"
+              required
+              disabled={isLoading}
+              value={votingEndsStr}
+              onChange={(e) => setVotingEndsStr(e.target.value)}
+              className="rounded-xl w-full"
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label
-              htmlFor="editRehearsalNotes"
+              htmlFor="convertSelectionCount"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
+              Songs to Select
+            </Label>
+            <Input
+              id="convertSelectionCount"
+              type="number"
+              min={VOTE_SELECTION_MIN}
+              required
+              disabled={isLoading}
+              value={selectionCount}
+              onChange={(e) => setSelectionCount(e.target.value)}
+              className="rounded-xl w-full"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="convertNotes"
               className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
             >
               Notes / Location (Optional)
             </Label>
             <Textarea
-              id="editRehearsalNotes"
+              id="convertNotes"
               disabled={isLoading}
               rows={3}
-              placeholder="e.g. Studio Room B. Focus on transitions."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -260,21 +243,21 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !hasUnsavedChanges || !title.trim() || !dateTimeStr}
+              disabled={isLoading || !title.trim() || !dateTimeStr || !votingEndsStr}
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
-                hasUnsavedChanges && !isLoading
+                !isLoading
                   ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 motion-reduce:animate-none"
                   : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                  <Loader2 className="w-4 h-4 animate-spin" /> Converting...
                 </>
               ) : (
                 <>
-                  <Save className="w-4 h-4" /> Save Changes
+                  <VoteIcon className="w-4 h-4" /> Create Voting
                 </>
               )}
             </Button>
@@ -289,9 +272,9 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
           setConfirmDiscardOpen(false);
           onClose();
         }}
-        title="Discard unsaved changes?"
-        description="Your edits to this rehearsal will be lost."
-        confirmLabel="Discard Changes"
+        title="Discard this voting?"
+        description="The entered settings will be lost. The rehearsal stays unchanged."
+        confirmLabel="Discard"
         cancelLabel="Keep Editing"
         destructive
       />

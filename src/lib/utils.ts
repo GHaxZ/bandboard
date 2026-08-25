@@ -41,6 +41,21 @@ export function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Compact remaining-time label for countdowns ("2d 3h", "45m", "<1m").
+ * Negative/zero → null (caller renders an "ended" state).
+ */
+export function formatTimeLeft(msRemaining: number): string | null {
+  if (msRemaining <= 0) return null;
+  const minutes = Math.floor(msRemaining / 60_000);
+  if (minutes < 1) return "<1m";
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
 export function getAlternativeLinks(tabLink: string) {
   if (!tabLink || !tabLink.includes("-tab-s")) {
     return {

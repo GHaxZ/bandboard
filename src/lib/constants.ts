@@ -46,6 +46,39 @@ export const SONG_TYPE_BADGE: Record<SongType, { text: string; soft: string; bor
 };
 
 // ---------------------------------------------------------------------------
+// Rehearsal types — manual session vs song vote (mirrors SONG_TYPE_BADGE)
+// ---------------------------------------------------------------------------
+export const REHEARSAL_TYPES = ['manual', 'vote'] as const;
+export type RehearsalType = (typeof REHEARSAL_TYPES)[number];
+
+export const REHEARSAL_TYPE_LABEL: Record<RehearsalType, string> = {
+  manual: 'Session',
+  vote: 'Vote',
+};
+
+export const REHEARSAL_TYPE_BADGE: Record<
+  RehearsalType,
+  { text: string; soft: string; border: string }
+> = {
+  manual: {
+    text: 'text-teal-700 dark:text-teal-400',
+    soft: 'bg-teal-500/10 dark:bg-teal-950/40',
+    border: 'border-teal-600/30 dark:border-teal-800',
+  },
+  vote: {
+    text: 'text-violet-700 dark:text-violet-400',
+    soft: 'bg-violet-500/10 dark:bg-violet-950/40',
+    border: 'border-violet-600/30 dark:border-violet-800',
+  },
+};
+
+/** Minimum songs a vote promotes into the final setlist (no upper cap —
+ *  bounded in practice by the number of candidates). */
+export const VOTE_SELECTION_MIN = 1;
+
+export const MAX_COMMENT_LENGTH = 1000;
+
+// ---------------------------------------------------------------------------
 // Progress statuses — single source of truth (PLAN §8.1)
 // Emerald/Purple SWAPPED per user request:
 //   Ready to Play = Emerald, Mastered = Purple

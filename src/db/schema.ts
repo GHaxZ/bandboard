@@ -94,17 +94,91 @@ export const customTracks = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
-// rehearsals
+// rehearsals — `manual` (classic setlist) or `vote` (song vote that converts
+// into a normal rehearsal once voting ends). Vote columns are null for manual.
+// finalizedAt is set when the top-N voted songs are written into
+// rehearsal_songs; from then on a vote rehearsal IS a manual rehearsal.
 // ---------------------------------------------------------------------------
 export const rehearsals = sqliteTable('rehearsals', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   date: integer('date').notNull(), // Unix-ms
   notes: text('notes'),
+  type: text('type').$type<'manual' | 'vote'>().notNull().default('manual'),
+  votingEndsAt: integer('voting_ends_at'), // Unix-ms
+  songSelectionCount: integer('song_selection_count'),
+  finalizedAt: integer('finalized_at'),
 });
 
 // ---------------------------------------------------------------------------
-// rehearsalSongs — ordered junction
+// rehearsalVotes — one toggle-vote per user per nominated song
+// ---------------------------------------------------------------------------
+export const rehearsalVotes = sqliteTable(
+  'rehearsal_votes',
+  {
+    id: text('id').primaryKey(),
+    rehearsalId: text('rehearsal_id')
+      .notNull()
+      .references(() => rehearsals.id, { onDelete: 'cascade' }),
+    songId: text('song_id')
+      .notNull()
+      .references(() => songs.id, { onDelete: 'cascade' }),
+    // No FK, mirrors userSongProgress.userUuid convention.
+    userUuid: text('user_uuid').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('rehearsal_votes_unique').on(table.rehearsalId, table.songId, table.userUuid),
+    index('rehearsal_votes_rehearsal_id_idx').on(table.rehearsalId),
+  ]
+);
+
+// ---------------------------------------------------------------------------
+// rehearsalSongComments — flat per-song discussion thread during a vote
+// ---------------------------------------------------------------------------
+export const rehearsalSongComments = sqliteTable(
+  'rehearsal_song_comments',
+  {
+    id: text('id').primaryKey(),
+    rehearsalId: text('rehearsal_id')
+      .notNull()
+      .references(() => rehearsals.id, { onDelete: 'cascade' }),
+    songId: text('song_id')
+      .notNull()
+      .references(() => songs.id, { onDelete: 'cascade' }),
+    userUuid: text('user_uuid').notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    index('rehearsal_song_comments_rehearsal_song_idx').on(table.rehearsalId, table.songId),
+  ]
+);
+
+// ---------------------------------------------------------------------------
+// commentReads — per-user "seen" watermark per voted song. Written only when
+// that song's comment popup is opened; drives the red dot + "New messages"
+// divider.
+// ---------------------------------------------------------------------------
+export const commentReads = sqliteTable(
+  'comment_reads',
+  {
+    userUuid: text('user_uuid').notNull(),
+    rehearsalId: text('rehearsal_id')
+      .notNull()
+      .references(() => rehearsals.id, { onDelete: 'cascade' }),
+    songId: text('song_id')
+      .notNull()
+      .references(() => songs.id, { onDelete: 'cascade' }),
+    lastReadAt: integer('last_read_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userUuid, table.rehearsalId, table.songId] })]
+);
+
+// ---------------------------------------------------------------------------
+// rehearsalSongs — ordered junction. Doubles as the candidate list while a
+// vote rehearsal is open: addedBy/addedAt record the nominator (null when the
+// row came from a manual setlist edit).
 // ---------------------------------------------------------------------------
 export const rehearsalSongs = sqliteTable(
   'rehearsal_songs',
@@ -116,6 +190,8 @@ export const rehearsalSongs = sqliteTable(
       .notNull()
       .references(() => songs.id, { onDelete: 'cascade' }),
     sortOrder: integer('sort_order').notNull(),
+    addedBy: text('added_by'),
+    addedAt: integer('added_at'),
   },
   (table) => [
     primaryKey({ columns: [table.rehearsalId, table.songId] }),
@@ -250,6 +326,30 @@ export const customTracksRelations = relations(customTracks, ({ one, many }) => 
 
 export const rehearsalsRelations = relations(rehearsals, ({ many }) => ({
   rehearsalSongs: many(rehearsalSongs),
+  votes: many(rehearsalVotes),
+  comments: many(rehearsalSongComments),
+}));
+
+export const rehearsalVotesRelations = relations(rehearsalVotes, ({ one }) => ({
+  rehearsal: one(rehearsals, {
+    fields: [rehearsalVotes.rehearsalId],
+    references: [rehearsals.id],
+  }),
+  song: one(songs, {
+    fields: [rehearsalVotes.songId],
+    references: [songs.id],
+  }),
+}));
+
+export const rehearsalSongCommentsRelations = relations(rehearsalSongComments, ({ one }) => ({
+  rehearsal: one(rehearsals, {
+    fields: [rehearsalSongComments.rehearsalId],
+    references: [rehearsals.id],
+  }),
+  song: one(songs, {
+    fields: [rehearsalSongComments.songId],
+    references: [songs.id],
+  }),
 }));
 
 export const rehearsalSongsRelations = relations(rehearsalSongs, ({ one }) => ({

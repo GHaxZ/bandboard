@@ -15,11 +15,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
 import { createRehearsal } from "@/app/actions/rehearsals";
-import { Loader2, Calendar, Plus } from "lucide-react";
+import { Loader2, Calendar, Plus, Vote as VoteIcon, Music as MusicIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { VOTE_SELECTION_MIN } from "@/lib/constants";
+import type { RehearsalType } from "@/lib/constants";
 
 interface AddRehearsalModalProps {
   isOpen: boolean;
@@ -28,17 +30,24 @@ interface AddRehearsalModalProps {
 }
 
 export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalModalProps) {
+  const [rehearsalType, setRehearsalType] = useState<RehearsalType>("manual");
   const [title, setTitle] = useState("");
   const [dateTimeStr, setDateTimeStr] = useState("");
   const [notes, setNotes] = useState("");
+  const [votingEndsStr, setVotingEndsStr] = useState("");
+  const [selectionCount, setSelectionCount] = useState("3");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
-  const isReady = title.trim().length > 0 && dateTimeStr.length > 0;
+  const isReady =
+    title.trim().length > 0 &&
+    dateTimeStr.length > 0 &&
+    (rehearsalType === "manual" || votingEndsStr.length > 0);
 
   async function doSubmit(): Promise<boolean> {
     if (!title.trim() || !dateTimeStr) return false;
+    if (rehearsalType === "vote" && !votingEndsStr) return false;
 
     setIsLoading(true);
     setError(null);
@@ -47,12 +56,35 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
       const timestamp = new Date(dateTimeStr).getTime();
       if (isNaN(timestamp)) throw new Error("Invalid date or time selected");
 
-      const res = await createRehearsal(title, timestamp, notes);
+      let opts: { type: RehearsalType; votingEndsAt?: number; songSelectionCount?: number };
+      if (rehearsalType === "vote") {
+        const endsTs = new Date(votingEndsStr).getTime();
+        if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
+        if (endsTs > timestamp) {
+          setError("Voting must end before the rehearsal starts.");
+          setIsLoading(false);
+          return false;
+        }
+        const count = Math.round(Number(selectionCount));
+        if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
+          setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
+          setIsLoading(false);
+          return false;
+        }
+        opts = { type: "vote", votingEndsAt: endsTs, songSelectionCount: count };
+      } else {
+        opts = { type: "manual" };
+      }
+
+      const res = await createRehearsal(title, timestamp, notes, opts);
       if (res.success && res.rehearsalId) {
-        toast.success("Rehearsal created");
+        toast.success(rehearsalType === "vote" ? "Voting created" : "Rehearsal created");
         setTitle("");
         setDateTimeStr("");
         setNotes("");
+        setVotingEndsStr("");
+        setSelectionCount("3");
+        setRehearsalType("manual");
         onSuccess(res.rehearsalId);
         onClose();
         return true;
@@ -88,12 +120,62 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             Schedule Rehearsal
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
-            Set up a new rehearsal prep session. You will be able to build and order your setlist
-            after creating it.
+            Create a classic session with a hand-built setlist, or a song vote that lets the band
+            decide the setlist.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
+          {/* Type picker — mirrors the Session/Vote badge colors */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => setRehearsalType("manual")}
+              className={cn(
+                "flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer disabled:opacity-50",
+                rehearsalType === "manual"
+                  ? "bg-muted border-ring/40 shadow-md shadow-black/20"
+                  : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
+              )}
+            >
+              <MusicIcon
+                className={cn(
+                  "w-4 h-4",
+                  rehearsalType === "manual" ? "text-primary" : "text-muted-foreground"
+                )}
+              />
+              <span className="text-xs font-bold text-foreground">Rehearsal Session</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">
+                Build and order the setlist yourself.
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => setRehearsalType("vote")}
+              className={cn(
+                "flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer disabled:opacity-50",
+                rehearsalType === "vote"
+                  ? "bg-violet-500/10 dark:bg-violet-950/40 border-violet-600/30 dark:border-violet-800 shadow-md shadow-black/20"
+                  : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
+              )}
+            >
+              <VoteIcon
+                className={cn(
+                  "w-4 h-4",
+                  rehearsalType === "vote"
+                    ? "text-violet-600 dark:text-violet-400"
+                    : "text-muted-foreground"
+                )}
+              />
+              <span className="text-xs font-bold text-foreground">Song Vote</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">
+                Members nominate and vote; top songs become the setlist.
+              </span>
+            </button>
+          </div>
+
           <div className="space-y-1.5">
             <Label
               htmlFor="rehearsalTitle"
@@ -117,6 +199,47 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
             onChange={setDateTimeStr}
             disabled={isLoading}
           />
+
+          {rehearsalType === "vote" && (
+            <>
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="votingEndsInput"
+                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                >
+                  Voting Ends
+                </Label>
+                <Input
+                  id="votingEndsInput"
+                  type="datetime-local"
+                  required
+                  disabled={isLoading}
+                  value={votingEndsStr}
+                  onChange={(e) => setVotingEndsStr(e.target.value)}
+                  className="rounded-xl w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="selectionCountInput"
+                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                >
+                  Songs to Select
+                </Label>
+                <Input
+                  id="selectionCountInput"
+                  type="number"
+                  min={VOTE_SELECTION_MIN}
+                  required
+                  disabled={isLoading}
+                  value={selectionCount}
+                  onChange={(e) => setSelectionCount(e.target.value)}
+                  className="rounded-xl w-full"
+                />
+              </div>
+            </>
+          )}
 
           <div className="space-y-1.5">
             <Label
@@ -163,7 +286,8 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                 </>
               ) : (
                 <>
-                  <Plus className="w-4 h-4" /> Create Rehearsal
+                  <Plus className="w-4 h-4" />
+                  {rehearsalType === "vote" ? "Create Voting" : "Create Rehearsal"}
                 </>
               )}
             </Button>
