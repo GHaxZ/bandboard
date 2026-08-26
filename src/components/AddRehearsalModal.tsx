@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { VOTE_SELECTION_MIN } from "@/lib/constants";
+import { VOTE_SELECTION_MIN, REHEARSAL_TYPE_BADGE } from "@/lib/constants";
 import type { RehearsalType } from "@/lib/constants";
 
 interface AddRehearsalModalProps {
@@ -111,9 +111,20 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
     else onClose();
   }
 
+  // Discard must actually clear the draft — otherwise reopening shows a
+  // phantom-valid form that re-triggers the discard prompt on close.
+  function resetForm() {
+    setTitle("");
+    setDateTimeStr("");
+    setNotes("");
+    setVotingEndsStr("");
+    setSelectionCount("3");
+    setRehearsalType("manual");
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent className="max-w-md w-[95vw]">
+      <DialogContent className="max-w-md w-[95vw] max-h-[85dvh] flex flex-col gap-4">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Calendar className="w-5 h-5 text-muted-foreground" />
@@ -125,7 +136,8 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 my-2">
+        {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
+        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto">
           {/* Type picker — mirrors the Session/Vote badge colors */}
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -157,16 +169,16 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
               className={cn(
                 "flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer disabled:opacity-50",
                 rehearsalType === "vote"
-                  ? "bg-violet-500/10 dark:bg-violet-950/40 border-violet-600/30 dark:border-violet-800 shadow-md shadow-black/20"
+                  ? cn(REHEARSAL_TYPE_BADGE.vote.soft, REHEARSAL_TYPE_BADGE.vote.border, "shadow-md shadow-black/20")
                   : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
               )}
             >
               <VoteIcon
                 className={cn(
                   "w-4 h-4",
-                  rehearsalType === "vote"
-                    ? "text-violet-600 dark:text-violet-400"
-                    : "text-muted-foreground"
+                rehearsalType === "vote"
+                  ? REHEARSAL_TYPE_BADGE.vote.text
+                  : "text-muted-foreground"
                 )}
               />
               <span className="text-xs font-bold text-foreground">Song Vote</span>
@@ -300,6 +312,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
         onClose={() => setConfirmDiscardOpen(false)}
         onConfirm={() => {
           setConfirmDiscardOpen(false);
+          resetForm();
           onClose();
         }}
         title="Discard this rehearsal?"

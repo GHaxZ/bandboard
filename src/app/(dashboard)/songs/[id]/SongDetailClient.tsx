@@ -63,6 +63,7 @@ export function SongDetailClient({
       <div className="flex items-center gap-3 border-b border-border pb-5">
         <Link
           href="/library"
+          aria-label="Back to library"
           className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card rounded-xl w-10 h-10 transition-all border border-transparent hover:border-border"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -79,7 +80,7 @@ export function SongDetailClient({
         <OriginalSongDashboard
           song={song}
           onRefresh={refreshData}
-          onDelete={handleDeleteSong}
+          onDelete={() => setConfirmDeleteOpen(true)}
           onPractice={() => router.push(`/songs/${songId}/practice`)}
           onEdit={() => router.push(`/songs/${songId}/edit`)}
           preferredInstrument={preferredInstrument}
@@ -88,7 +89,7 @@ export function SongDetailClient({
         <SongDashboard
           song={song}
           onRefresh={refreshData}
-          onDelete={handleDeleteSong}
+          onDelete={() => setConfirmDeleteOpen(true)}
           onPractice={() => router.push(`/songs/${songId}/practice`)}
           preferredInstrument={preferredInstrument}
           activeRole={activeRole}

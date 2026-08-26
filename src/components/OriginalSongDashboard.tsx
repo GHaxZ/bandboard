@@ -18,6 +18,8 @@ interface OriginalSongDashboardProps {
   song: Song;
   onRefresh: () => void;
   onDelete?: () => void;
+  /** Trash button label — setlist views remove the song instead of deleting it. */
+  deleteTitle?: string;
   onPractice?: () => void;
   onEdit?: () => void;
   preferredInstrument?: string;
@@ -27,6 +29,7 @@ export function OriginalSongDashboard({
   song,
   onRefresh,
   onDelete,
+  deleteTitle,
   onPractice,
   onEdit,
   preferredInstrument,
@@ -81,7 +84,9 @@ export function OriginalSongDashboard({
             </CardDescription>
           </div>
         </div>
-        <div className="flex items-center gap-2 self-start md:self-center">
+        {/* Stretches full-width on mobile (flex-col parent): practice left,
+            trash pushed right, open space centered. Desktop: inline cluster. */}
+        <div className="flex items-center gap-2">
           {onPractice && <PracticeButton onClick={onPractice} />}
 
           {onEdit && (
@@ -100,8 +105,8 @@ export function OriginalSongDashboard({
               variant="danger-subtle"
               size="icon"
               onClick={onDelete}
-              className="rounded-xl h-9 w-9"
-              title="Delete Song"
+              className="rounded-xl h-9 w-9 ml-auto"
+              title={deleteTitle ?? "Delete Song"}
             >
               <Trash2 className="w-4 h-4" />
             </Button>

@@ -391,8 +391,8 @@ export function RehearsalAutoplay({
 
   return (
     <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-4 flex-shrink-0 w-full">
-        <div className="flex items-center gap-3">
+      <header className="flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center border-b border-border bg-card/40 px-4 md:px-6 py-4 flex-shrink-0 w-full">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             onClick={onExit}
@@ -401,7 +401,7 @@ export function RehearsalAutoplay({
             <ArrowLeft className="w-4 h-4" />
             Exit Practice Mode
           </Button>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-foreground truncate">{rehearsal.title}</h2>
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
               <Calendar className="w-3.5 h-3.5" />
@@ -411,7 +411,7 @@ export function RehearsalAutoplay({
             </div>
           </div>
         </div>
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center flex-shrink-0 self-start min-[400px]:self-auto min-[400px]:ml-auto">
           <PrivateIndicator
             text="Settings synced only for you"
             tooltip="All settings, offsets, markers, and autoplay preferences are private to your account."
@@ -675,9 +675,9 @@ export function RehearsalAutoplay({
         <div className="w-full lg:w-80 lg:border-l border-border bg-card/10 flex flex-col overflow-hidden flex-shrink-0 min-h-0">
           <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card/40">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                 Practice Instrument
-              </label>
+              </span>
               <Tabs
                 value={instrumentPreference}
                 onValueChange={handleInstrumentChange}
@@ -690,7 +690,7 @@ export function RehearsalAutoplay({
                       value={inst}
                       className="px-1 py-1 text-[10px] font-bold rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all cursor-pointer flex-1 text-center"
                     >
-                      {inst === "Piano/Keyboard" ? "Piano" : inst}
+                      {inst === "Piano/Keyboard" ? "Keys" : inst}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -699,9 +699,9 @@ export function RehearsalAutoplay({
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                   Auto-advance
-                </label>
+                </span>
                 <div className="flex bg-background/60 p-1 border border-border rounded-xl gap-1 w-full justify-between">
                   <Button
                     onClick={() => handleAutoplayEnabledChange(true)}
@@ -755,15 +755,17 @@ export function RehearsalAutoplay({
 
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Volume
-                  </label>
+                  </span>
                   <span className="text-[10px] font-mono text-accent-text font-bold">{volume}%</span>
                 </div>
                 <div className="flex items-center bg-background/60 border border-border px-3.5 py-2 rounded-xl gap-3">
                   <button
                     onClick={() => setVolume(volume === 0 ? 100 : 0)}
-                    className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+                    aria-label={volume === 0 ? "Unmute" : "Mute"}
+                    title={volume === 0 ? "Unmute" : "Mute"}
+                    className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-2 -m-2 rounded-md flex items-center"
                   >
                     {volume === 0 ? (
                       <VolumeX className="w-3.5 h-3.5" />
@@ -784,9 +786,9 @@ export function RehearsalAutoplay({
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Playback Speed
-                  </label>
+                  </span>
                   <span className="text-[10px] font-mono text-accent-text font-bold">
                     {speed.toFixed(2)}x
                   </span>
@@ -825,11 +827,12 @@ export function RehearsalAutoplay({
               const isSongCompleted = index < currentIndex;
               const isSongNext = index === currentIndex + 1;
               return (
-                <div
+                <button
+                  type="button"
                   key={rs.songId}
                   onClick={() => setCurrentIndex(index)}
                   className={cn(
-                    "flex flex-col p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none gap-2",
+                    "w-full text-left flex flex-col p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none gap-2",
                     isSongActive
                       ? "bg-muted border-ring/45 shadow-md shadow-black/20"
                       : isSongCompleted
@@ -854,17 +857,17 @@ export function RehearsalAutoplay({
                         );
                       })()}
                       <div className="min-w-0 flex-grow">
-                        <h4
+                        <span
                           className={cn(
-                            "text-xs font-bold truncate",
+                            "block text-xs font-bold truncate",
                             isSongActive ? "text-foreground" : "text-foreground/90"
                           )}
                         >
                           {rs.song.title}
-                        </h4>
-                        <p className="text-[10px] text-muted-foreground truncate mt-0.5 font-medium">
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground truncate mt-0.5 font-medium">
                           {rs.song.artist}
-                        </p>
+                        </span>
                       </div>
                     </div>
 
@@ -885,7 +888,7 @@ export function RehearsalAutoplay({
                     size="xs"
                     className="gap-1.5 pl-8 mt-0.5"
                   />
-                </div>
+                </button>
               );
             })}
           </div>

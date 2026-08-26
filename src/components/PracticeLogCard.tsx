@@ -106,9 +106,9 @@ export function PracticeLogCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
             Learning Status
-          </label>
+          </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {PROGRESS_STATUSES.map((status) => {
               const isSelected = progressStatus === status.id;
@@ -137,10 +137,11 @@ export function PracticeLogCard({
         </div>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+          <label htmlFor="progressNotes" className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
             Notes
           </label>
           <Textarea
+            id="progressNotes"
             placeholder="Record highlights, difficult parts, or speed settings..."
             value={progressNotes}
             onChange={(e) => {

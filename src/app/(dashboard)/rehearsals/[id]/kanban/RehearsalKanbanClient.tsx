@@ -7,12 +7,11 @@ import { FileText } from "lucide-react";
 import dynamic from "next/dynamic";
 import { RehearsalHeader } from "@/components/RehearsalHeader";
 import { EditRehearsalModal } from "@/components/EditRehearsalModal";
-import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
+import { getRehearsalDetails } from "@/app/actions/rehearsals";
 import { getProgressMap, saveSongProgress } from "@/app/actions/user";
 import type { RehearsalDetails, ProgressMap } from "@/types/models";
 import { DEFAULT_PROGRESS } from "@/types/models";
 import type { Role, ProgressStatus } from "@/lib/constants";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // DnD is client-only; avoid SSR hydration mismatch (PLAN §3.5 r).
 const KanbanBoard = dynamic(
@@ -38,7 +37,6 @@ export function RehearsalKanbanClient({
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
 
   async function refreshData() {
@@ -50,18 +48,6 @@ export function RehearsalKanbanClient({
     });
   }
 
-  async function handleDeleteRehearsal() {
-    setConfirmDeleteOpen(false);
-    try {
-      const res = await deleteRehearsal(rehearsalId);
-      if (res.success) router.push("/rehearsals");
-      else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete rehearsal");
-    }
-  }
-
   return (
     <div className="space-y-6">
       <RehearsalHeader
@@ -70,7 +56,6 @@ export function RehearsalKanbanClient({
         date={rehearsalDetails.date}
         activeTab="kanban"
         onEdit={() => setIsEditRehearsalOpen(true)}
-        onDelete={handleDeleteRehearsal}
       />
 
       {rehearsalDetails.notes && (
@@ -85,7 +70,7 @@ export function RehearsalKanbanClient({
         </div>
       )}
 
-      <div className="flex-1 min-h-0">
+      <div>
         <KanbanBoard
           rehearsalSongs={rehearsalDetails.rehearsalSongs}
           progressMap={progressMap}
@@ -126,16 +111,6 @@ export function RehearsalKanbanClient({
         onClose={() => setIsEditRehearsalOpen(false)}
         rehearsal={rehearsalDetails}
         onSuccess={refreshData}
-      />
-
-      <ConfirmDialog
-        isOpen={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
-        onConfirm={handleDeleteRehearsal}
-        title="Delete this rehearsal?"
-        description="The rehearsal prep session and its setlist will be permanently removed."
-        confirmLabel="Delete Session"
-        destructive
       />
     </div>
   );

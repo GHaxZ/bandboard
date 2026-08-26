@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, SendHorizontal, Loader2 } from "lucide-react";
+import { MessageSquare, SendHorizontal, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -71,12 +71,21 @@ export function SongCommentPopover({
     return res;
   }, [rehearsalId, songId]);
 
-  // Keep the newest message visible while the thread is open.
+  // Always land at the newest message: scroll once the thread has loaded
+  // after each open (comments state survives close/reopen, so depending on
+  // length alone would skip the scroll on reopen), and again whenever a new
+  // message appends. Double rAF waits for the popup's layout/animation frame
+  // so scrollHeight is measured post-mount.
   useEffect(() => {
-    if (open && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [open, comments.length]);
+    if (!open || isLoading) return;
+    const id = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = listRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      })
+    );
+    return () => cancelAnimationFrame(id);
+  }, [open, isLoading, comments.length]);
 
   // Live-refresh the thread while the popup is open so messages from other
   // members appear (~2s, matching the voting SSE cadence) — no reopen needed.
@@ -170,7 +179,11 @@ export function SongCommentPopover({
             size="sm"
             disabled={disabled}
             title={disabled ? "Voting ended" : "Comments"}
-            className="relative h-8 px-2.5 gap-1.5 rounded-lg border border-border bg-card text-foreground/80 hover:text-primary hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
+            className={`relative h-8 px-2.5 gap-1.5 rounded-lg border cursor-pointer transition-all duration-200 ${
+              open
+                ? "bg-primary text-primary-foreground border-primary/60 shadow-sm hover:bg-primary/90"
+                : "border-border bg-card text-foreground/80 hover:text-primary hover:border-primary/40 hover:bg-primary/5"
+            }`}
           />
         }
       >
@@ -186,13 +199,30 @@ export function SongCommentPopover({
         )}
       </PopoverTrigger>
 
-      <PopoverContent className="w-[560px] max-w-[calc(100vw-1.5rem)] p-0">
-        <div className="flex flex-col h-[440px]">
-          <div className="px-4 py-3 border-b border-border">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Comments
-            </p>
-            <p className="text-sm font-bold text-foreground truncate mt-0.5">{songTitle}</p>
+      {/* Floating sheet on phones (blurred backdrop, tap outside to dismiss),
+          anchored popover on desktop. The `!` utilities override Base UI's
+          inline Positioner positioning. */}
+      <PopoverContent
+        className="w-[560px] max-sm:w-full! max-sm:max-w-none! max-sm:h-[75dvh]!"
+        positionerClassName="max-sm:fixed! max-sm:inset-0! max-sm:transform-none! max-sm:p-4 max-sm:flex max-sm:items-center max-sm:justify-center max-sm:bg-black/30 max-sm:backdrop-blur-sm"
+      >
+        <div className="flex flex-col h-[440px] max-sm:h-full">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Comments
+              </p>
+              <p className="text-sm font-bold text-foreground truncate mt-0.5">{songTitle}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setOpen(false)}
+              title="Close comments"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
 
           <div ref={listRef} className="flex-1 overflow-y-auto py-2">
@@ -205,7 +235,9 @@ export function SongCommentPopover({
                 No comments yet. Start the discussion!
               </p>
             ) : (
-              comments.map((comment, i) => (
+              comments.map((comment, i) => {
+                const mine = comment.userUuid === currentUserId;
+                return (
                 <div key={comment.id}>
                   {i === dividerIndex && (
                     <div className="flex items-center gap-2 px-4 py-2 my-1">
@@ -216,24 +248,34 @@ export function SongCommentPopover({
                       <span className="h-px flex-1 bg-red-500/40" />
                     </div>
                   )}
-                  <div className="px-4 py-2 hover:bg-muted/40 transition-colors">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-bold text-foreground truncate">
-                        {comment.username ?? "Unknown"}
-                        {comment.userUuid === currentUserId && (
-                          <span className="font-medium text-muted-foreground"> (you)</span>
-                        )}
+                  <div className={`px-3 py-1.5 flex ${mine ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                        mine
+                          ? "bg-primary text-primary-foreground rounded-br-sm"
+                          : "bg-muted text-foreground rounded-bl-sm"
+                      }`}
+                    >
+                      {!mine && (
+                        <p className="text-[11px] font-bold text-muted-foreground mb-0.5">
+                          {comment.username ?? "Unknown"}
+                        </p>
+                      )}
+                      <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                        {comment.body}
                       </p>
-                      <span className="text-[11px] text-muted-foreground shrink-0">
+                      <p
+                        className={`text-[10px] mt-1 tabular-nums ${
+                          mine ? "text-primary-foreground/70" : "text-muted-foreground"
+                        }`}
+                      >
                         {relTime(comment.createdAt)}
-                      </span>
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mt-0.5 leading-relaxed">
-                      {comment.body}
-                    </p>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

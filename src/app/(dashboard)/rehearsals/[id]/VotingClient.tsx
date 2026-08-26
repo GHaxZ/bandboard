@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Edit,
   FileText,
   Hourglass,
   Music as MusicIcon,
@@ -65,8 +66,9 @@ export function VotingClient({
   const [songs, setSongs] = useState<Song[]>(songsList);
   const [progressMap] = useState<ProgressMap>(initialProgressMap);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -170,8 +172,23 @@ export function VotingClient({
   async function handleRemoveNomination(songId: string) {
     setPendingRemoveId(null);
     const res = await removeNomination(rehearsalId, songId);
-    if (res.success) await refreshVotingState();
-    else toast.error("Failed to remove song: " + (res.error ?? "unknown error"));
+    if (!res.success) {
+      toast.error("Failed to remove song: " + (res.error ?? "unknown error"));
+      return;
+    }
+    // Optimistic removal; refreshVotingState() reconciles.
+    setState((prev) => ({
+      ...prev,
+      candidates: prev.candidates.filter((c) => c.song.id !== songId),
+    }));
+    if (activeSongId === songId) {
+      const remaining = state.candidates.filter((c) => c.song.id !== songId);
+      const params = new URLSearchParams(searchParams.toString());
+      if (remaining.length > 0) params.set("song", remaining[0].song.id);
+      else params.delete("song");
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+    await refreshVotingState();
   }
 
   async function handleEndVoting() {
@@ -187,6 +204,7 @@ export function VotingClient({
 
   async function handleDeleteRehearsal() {
     setConfirmDeleteOpen(false);
+    setIsDeleting(true);
     try {
       const res = await deleteRehearsal(rehearsalId);
       if (res.success) router.push("/rehearsals");
@@ -194,6 +212,8 @@ export function VotingClient({
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete rehearsal");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -245,14 +265,15 @@ export function VotingClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* flex-wrap: labeled buttons overflow narrow phones otherwise */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {!state.finalizedAt && (
             <Button
               variant="secondary"
               onClick={() => setConfirmEndOpen(true)}
               className="rounded-xl text-xs font-bold px-3.5 h-9"
             >
-              <VoteIcon className="w-3.5 h-3.5 mr-1" /> End Voting Now
+              <VoteIcon className="w-3.5 h-3.5 mr-1" /> End Vote
             </Button>
           )}
           <Button
@@ -260,14 +281,17 @@ export function VotingClient({
             onClick={() => setIsEditOpen(true)}
             className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
-            Edit Details
+            <Edit className="w-3.5 h-3.5 mr-1" /> Edit
           </Button>
           <Button
             variant="danger-subtle"
+            size="icon"
+            disabled={isDeleting}
             onClick={() => setConfirmDeleteOpen(true)}
-            className="rounded-xl text-xs font-bold px-3.5 h-9"
+            className="rounded-xl h-9 w-9 shrink-0"
+            title="Delete Session"
           >
-            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Session
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -329,6 +353,12 @@ export function VotingClient({
                   <OriginalSongDashboard
                     song={currentSong}
                     onRefresh={handleRefreshAll}
+                    onDelete={
+                      votingClosed
+                        ? undefined
+                        : () => setPendingRemoveId(currentSong.id)
+                    }
+                    deleteTitle="Remove nomination (and its votes/comments)"
                     onPractice={() => router.push(`/songs/${currentSong.id}/practice`)}
                     onEdit={() => router.push(`/songs/${currentSong.id}/edit`)}
                     preferredInstrument={preferredInstrument}
@@ -339,6 +369,12 @@ export function VotingClient({
                 <SongDashboard
                   song={currentSong}
                   onRefresh={handleRefreshAll}
+                  onDelete={
+                    votingClosed
+                      ? undefined
+                      : () => setPendingRemoveId(currentSong.id)
+                  }
+                  deleteTitle="Remove nomination (and its votes/comments)"
                   onPractice={() => router.push(`/songs/${currentSong.id}/practice`)}
                   preferredInstrument={preferredInstrument}
                 />
@@ -394,6 +430,7 @@ export function VotingClient({
         description="The voting session with all nominations, votes and comments will be permanently removed."
         confirmLabel="Delete Session"
         destructive
+        loading={isDeleting}
       />
     </div>
   );

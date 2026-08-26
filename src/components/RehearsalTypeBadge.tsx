@@ -16,7 +16,7 @@ export function RehearsalTypeBadge({ rehearsalType, className }: RehearsalTypeBa
   return (
     <span
       className={cn(
-        "text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
+        "text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border-0 shrink-0",
         meta.soft,
         meta.text,
         className

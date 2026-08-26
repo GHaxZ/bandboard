@@ -37,7 +37,9 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !loading && onClose()}>
-      <DialogContent className="max-w-sm w-[95vw]">
+      {/* max-w-lg: deliberately wider than every parent dialog (max-w-md),
+          so stacked confirms visibly contain the dialog behind them. */}
+      <DialogContent className="max-w-lg w-[95vw]">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-base font-bold text-foreground">{title}</DialogTitle>
           {description && (

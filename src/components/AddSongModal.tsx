@@ -89,6 +89,8 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
 
   function closeAndReset() {
     onClose();
+    setTitle("");
+    setArtist("");
     setMode("cover");
     setError(null);
   }
@@ -101,7 +103,7 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent className="max-w-md w-[95vw]">
+      <DialogContent className="max-w-md w-[95vw] max-h-[85dvh] flex flex-col gap-4">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Music className="w-5 h-5 text-muted-foreground" />
@@ -143,7 +145,8 @@ export function AddSongModal({ isOpen, onClose, onSuccess }: AddSongModalProps) 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 my-2">
+        {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
+        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto">
           <div className="space-y-1.5">
             <Label
               htmlFor="songTitle"

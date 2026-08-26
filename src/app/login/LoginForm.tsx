@@ -154,8 +154,9 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 </Label>
                 <Input
                   id="inviteCode"
-                  type="password"
+                  type="text"
                   required
+                  autoComplete="off"
                   disabled={isSubmitting}
                   placeholder="Ask your band admin for the code"
                   value={inviteCode}

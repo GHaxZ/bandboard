@@ -488,6 +488,8 @@ export function OriginalEditor({
         <Button
           variant="ghost"
           onClick={handleBack}
+          title="Back to song details"
+          aria-label="Back to song details"
           className="text-muted-foreground hover:text-foreground hover:bg-card rounded-xl w-10 h-10 p-0 border border-transparent hover:border-border"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -552,20 +554,22 @@ export function OriginalEditor({
             {/* Title + Artist */}
             <div className="flex-1 space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <Label htmlFor="originalTitle" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   Song Title
                 </Label>
                 <Input
+                  id="originalTitle"
                   value={titleDraft}
                   onChange={(e) => setTitleDraft(e.target.value)}
                   className="bg-background border-border text-foreground rounded-xl"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <Label htmlFor="originalArtist" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   Artist / Band Name
                 </Label>
                 <Input
+                  id="originalArtist"
                   value={artistDraft}
                   onChange={(e) => setArtistDraft(e.target.value)}
                   className="bg-background border-border text-foreground rounded-xl"
@@ -577,9 +581,9 @@ export function OriginalEditor({
           {/* Tunings — only for Guitar and Bass */}
           {(hasGuitarStems || hasBassStems) && (
             <div className="space-y-2 pt-2 border-t border-border">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Instrument Tunings
-              </Label>
+              </span>
               <div className="flex flex-wrap gap-3">
                 {(
                   [

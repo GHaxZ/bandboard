@@ -78,7 +78,7 @@ export function KanbanBoard({
     PROGRESS_STATUSES.find((s) => s.id === statusId)?.label || statusId;
 
   return (
-    <div className="space-y-4 flex flex-col h-full">
+    <div className="space-y-4">
       <SearchInput placeholder="Search setlist songs..." value={searchQuery} onChange={setSearchQuery} />
 
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -188,13 +188,13 @@ export function KanbanBoard({
                                           void persistStatus(song.id, leftStatus);
                                         }}
                                         disabled={isSaving}
-                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
+                                        className="text-muted-foreground hover:text-foreground p-2 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(leftStatus)}`}
                                       >
-                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                        <ChevronLeft className="w-4 h-4" />
                                       </button>
                                     ) : (
-                                      <div className="w-7" />
+                                      <div className="w-9" />
                                     )}
 
                                     <button
@@ -216,13 +216,13 @@ export function KanbanBoard({
                                           void persistStatus(song.id, rightStatus);
                                         }}
                                         disabled={isSaving}
-                                        className="text-muted-foreground hover:text-foreground p-1 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
+                                        className="text-muted-foreground hover:text-foreground p-2 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(rightStatus)}`}
                                       >
-                                        <ChevronRight className="w-3.5 h-3.5" />
+                                        <ChevronRight className="w-4 h-4" />
                                       </button>
                                     ) : (
-                                      <div className="w-7" />
+                                      <div className="w-9" />
                                     )}
                                   </div>
                                 </div>

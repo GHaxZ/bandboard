@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Play } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ProgressBadge } from "@/components/ProgressBadge";
 import { SongTypeBadge } from "@/components/SongTypeBadge";
 import { TuningBadges } from "@/components/TuningBadges";
 import { CoverArt } from "@/components/CoverArt";
 import { Eyebrow } from "@/components/Eyebrow";
+import { PracticeButton } from "@/components/PracticeButton";
 import type { Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
 
@@ -65,15 +64,7 @@ export function SongCard({
           <span className="text-[10px] text-muted-foreground font-mono tracking-wider">
             {roleCaption}
           </span>
-          <Button
-            size="sm"
-            variant="practice"
-            className="relative z-10"
-            onClick={() => onPractice(song.id)}
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            Practice
-          </Button>
+          <PracticeButton onClick={() => onPractice(song.id)} className="relative z-10" />
         </div>
         {/* Stretched link replaces the old <Link> wrapper — a <button> inside an
             <a> is invalid HTML and broke screen-reader semantics. */}

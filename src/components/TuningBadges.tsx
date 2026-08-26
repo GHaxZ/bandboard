@@ -26,7 +26,7 @@ export function TuningBadges({
 
   const sizeCls =
     size === "xs"
-      ? "text-[7.5px] px-1.5 py-0.5 leading-none"
+      ? "text-[8px] px-1.5 py-0.5 leading-none"
       : "text-[9px] px-1.5 py-0.5";
 
   const matchCls =

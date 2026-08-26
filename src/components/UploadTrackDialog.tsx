@@ -17,12 +17,14 @@ import { Label } from "@/components/ui/label";
 import { Upload, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
+import { cn } from "@/lib/utils";
 import {
   INSTRUMENT_ROLES,
   ROLE_LABEL,
   MAX_UPLOAD_BYTES,
   ALLOWED_UPLOAD_MIMES,
   UPLOAD_ACCEPT,
+  SONG_TYPE_BADGE,
   browserCanPlay,
 } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
@@ -118,9 +120,9 @@ export function UploadTrackDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4 my-2">
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               File
-            </Label>
+            </span>
             <FileInput accept={UPLOAD_ACCEPT} onChange={handleFileChange} />
             {file && (
               <p className="text-[10px] text-muted-foreground">
@@ -128,7 +130,14 @@ export function UploadTrackDialog({
               </p>
             )}
             {warn && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-600/30 dark:border-amber-800 bg-amber-500/10 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <div
+                className={cn(
+                  "flex items-start gap-2 rounded-xl px-3 py-2 text-xs",
+                  SONG_TYPE_BADGE.original.border,
+                  SONG_TYPE_BADGE.original.soft,
+                  SONG_TYPE_BADGE.original.text
+                )}
+              >
                 <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
                 <span className="leading-snug">{warn}</span>
               </div>
@@ -136,10 +145,13 @@ export function UploadTrackDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="stemRole"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Role
             </Label>
-            <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            <Select id="stemRole" value={role} onChange={(e) => setRole(e.target.value as Role)}>
               {INSTRUMENT_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
@@ -149,10 +161,14 @@ export function UploadTrackDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label
+              htmlFor="stemLabel"
+              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+            >
               Label (optional)
             </Label>
             <Input
+              id="stemLabel"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Bass stem, Rhythm guitar..."

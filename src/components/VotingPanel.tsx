@@ -98,7 +98,7 @@ export function VotingPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
           <ListMusic className="w-5 h-5 text-muted-foreground" />
           Candidates ({candidates.length})
@@ -111,7 +111,7 @@ export function VotingPanel({
             }}
             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold py-1 h-9"
           >
-            <Plus className="w-3.5 h-3.5 mr-1" /> Add Songs
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add
           </Button>
         )}
       </div>
@@ -144,84 +144,99 @@ export function VotingPanel({
             return (
               <div
                 key={song.id}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
+                className={`p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
                     ? "bg-muted border-ring/40 shadow-md shadow-black/20"
                     : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
                 }`}
               >
-                <button
-                  onClick={() => onSelectSong(song.id)}
-                  className="flex-1 text-left min-w-0 flex items-center gap-3 pr-2 cursor-pointer"
-                >
-                  <span
-                    className={`text-xs font-mono font-bold w-6 text-right flex-shrink-0 ${
-                      inSelection ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"
-                    }`}
-                    title={inSelection ? "Currently in the selection" : "Currently below the cut-off"}
+                {/* Mobile (<420px): title on top, vote+comment bottom-left,
+                    trash pushed right. Desktop: classic single row. */}
+                <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-2 min-[420px]:gap-0">
+                  <button
+                    onClick={() => onSelectSong(song.id)}
+                    className="flex-1 min-w-0 text-left flex items-center gap-3 min-[520px]:pr-2 cursor-pointer"
                   >
-                    {index + 1}.
-                  </span>
-                  <CoverArt song={song} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 flex-wrap">
+                    <span
+                      className={`text-xs font-mono font-bold w-6 text-right flex-shrink-0 ${
+                        inSelection
+                          ? "text-violet-600 dark:text-violet-400"
+                          : "text-muted-foreground"
+                      }`}
+                      title={
+                        inSelection
+                          ? "Currently in the selection"
+                          : "Currently below the cut-off"
+                      }
+                    >
+                      {index + 1}.
+                    </span>
+                    <CoverArt song={song} size="sm" />
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-foreground/90 truncate min-w-0">
                         {song.title}
                       </p>
-                      <SongTypeBadge songType={song.songType} />
-                      <ProgressBadge status={progressMap[song.id]?.status || "not_started"} />
-                      <TuningBadges song={song} highlightRole={preferredInstrument} size="xs" />
+                      <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
+                        {song.artist}
+                        {candidate.addedByUsername && (
+                          <span className="text-muted-foreground/70">
+                            {" "}
+                            · via {candidate.addedByUsername}
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        <SongTypeBadge songType={song.songType} />
+                        <ProgressBadge status={progressMap[song.id]?.status || "not_started"} />
+                        <TuningBadges song={song} highlightRole={preferredInstrument} size="xs" />
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
-                      {song.artist}
-                      {candidate.addedByUsername && (
-                        <span className="text-muted-foreground/70"> · via {candidate.addedByUsername}</span>
-                      )}
-                    </p>
-                  </div>
-                </button>
+                  </button>
 
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!votingOpen || pendingActionIds.has(song.id)}
-                    onClick={() => onToggleVote(song.id)}
-                    title={candidate.votedByMe ? "Remove your vote" : "Vote for this song"}
-                    className={`h-8 px-2.5 gap-0.5 rounded-lg font-bold text-xs cursor-pointer border transition-all duration-200 ${
-                      candidate.votedByMe
-                        ? "bg-primary text-primary-foreground border-primary/60 shadow-sm hover:bg-primary/90"
-                        : "bg-card border-border text-foreground/80 hover:border-primary/40 hover:text-primary hover:bg-primary/5"
-                    }`}
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                    <span className="tabular-nums">{candidate.voteCount}</span>
-                  </Button>
-
-                  <SongCommentPopover
-                    rehearsalId={rehearsalId}
-                    songId={song.id}
-                    songTitle={song.title}
-                    commentCount={candidate.commentCount}
-                    hasUnread={candidate.hasUnreadComments}
-                    disabled={!votingOpen}
-                    currentUserId={currentUserId}
-                    currentUsername={currentUsername}
-                    onCountChange={onCommentCountChange}
-                    onMarkedRead={onCommentsRead}
-                  />
-
-                  {votingOpen && (
+                  {/* Mobile (<420px): vote+comment bottom-left, trash pushed
+                      right. Desktop: inline cluster. */}
+                  <div className="flex items-center gap-1 shrink-0 self-start min-[420px]:self-auto w-full min-[420px]:w-auto">
                     <Button
                       variant="ghost"
-                      size="icon"
-                      onClick={() => onRequestRemoveNomination(song.id)}
-                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-0.5 disabled:opacity-40"
-                      title="Remove nomination (and its votes/comments)"
+                      size="sm"
+                      disabled={!votingOpen || pendingActionIds.has(song.id)}
+                      onClick={() => onToggleVote(song.id)}
+                      title={candidate.votedByMe ? "Remove your vote" : "Vote for this song"}
+                      className={`h-8 px-2.5 gap-0.5 rounded-lg font-bold text-xs cursor-pointer border transition-all duration-200 ${
+                        candidate.votedByMe
+                          ? "bg-primary text-primary-foreground border-primary/60 shadow-sm hover:bg-primary/90"
+                          : "bg-primary/15 border-primary/25 text-primary/70 hover:bg-primary/25 hover:text-primary hover:border-primary/40"
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <ChevronUp className="w-4 h-4" />
+                      <span className="tabular-nums">{candidate.voteCount}</span>
                     </Button>
-                  )}
+
+                    <SongCommentPopover
+                      rehearsalId={rehearsalId}
+                      songId={song.id}
+                      songTitle={song.title}
+                      commentCount={candidate.commentCount}
+                      hasUnread={candidate.hasUnreadComments}
+                      disabled={!votingOpen}
+                      currentUserId={currentUserId}
+                      currentUsername={currentUsername}
+                      onCountChange={onCommentCountChange}
+                      onMarkedRead={onCommentsRead}
+                    />
+
+                    {votingOpen && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onRequestRemoveNomination(song.id)}
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-0.5 disabled:opacity-40"
+                        title="Remove nomination (and its votes/comments)"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

@@ -11,9 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
 import { convertRehearsalToVote } from "@/app/actions/votes";
 import { Loader2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -54,22 +52,17 @@ export function ConvertToVoteModal({
   rehearsal,
   onSuccess,
 }: ConvertToVoteModalProps) {
-  const [title, setTitle] = useState(rehearsal.title);
-  const [dateTimeStr, setDateTimeStr] = useState("");
-  const [notes, setNotes] = useState(rehearsal.notes || "");
   const [votingEndsStr, setVotingEndsStr] = useState("");
   const [selectionCount, setSelectionCount] = useState("3");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
-  // Autofill everything: session fields from the rehearsal, vote settings
-  // from its previous vote state when it has one.
+  // Autofill vote settings from the rehearsal's previous vote state when it
+  // has one. Title/date/notes are NOT editable here — the conversion action
+  // doesn't accept them, so editing would silently discard input.
   useEffect(() => {
     if (!isOpen) return;
-    setTitle(rehearsal.title);
-    setNotes(rehearsal.notes || "");
-    setDateTimeStr(toDateTimeLocal(rehearsal.date));
     setVotingEndsStr(
       toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date))
     );
@@ -79,25 +72,21 @@ export function ConvertToVoteModal({
   const hasUnsavedChanges = useMemo(() => {
     if (!isOpen) return false;
     return (
-      title !== rehearsal.title ||
-      notes !== (rehearsal.notes || "") ||
-      dateTimeStr !== toDateTimeLocal(rehearsal.date) ||
       votingEndsStr !==
         toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date)) ||
       selectionCount !== String(rehearsal.songSelectionCount ?? 3)
     );
-  }, [isOpen, title, notes, dateTimeStr, votingEndsStr, selectionCount, rehearsal]);
+  }, [isOpen, votingEndsStr, selectionCount, rehearsal]);
 
   async function doSubmit(): Promise<boolean> {
-    if (!title.trim() || !dateTimeStr || !votingEndsStr) return false;
+    if (!votingEndsStr) return false;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = new Date(dateTimeStr).getTime();
       const endsTs = new Date(votingEndsStr).getTime();
-      if (isNaN(timestamp) || isNaN(endsTs)) throw new Error("Invalid date or time selected");
+      if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
       const count = Math.round(Number(selectionCount));
       if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
         setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
@@ -105,7 +94,6 @@ export function ConvertToVoteModal({
         return false;
       }
 
-      // Title/date/notes edits ride along with the conversion.
       const res = await convertRehearsalToVote(rehearsal.id, endsTs, count);
       if (res.success) {
         toast.success("Voting created");
@@ -137,7 +125,7 @@ export function ConvertToVoteModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent className="max-w-md w-[95vw]">
+      <DialogContent className="max-w-md w-[95vw] max-h-[85dvh] flex flex-col gap-4">
         <DialogHeader className="space-y-1">
           <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
             <VoteIcon className="w-5 h-5 text-muted-foreground" />
@@ -145,37 +133,15 @@ export function ConvertToVoteModal({
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
             The current setlist becomes the candidate list. Members nominate and vote; the top
-            songs become the new setlist when the voting ends.
+            songs become the new setlist when the voting ends. Title, date and notes stay
+            unchanged — edit them on the rehearsal page.
             {rehearsal.votingEndsAt !== null &&
               " Previous votes and comments from earlier rounds are restored."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 my-2">
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="convertTitle"
-              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-            >
-              Rehearsal Title
-            </Label>
-            <Input
-              id="convertTitle"
-              required
-              disabled={isLoading}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="rounded-xl"
-            />
-          </div>
-
-          <RehearsalDateTimeFields
-            id="convertDateTime"
-            value={dateTimeStr}
-            onChange={setDateTimeStr}
-            disabled={isLoading}
-          />
-
+        {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
+        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto">
           <div className="space-y-1.5">
             <Label
               htmlFor="convertVotingEnds"
@@ -213,22 +179,6 @@ export function ConvertToVoteModal({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="convertNotes"
-              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-            >
-              Notes / Location (Optional)
-            </Label>
-            <Textarea
-              id="convertNotes"
-              disabled={isLoading}
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
           <FormError>{error}</FormError>
 
           <DialogFooter>
@@ -243,10 +193,10 @@ export function ConvertToVoteModal({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || !title.trim() || !dateTimeStr || !votingEndsStr}
+              disabled={isLoading || !votingEndsStr}
               className={cn(
                 "rounded-xl shadow-md font-bold px-5 flex items-center gap-1.5 transition-all duration-300",
-                !isLoading
+                !isLoading && !!votingEndsStr
                   ? "bg-success hover:bg-success/90 border border-success/50 text-white shadow-lg shadow-success/30 motion-reduce:animate-none"
                   : "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
               )}

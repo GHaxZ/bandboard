@@ -161,7 +161,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                     variant={isSelected ? "secondary" : "outline"}
                     disabled={savingInstrument}
                     onClick={() => handleInstrumentChange(inst)}
-                    className="rounded-xl h-11 font-bold text-xs disabled:opacity-50 aria-expanded:bg-btn-hover"
+                    className="rounded-xl h-11 font-bold text-xs disabled:opacity-50"
                   >
                     {ROLE_LABEL[inst]}
                   </Button>
@@ -256,6 +256,20 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               </div>
             </form>
 
+            {/* Log Out is routine, not destructive — kept out of the Danger Zone */}
+            <div className="pt-2 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await logout();
+                  window.location.href = "/login";
+                }}
+                className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
+              >
+                Log Out
+              </Button>
+            </div>
+
             <div className="pt-2 space-y-2 border-t border-border">
               <Label
                 htmlFor="deletePassword"
@@ -283,16 +297,6 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Account
                 </Button>
               </div>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await logout();
-                  window.location.href = "/login";
-                }}
-                className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold py-1.5 h-9"
-              >
-                Log Out
-              </Button>
             </div>
           </CardContent>
         </Card>

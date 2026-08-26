@@ -132,7 +132,7 @@ export function SetlistManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
           <ListMusic className="w-5 h-5 text-muted-foreground" />
           Setlist ({rehearsalSongs.length} songs)
@@ -148,7 +148,7 @@ export function SetlistManager({
             }}
             className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold py-1 h-9"
           >
-            <Plus className="w-3.5 h-3.5 mr-1" /> Add Songs
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add
           </Button>
         </div>
       </div>
@@ -172,15 +172,18 @@ export function SetlistManager({
             return (
               <div
                 key={rs.songId}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
+                className={`p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
                     ? "bg-muted border-ring/40 shadow-md shadow-black/20"
                     : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
                 }`}
               >
+                {/* Mobile (<420px): title on top, controls bottom-left, trash
+                    pushed right — mirrors the VotingPanel candidate rows. */}
+                <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-2 min-[420px]:gap-0">
                 <button
                   onClick={() => onSelectSong(rs.songId)}
-                  className="flex-1 text-left min-w-0 flex items-center gap-3 pr-2"
+                  className="flex-1 min-w-0 text-left flex items-center gap-3 min-[520px]:pr-2 cursor-pointer"
                 >
                   <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                     {index + 1}.
@@ -208,7 +211,7 @@ export function SetlistManager({
                   </div>
                 </button>
 
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0 self-start min-[420px]:self-auto w-full min-[420px]:w-auto">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -243,11 +246,12 @@ export function SetlistManager({
                     size="icon"
                     disabled={pendingActionIds.has(rs.songId)}
                     onClick={() => handleRemoveSong(rs.songId)}
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-1 disabled:opacity-40"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-1 disabled:opacity-40"
                     title="Remove from Setlist"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
+                </div>
                 </div>
               </div>
             );

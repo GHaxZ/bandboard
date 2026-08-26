@@ -57,6 +57,14 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Scrollbar suppression utilities used across horizontal tab strips */
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+}
+
 :root {
   /* "Daylight" — cream paper light theme */
   --background: oklch(0.97 0.012 85);

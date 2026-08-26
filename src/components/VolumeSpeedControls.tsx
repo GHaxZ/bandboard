@@ -29,7 +29,9 @@ export function VolumeSpeedControls({
       >
         <button
           onClick={() => onVolumeChange(volume === 0 ? 100 : 0)}
-          className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center"
+          aria-label={volume === 0 ? "Unmute" : "Mute"}
+          title={volume === 0 ? "Unmute" : "Mute"}
+          className="text-accent-text hover:text-accent-text-strong transition-colors cursor-pointer border-0 bg-transparent p-2 -m-2 rounded-md flex items-center"
         >
           {volume === 0 ? (
             <VolumeX className="w-3.5 h-3.5" />

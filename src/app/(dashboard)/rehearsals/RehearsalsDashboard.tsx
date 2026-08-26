@@ -62,32 +62,32 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
         icon={CalendarIcon}
         title="Rehearsal Sessions"
         description="Organize setlists and check instrument tracks during practice."
-        actions={
-          <Button
-            onClick={() => setIsAddRehearsalOpen(true)}
-            variant="secondary"
-            className="rounded-xl shadow-md font-bold text-xs"
-          >
-            <Plus className="w-4 h-4 mr-1" /> Schedule Prep
-          </Button>
-        }
       />
 
-      <div className="flex items-center gap-1 rounded-xl bg-muted/30 border border-border p-1 w-fit">
-        {typeFilterOptions.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setTypeFilter(opt.value)}
-            className={
-              typeFilter === opt.value
-                ? "px-3 py-1 text-[11px] font-bold rounded-lg bg-btn-bg text-foreground border border-dialog-border"
-                : "px-3 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground border border-transparent"
-            }
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 rounded-xl bg-muted/30 border border-border p-1 w-fit min-w-0 overflow-x-auto scrollbar-none">
+          {typeFilterOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setTypeFilter(opt.value)}
+              className={
+                typeFilter === opt.value
+                  ? "px-3 py-1 text-[11px] font-bold rounded-lg bg-btn-bg text-foreground border border-dialog-border whitespace-nowrap"
+                  : "px-3 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground border border-transparent whitespace-nowrap"
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <Button
+          onClick={() => setIsAddRehearsalOpen(true)}
+          variant="secondary"
+          className="rounded-xl shadow-md font-bold text-xs shrink-0"
+        >
+          <Plus className="w-4 h-4 mr-1" /> Schedule
+        </Button>
       </div>
 
       <SearchInput
@@ -111,7 +111,7 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
                 onClick={() => setIsAddRehearsalOpen(true)}
                 className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold"
               >
-                Schedule Your First Prep
+                Schedule
               </Button>
             ) : undefined
           }

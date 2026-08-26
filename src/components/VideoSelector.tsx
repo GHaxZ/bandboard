@@ -21,6 +21,7 @@ import {
   ALLOWED_UPLOAD_MIMES,
   MAX_UPLOAD_BYTES,
   UPLOAD_ACCEPT,
+  SONG_TYPE_BADGE,
   browserCanPlay,
 } from "@/lib/constants";
 import type { YouTubeVideo } from "@/lib/youtube";
@@ -227,6 +228,8 @@ export function VideoSelector({
                 onClick={() => handleSearch(query)}
                 disabled={isLoading}
                 variant="secondary"
+                title="Search"
+                aria-label="Search"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               </Button>
@@ -337,7 +340,14 @@ export function VideoSelector({
             <FileInput accept={UPLOAD_ACCEPT} onChange={handleCustomFileChange} />
 
             {customWarn && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-600/30 dark:border-amber-800 bg-amber-500/10 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <div
+                className={cn(
+                  "flex items-start gap-2 rounded-xl px-3 py-2 text-xs",
+                  SONG_TYPE_BADGE.original.border,
+                  SONG_TYPE_BADGE.original.soft,
+                  SONG_TYPE_BADGE.original.text
+                )}
+              >
                 <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
                 <span className="leading-snug">{customWarn}</span>
               </div>
@@ -350,7 +360,7 @@ export function VideoSelector({
 
         <DialogFooter>
           <Button onClick={onClose} className="rounded-xl font-bold px-5">
-            Done
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

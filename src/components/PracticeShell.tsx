@@ -293,7 +293,7 @@ export function PracticeShell({
 
                   <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 scrollbar-thin">
                     {/* Static start-of-song chip — hotkey 0, not deletable */}
-                    <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7">
+                    <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-9">
                       <button
                         onClick={() => engine.seekTo(displayOffset)}
                         className="text-[10px] font-bold text-accent-text hover:text-foreground px-2 h-full hover:bg-primary/10 transition-all cursor-pointer border-0 flex items-center"
@@ -308,7 +308,7 @@ export function PracticeShell({
                     {markers.map((time, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7"
+                        className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-9"
                       >
                         <button
                           onClick={() => engine.seekTo(time + displayOffset)}
@@ -322,10 +322,10 @@ export function PracticeShell({
                         </button>
                         <button
                           onClick={() => handleDeleteMarker(idx)}
-                          className="text-muted-foreground hover:text-destructive px-1.5 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
+                          className="text-muted-foreground hover:text-destructive px-2 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
                           title="Delete marker"
                         >
-                          <Trash2 className="w-2.5 h-2.5" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
@@ -346,7 +346,7 @@ export function PracticeShell({
                       {/* Backing offset */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          <label htmlFor="backingOffsetField" className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                             {isVocals ? "Instrumental" : "Backing Track"} (s)
                           </label>
                           <button
@@ -369,6 +369,7 @@ export function PracticeShell({
                             -
                           </button>
                           <input
+                            id="backingOffsetField"
                             type="number"
                             step="0.1"
                             min="0"
@@ -391,7 +392,7 @@ export function PracticeShell({
                       {/* Tab offset */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          <label htmlFor="tabOffsetField" className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                             {isVocals ? "Vocal ref" : "Tab Video"} (s)
                           </label>
                           <button
@@ -414,6 +415,7 @@ export function PracticeShell({
                             -
                           </button>
                           <input
+                            id="tabOffsetField"
                             type="number"
                             step="0.1"
                             min="0"

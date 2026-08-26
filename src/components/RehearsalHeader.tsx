@@ -1,9 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Edit, Sliders, ListMusic, Trash2, Vote as VoteIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Edit,
+  Sliders,
+  ListMusic,
+  Trash2,
+  Vote as VoteIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientDate } from "./ClientDate";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { deleteRehearsal } from "@/app/actions/rehearsals";
 
 interface RehearsalHeaderProps {
   rehearsalId: string;
@@ -11,22 +23,40 @@ interface RehearsalHeaderProps {
   date: number;
   activeTab: "setlist" | "kanban";
   onEdit: () => void;
-  onDelete: () => void;
   /** Present on manual sessions / finished votes → offers re-voting. */
   onConvertToVote?: () => void;
 }
 
-/** Title/date header + Edit/Delete actions + tab switcher, shared by the
- *  rehearsal detail and kanban clients. */
+/** Title/date header + Edit action + tab switcher, shared by the rehearsal
+ *  detail and kanban clients. Delete is a self-contained trash icon with
+ *  confirmation, mirroring the song-details page. */
 export function RehearsalHeader({
   rehearsalId,
   title,
   date,
   activeTab,
   onEdit,
-  onDelete,
   onConvertToVote,
 }: RehearsalHeaderProps) {
+  const router = useRouter();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleDelete() {
+    setConfirmDeleteOpen(false);
+    setIsDeleting(true);
+    try {
+      const res = await deleteRehearsal(rehearsalId);
+      if (res.success) router.push("/rehearsals");
+      else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete rehearsal");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
@@ -47,14 +77,15 @@ export function RehearsalHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* flex-wrap: labeled buttons overflow narrow phones otherwise */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {onConvertToVote && (
             <Button
               variant="secondary"
               onClick={onConvertToVote}
               className="rounded-xl text-xs font-bold px-3.5 h-9"
             >
-              <VoteIcon className="w-3.5 h-3.5 mr-1" /> Turn into Vote
+              <VoteIcon className="w-3.5 h-3.5 mr-1" /> Start Vote
             </Button>
           )}
           <Button
@@ -62,14 +93,17 @@ export function RehearsalHeader({
             onClick={onEdit}
             className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
-            <Edit className="w-3.5 h-3.5 mr-1" /> Edit Details
+            <Edit className="w-3.5 h-3.5 mr-1" /> Edit
           </Button>
           <Button
             variant="danger-subtle"
-            onClick={onDelete}
-            className="rounded-xl text-xs font-bold px-3.5 h-9"
+            size="icon"
+            disabled={isDeleting}
+            onClick={() => setConfirmDeleteOpen(true)}
+            className="rounded-xl h-9 w-9 shrink-0"
+            title="Delete Session"
           >
-            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Session
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -98,6 +132,17 @@ export function RehearsalHeader({
           Kanban Board
         </Link>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete this rehearsal?"
+        description="The rehearsal with its setlist, votes and comments will be permanently removed."
+        confirmLabel="Delete Session"
+        destructive
+        loading={isDeleting}
+      />
     </>
   );
 }

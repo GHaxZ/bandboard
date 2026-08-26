@@ -13,11 +13,13 @@ import { ConvertToVoteModal } from "@/components/ConvertToVoteModal";
 import { SetlistManager } from "@/components/SetlistManager";
 import { SongDashboard } from "@/components/SongDashboard";
 import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
-import { deleteRehearsal, getRehearsalDetails } from "@/app/actions/rehearsals";
+import {
+  getRehearsalDetails,
+  removeSongFromRehearsalSetlist,
+} from "@/app/actions/rehearsals";
 import { getProgressMap } from "@/app/actions/user";
 import type { RehearsalDetails, Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface RehearsalDetailClientProps {
   rehearsalId: string;
@@ -42,7 +44,6 @@ export function RehearsalDetailClient({
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
 
   // Manual sessions AND finished votes can (re-)start a voting. Open votes
@@ -62,22 +63,41 @@ export function RehearsalDetailClient({
     });
   }
 
-  async function handleDeleteRehearsal() {
-    setConfirmDeleteOpen(false);
-    try {
-      const res = await deleteRehearsal(rehearsalId);
-      if (res.success) router.push("/rehearsals");
-      else toast.error("Failed to delete: " + (res.error ?? "unknown error"));
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete rehearsal");
-    }
-  }
-
   function handleSelectSong(songId: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("song", songId);
     router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  // Trash in the song-info pane = remove from setlist (same semantics as the
+  // SetlistManager trash, no extra confirm).
+  async function handleRemoveFromSetlist(songId: string) {
+    const remaining = rehearsalDetails.rehearsalSongs.filter(
+      (rs) => rs.songId !== songId
+    );
+    try {
+      const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
+      if (!res.success) {
+        toast.error("Failed to remove song: " + res.error);
+        return;
+      }
+      // Optimistic: drop it from local state now so the UI never waits on the
+      // refetch round-trip; refreshData() below reconciles.
+      setRehearsalDetails((prev) => ({
+        ...prev,
+        rehearsalSongs: prev.rehearsalSongs.filter((rs) => rs.songId !== songId),
+      }));
+      if (activeSongId === songId) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (remaining.length > 0) params.set("song", remaining[0].songId);
+        else params.delete("song");
+        router.replace(`${pathname}?${params.toString()}`);
+      }
+      refreshData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove song: " + String(err));
+    }
   }
 
   return (
@@ -88,7 +108,6 @@ export function RehearsalDetailClient({
         date={rehearsalDetails.date}
         activeTab="setlist"
         onEdit={() => setIsEditRehearsalOpen(true)}
-        onDelete={handleDeleteRehearsal}
         onConvertToVote={canConvertToVote ? () => setIsConvertOpen(true) : undefined}
       />
 
@@ -148,6 +167,8 @@ export function RehearsalDetailClient({
                   <OriginalSongDashboard
                     song={currentSong}
                     onRefresh={refreshData}
+                    onDelete={() => handleRemoveFromSetlist(currentSong.id)}
+                    deleteTitle="Remove from Setlist"
                     onPractice={() =>
                       router.push(`/songs/${currentSong.id}/practice`)
                     }
@@ -160,6 +181,8 @@ export function RehearsalDetailClient({
                 <SongDashboard
                   song={currentSong}
                   onRefresh={refreshData}
+                  onDelete={() => handleRemoveFromSetlist(currentSong.id)}
+                  deleteTitle="Remove from Setlist"
                   onPractice={() =>
                     router.push(`/songs/${currentSong.id}/practice`)
                   }
@@ -195,15 +218,6 @@ export function RehearsalDetailClient({
         }}
       />
 
-      <ConfirmDialog
-        isOpen={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
-        onConfirm={handleDeleteRehearsal}
-        title="Delete this rehearsal?"
-        description="The rehearsal prep session and its setlist will be permanently removed."
-        confirmLabel="Delete Session"
-        destructive
-      />
     </div>
   );
 }
