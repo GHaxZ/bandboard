@@ -93,6 +93,7 @@ export function validateRehearsal(r: Record<string, unknown>): string | null {
     }
   }
   if (
+    r.type === 'vote' &&
     typeof r.date === 'number' &&
     typeof r.votingEndsAt === 'number' &&
     r.votingEndsAt > r.date
