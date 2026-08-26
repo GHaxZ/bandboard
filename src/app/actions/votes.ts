@@ -199,7 +199,7 @@ export async function nominateSong(
         .from(rehearsalSongs)
         .where(eq(rehearsalSongs.rehearsalId, rehearsalId))
         .get();
-      const nextOrder = (Number(maxRow?.max ?? -1) || -1) + 1;
+      const nextOrder = Number(maxRow?.max ?? -1) + 1;
 
       tx.insert(rehearsalSongs)
         .values({
@@ -343,9 +343,6 @@ export async function convertRehearsalToVote(
       songSelectionCount,
     });
     if (err) return { success: false, error: err };
-    if (votingEndsAt > r.date) {
-      return { success: false, error: 'Voting must end before the rehearsal starts' };
-    }
 
     await db
       .update(rehearsals)
@@ -376,6 +373,13 @@ export async function addComment(
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (!voteIsOpen(r)) return { success: false, error: 'Voting has ended' };
+
+    const nominated = db
+      .select({ songId: rehearsalSongs.songId })
+      .from(rehearsalSongs)
+      .where(and(eq(rehearsalSongs.rehearsalId, rehearsalId), eq(rehearsalSongs.songId, songId)))
+      .get();
+    if (!nominated) return { success: false, error: 'Song is not nominated' };
 
     await db.insert(rehearsalSongComments).values({
       id: crypto.randomUUID(),

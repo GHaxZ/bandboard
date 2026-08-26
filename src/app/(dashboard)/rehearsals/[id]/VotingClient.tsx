@@ -23,6 +23,7 @@ import { ClientDate } from "@/components/ClientDate";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteRehearsal } from "@/app/actions/rehearsals";
 import { getSongs } from "@/app/actions/songs";
+import { getProgressMap } from "@/app/actions/user";
 import {
   endVotingNow,
   getVotingState,
@@ -64,7 +65,7 @@ export function VotingClient({
 
   const [state, setState] = useState<VotingState>(initialState);
   const [songs, setSongs] = useState<Song[]>(songsList);
-  const [progressMap] = useState<ProgressMap>(initialProgressMap);
+  const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -218,8 +219,13 @@ export function VotingClient({
   }
 
   async function handleRefreshAll() {
-    const [freshSongs] = await Promise.all([getSongs(), refreshVotingState()]);
+    const [freshSongs, freshProgress] = await Promise.all([
+      getSongs(),
+      getProgressMap(),
+      refreshVotingState(),
+    ]);
     setSongs(freshSongs);
+    setProgressMap(freshProgress);
   }
 
   const selectedCandidate = activeSongId

@@ -4,7 +4,14 @@ import { cookies } from 'next/headers';
 import { randomUUID } from 'node:crypto';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { sessions, users, userSettings, userSongProgress } from '@/db/schema';
+import {
+  sessions,
+  users,
+  userSettings,
+  userSongProgress,
+  rehearsalVotes,
+  commentReads,
+} from '@/db/schema';
 import { safeEqual } from '@/lib/utils';
 import { getSessionUser, hashPassword, verifyPassword } from '@/lib/auth';
 import {
@@ -239,9 +246,12 @@ export async function deleteAccount(
     }
 
     db.transaction((tx) => {
-      // user_settings/user_song_progress have no FK on user_uuid — delete explicitly.
+      // user_settings/user_song_progress/rehearsal_votes/comment_reads have no
+      // FK on user_uuid — delete explicitly or orphaned votes keep counting.
       tx.delete(userSongProgress).where(eq(userSongProgress.userUuid, user.id)).run();
       tx.delete(userSettings).where(eq(userSettings.userUuid, user.id)).run();
+      tx.delete(rehearsalVotes).where(eq(rehearsalVotes.userUuid, user.id)).run();
+      tx.delete(commentReads).where(eq(commentReads.userUuid, user.id)).run();
       tx.delete(users).where(eq(users.id, user.id)).run(); // sessions cascade via FK
     });
 

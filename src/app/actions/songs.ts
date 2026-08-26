@@ -222,6 +222,7 @@ export async function updateOriginalMetadata(
     await requireAuth();
     const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!current) return { success: false, error: "Song not found." };
+    let staleCoverName: string | null = null;
 
     // When renaming, ensure no duplicate original song with the new name+artist exists.
     if (patch.title !== undefined || patch.artist !== undefined) {
@@ -257,12 +258,15 @@ export async function updateOriginalMetadata(
       // Unlink the old file when the reference changes (removal → null or
       // replacement), so uploads/ doesn't accumulate orphaned images.
       const oldName = current.coverArtStoredName;
-      if (oldName && oldName !== name) deleteStoredFile(oldName);
+      if (oldName && oldName !== name) staleCoverName = oldName;
       set.coverArtStoredName = name;
     }
     if (Object.keys(set).length === 0) return { success: true };
 
     db.update(songs).set(set).where(eq(songs.id, songId)).run();
+    // Unlink only AFTER the row committed — deleting first would leave the DB
+    // pointing at a missing file if the UPDATE threw.
+    if (staleCoverName) deleteStoredFile(staleCoverName);
     return { success: true };
   } catch (error) {
     if (error instanceof AuthError) return { success: false, error: "Unauthorized" };

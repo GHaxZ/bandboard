@@ -92,5 +92,12 @@ export function validateRehearsal(r: Record<string, unknown>): string | null {
       return `songSelectionCount must be an integer of at least ${VOTE_SELECTION_MIN}`;
     }
   }
+  if (
+    typeof r.date === 'number' &&
+    typeof r.votingEndsAt === 'number' &&
+    r.votingEndsAt > r.date
+  ) {
+    return 'Voting must end before the rehearsal starts';
+  }
   return null;
 }

@@ -116,7 +116,7 @@ export function OriginalEditor({
       // Preserve draft edits (role, label, startOffset) for stems that still exist,
       // but update duration from server (probed value).
       const preserved = prev
-        .filter((t) => serverIds.has(t.id))
+        .filter((t) => serverIds.has(t.id) || pendingStemIds.has(t.id))
         .map((t) => {
           const server = tracks.find((tt) => tt.id === t.id);
           return server ? { ...t, duration: server.duration } : t;
@@ -132,7 +132,7 @@ export function OriginalEditor({
       }
       return next;
     });
-  }, [tracks]);
+  }, [tracks, pendingStemIds]);
 
   // Clear cover-art draft state only after `song` prop reflects the saved value.
   // This prevents flicker: the blob URL remains visible until the new stored name arrives.
@@ -414,7 +414,8 @@ export function OriginalEditor({
         if (draft.label !== saved.label) patch.label = draft.label;
         if (draft.startOffset !== saved.startOffset) patch.startOffset = draft.startOffset;
         if (Object.keys(patch).length > 0) {
-          await updateCustomTrack(draft.id, patch);
+          const res = await updateCustomTrack(draft.id, patch);
+          if (!res.success) throw new Error(res.error ?? "Stem update failed");
         }
       }
 
@@ -452,7 +453,8 @@ export function OriginalEditor({
 
       // 4. Deleted stems
       for (const id of deletedStemIds) {
-        await deleteCustomTrack(id);
+        const res = await deleteCustomTrack(id);
+        if (!res.success) throw new Error(res.error ?? "Stem deletion failed");
       }
 
       // 5. Scratchpad notes
