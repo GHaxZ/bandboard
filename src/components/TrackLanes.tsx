@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { cn, formatTime } from "@/lib/utils";
 import { ROLE_COLORS, DAW_PX_PER_SEC_MIN, DAW_PX_PER_SEC_MAX } from "@/lib/constants";
 import { Volume2, VolumeX, Headphones } from "lucide-react";
@@ -72,6 +72,7 @@ export function TrackLanes({
   const zoomRafRef = useRef<number | null>(null);
   const pendingZoomFactorRef = useRef<number | null>(null);
   const lastWheelXRef = useRef(0);
+  const pendingZoomAnchorRef = useRef<{ cursorT: number; viewportOffset: number } | null>(null);
 
   useEffect(() => {
     pxPerSecRef.current = pxPerSec;
@@ -102,17 +103,21 @@ export function TrackLanes({
         pendingZoomFactorRef.current = null;
         if (!target || factor === null) return;
         const rect = target.getBoundingClientRect();
-        const cursorX = lastWheelXRef.current - rect.left + target.scrollLeft;
-        const cursorT = cursorX / pxPerSecRef.current;
+        const cursorT =
+          (lastWheelXRef.current - rect.left + target.scrollLeft) / pxPerSecRef.current;
 
         const newPxPerSec = Math.max(
           DAW_PX_PER_SEC_MIN,
           Math.min(DAW_PX_PER_SEC_MAX, pxPerSecRef.current * factor)
         );
 
-        const newCursorX = cursorT * newPxPerSec;
-        target.scrollLeft = Math.max(0, newCursorX - (lastWheelXRef.current - rect.left));
-
+        // Store the cursor anchor; scrollLeft is applied AFTER React commits
+        // the new timeline width (useLayoutEffect below). Writing it here
+        // clamps against the OLD width — the ctrl+scroll jump/stutter.
+        pendingZoomAnchorRef.current = {
+          cursorT,
+          viewportOffset: lastWheelXRef.current - rect.left,
+        };
         onZoomChangeRef.current?.(newPxPerSec);
       });
     };
@@ -125,6 +130,22 @@ export function TrackLanes({
       pendingZoomFactorRef.current = null;
     };
   }, []);
+
+  // Apply the pending zoom anchor once the DOM reflects the new pxPerSec —
+  // synchronously before paint, so the point under the cursor stays put.
+  // Slider-driven zoom leaves the anchor null and is untouched.
+  useLayoutEffect(() => {
+    const anchor = pendingZoomAnchorRef.current;
+    if (!anchor) return;
+    pendingZoomAnchorRef.current = null;
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+    el.scrollLeft = Math.min(
+      Math.max(0, anchor.cursorT * pxPerSec - anchor.viewportOffset),
+      maxScrollLeft
+    );
+  }, [pxPerSec]);
 
   const maxEnd = tracks.reduce((max, t) => {
     const end = t.duration != null ? t.startOffset + t.duration : t.startOffset + 10;

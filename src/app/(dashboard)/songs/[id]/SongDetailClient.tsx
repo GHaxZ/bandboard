@@ -69,7 +69,7 @@ export function SongDetailClient({
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h2 className="text-lg font-heading font-bold text-foreground">Library Details</h2>
+          <h2 className="text-lg font-heading font-bold text-foreground">Song Details</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Inspect and customize tracks for this song.
           </p>

@@ -215,7 +215,7 @@ export function VideoSelector({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 my-2">
+        <div className="flex-1 overflow-y-auto space-y-4 my-2 px-3 -mx-3">
           {/* --- YouTube Section --- */}
           <div
             className={cn(

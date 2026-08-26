@@ -30,8 +30,8 @@ interface SetlistManagerProps {
   activeSongId: string | null;
   onSelectSong: (songId: string) => void;
   onRefresh: () => void;
-  /** Parent-owned removal: optimistic state update + URL fix + refetch. */
-  onRemoveSong?: (songId: string) => Promise<void>;
+  /** Opens the parent's confirm dialog; the parent performs the removal. */
+  onRequestRemoveSong?: (songId: string) => void;
   progressMap?: ProgressMap;
   onPracticeSong?: (songId: string) => void;
   onStartAutoplay?: () => void;
@@ -45,7 +45,7 @@ export function SetlistManager({
   activeSongId,
   onSelectSong,
   onRefresh,
-  onRemoveSong,
+  onRequestRemoveSong,
   progressMap,
   onPracticeSong,
   onStartAutoplay,
@@ -77,25 +77,6 @@ export function SetlistManager({
     } catch (err) {
       console.error(err);
       toast.error("Failed to add song: " + String(err));
-    } finally {
-      setPendingActionIds((prev) => {
-        const next = new Set(prev);
-        next.delete(songId);
-        return next;
-      });
-    }
-  }
-
-  async function handleRemoveSong(songId: string) {
-    if (pendingActionIds.has(songId)) return;
-    setPendingActionIds((prev) => new Set(prev).add(songId));
-    try {
-      // Parent owns the list state and the ?song= URL; it updates optimistically
-      // and reconciles after the awaited refetch.
-      await onRemoveSong?.(songId);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to remove song: " + String(err));
     } finally {
       setPendingActionIds((prev) => {
         const next = new Set(prev);
@@ -167,18 +148,18 @@ export function SetlistManager({
             return (
               <div
                 key={rs.songId}
-                className={`p-3 rounded-xl border transition-all duration-200 ${
+                className={`@container p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
                     ? "bg-muted border-ring/40 shadow-md shadow-black/20"
                     : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
                 }`}
               >
-                {/* Mobile (<420px): title on top, controls bottom-left, trash
+                {/* Narrow container: title on top, controls bottom-left, trash
                     pushed right — mirrors the VotingPanel candidate rows. */}
-                <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-2 min-[420px]:gap-0">
+                <div className="flex flex-col @min-[420px]:flex-row @min-[420px]:items-center gap-2 @min-[420px]:gap-0">
                 <button
                   onClick={() => onSelectSong(rs.songId)}
-                  className="flex-1 min-w-0 text-left flex items-center gap-3 min-[520px]:pr-2 cursor-pointer"
+                  className="flex-1 min-w-0 text-left flex items-center gap-3 @min-[520px]:pr-2 cursor-pointer"
                 >
                   <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-right flex-shrink-0">
                     {index + 1}.
@@ -206,7 +187,7 @@ export function SetlistManager({
                   </div>
                 </button>
 
-                <div className="flex items-center gap-1.5 shrink-0 self-start min-[420px]:self-auto w-full min-[420px]:w-auto">
+                <div className="flex items-center gap-1.5 shrink-0 self-start @min-[420px]:self-auto w-full @min-[420px]:w-auto">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -242,9 +223,8 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={pendingActionIds.has(rs.songId)}
-                    onClick={() => handleRemoveSong(rs.songId)}
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-1 disabled:opacity-40"
+                    onClick={() => onRequestRemoveSong?.(rs.songId)}
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto @min-[420px]:ml-1 disabled:opacity-40"
                     title="Remove from Setlist"
                     aria-label="Remove from Setlist"
                   >

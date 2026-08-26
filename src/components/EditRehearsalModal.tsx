@@ -164,7 +164,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
         </DialogHeader>
 
         {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
-        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto px-3 -mx-3">
           <div className="space-y-1.5">
             <Label
               htmlFor="editRehearsalTitle"

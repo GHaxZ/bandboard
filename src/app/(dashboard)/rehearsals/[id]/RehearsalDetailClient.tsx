@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -13,6 +13,7 @@ import { ConvertToVoteModal } from "@/components/ConvertToVoteModal";
 import { SetlistManager } from "@/components/SetlistManager";
 import { SongDashboard } from "@/components/SongDashboard";
 import { OriginalSongDashboard } from "@/components/OriginalSongDashboard";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   getRehearsalDetails,
   removeSongFromRehearsalSetlist,
@@ -39,11 +40,11 @@ export function RehearsalDetailClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
 
   const [rehearsalDetails, setRehearsalDetails] = useState<RehearsalDetails>(initialDetails);
   const [isEditRehearsalOpen, setIsEditRehearsalOpen] = useState(false);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
 
   // Manual sessions AND finished votes can (re-)start a voting. Open votes
@@ -55,12 +56,10 @@ export function RehearsalDetailClient({
     searchParams.get("song") || rehearsalDetails.rehearsalSongs[0]?.songId || null;
 
   async function refreshData() {
-    startTransition(async () => {
-      const details = await getRehearsalDetails(rehearsalId);
-      if (details) setRehearsalDetails(details);
-      const map = await getProgressMap();
-      setProgressMap(map);
-    });
+    const details = await getRehearsalDetails(rehearsalId);
+    if (details) setRehearsalDetails(details);
+    const map = await getProgressMap();
+    setProgressMap(map);
   }
 
   // Self-heal a stale ?song= (song removed from setlist / dead bookmark):
@@ -82,35 +81,22 @@ export function RehearsalDetailClient({
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  // Trash in the song-info pane = remove from setlist (same semantics as the
-  // SetlistManager trash, no extra confirm).
+  // Trash in the list or the song-info pane opens a confirm dialog (same
+  // flow as the voting view), then runs this mirrored removal.
   async function handleRemoveFromSetlist(songId: string) {
-    const remaining = rehearsalDetails.rehearsalSongs.filter(
-      (rs) => rs.songId !== songId
-    );
-    try {
-      const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
-      if (!res.success) {
-        toast.error("Failed to remove song: " + res.error);
-        return;
-      }
-      // Optimistic: drop it from local state now so the UI never waits on the
-      // refetch round-trip; refreshData() below reconciles.
-      setRehearsalDetails((prev) => ({
-        ...prev,
-        rehearsalSongs: prev.rehearsalSongs.filter((rs) => rs.songId !== songId),
-      }));
-      if (activeSongId === songId) {
-        const params = new URLSearchParams(searchParams.toString());
-        if (remaining.length > 0) params.set("song", remaining[0].songId);
-        else params.delete("song");
-        router.replace(`${pathname}?${params.toString()}`);
-      }
-      await refreshData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to remove song: " + String(err));
+    setPendingRemoveId(null);
+    const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
+    if (!res.success) {
+      toast.error("Failed to remove song: " + res.error);
+      return;
     }
+    // Optimistic: drop it from local state now; refreshData() reconciles.
+    // The self-heal effect repairs a stale ?song= pointing at the removed song.
+    setRehearsalDetails((prev) => ({
+      ...prev,
+      rehearsalSongs: prev.rehearsalSongs.filter((rs) => rs.songId !== songId),
+    }));
+    await refreshData();
   }
 
   return (
@@ -146,7 +132,7 @@ export function RehearsalDetailClient({
               activeSongId={activeSongId}
               onSelectSong={handleSelectSong}
               onRefresh={refreshData}
-              onRemoveSong={handleRemoveFromSetlist}
+              onRequestRemoveSong={(songId) => setPendingRemoveId(songId)}
               progressMap={progressMap}
               onPracticeSong={(songId) => router.push(`/songs/${songId}/practice`)}
               onStartAutoplay={() => router.push(`/rehearsals/${rehearsalId}/practice`)}
@@ -181,7 +167,7 @@ export function RehearsalDetailClient({
                   <OriginalSongDashboard
                     song={currentSong}
                     onRefresh={refreshData}
-                    onDelete={() => handleRemoveFromSetlist(currentSong.id)}
+                    onDelete={() => setPendingRemoveId(currentSong.id)}
                     deleteTitle="Remove from Setlist"
                     onPractice={() =>
                       router.push(`/songs/${currentSong.id}/practice`)
@@ -195,7 +181,7 @@ export function RehearsalDetailClient({
                 <SongDashboard
                   song={currentSong}
                   onRefresh={refreshData}
-                  onDelete={() => handleRemoveFromSetlist(currentSong.id)}
+                  onDelete={() => setPendingRemoveId(currentSong.id)}
                   deleteTitle="Remove from Setlist"
                   onPractice={() =>
                     router.push(`/songs/${currentSong.id}/practice`)
@@ -227,9 +213,21 @@ export function RehearsalDetailClient({
           songSelectionCount: rehearsalDetails.songSelectionCount,
         }}
         onSuccess={() => {
-          // The server now classifies this as an open vote — swap views.
-          router.refresh();
+          // Server now classifies this as an open vote — hard swap to the
+          // voting view. router.refresh() intermittently lost the race.
+          window.location.reload();
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={pendingRemoveId !== null}
+        onClose={() => setPendingRemoveId(null)}
+        onConfirm={() => pendingRemoveId && handleRemoveFromSetlist(pendingRemoveId)}
+        title="Remove this song from the setlist?"
+        description="The song will be removed from this session's setlist. It stays in your library."
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        destructive
       />
 
     </div>

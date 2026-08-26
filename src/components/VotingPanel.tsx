@@ -144,18 +144,18 @@ export function VotingPanel({
             return (
               <div
                 key={song.id}
-                className={`p-3 rounded-xl border transition-all duration-200 ${
+                className={`@container p-3 rounded-xl border transition-all duration-200 ${
                   isSelected
                     ? "bg-muted border-ring/40 shadow-md shadow-black/20"
                     : "bg-background/40 border-border/80 hover:bg-card/60 hover:border-ring/30"
                 }`}
               >
-                {/* Mobile (<420px): title on top, vote+comment bottom-left,
-                    trash pushed right. Desktop: classic single row. */}
-                <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-2 min-[420px]:gap-0">
+                {/* Narrow container: title on top, vote+comment bottom-left,
+                    trash pushed right. Wide container: classic single row. */}
+                <div className="flex flex-col @min-[420px]:flex-row @min-[420px]:items-center gap-2 @min-[420px]:gap-0">
                   <button
                     onClick={() => onSelectSong(song.id)}
-                    className="flex-1 min-w-0 text-left flex items-center gap-3 min-[520px]:pr-2 cursor-pointer"
+                    className="flex-1 min-w-0 text-left flex items-center gap-3 @min-[520px]:pr-2 cursor-pointer"
                   >
                     <span
                       className={`text-xs font-mono font-bold w-6 text-right flex-shrink-0 ${
@@ -193,9 +193,9 @@ export function VotingPanel({
                     </div>
                   </button>
 
-                  {/* Mobile (<420px): vote+comment bottom-left, trash pushed
-                      right. Desktop: inline cluster. */}
-                  <div className="flex items-center gap-1 shrink-0 self-start min-[420px]:self-auto w-full min-[420px]:w-auto">
+                  {/* Narrow container: vote+comment bottom-left, trash pushed
+                      right. Wide container: inline cluster. */}
+                  <div className="flex items-center gap-1 shrink-0 self-start @min-[420px]:self-auto w-full @min-[420px]:w-auto">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -230,7 +230,7 @@ export function VotingPanel({
                         variant="ghost"
                         size="icon"
                         onClick={() => onRequestRemoveNomination(song.id)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-0.5 disabled:opacity-40"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto @min-[420px]:ml-0.5 disabled:opacity-40"
                         title="Remove nomination (and its votes/comments)"
                         aria-label="Remove nomination"
                       >

@@ -84,13 +84,16 @@ export const WaveformDisplay = memo(function WaveformDisplay({
     const midY = height / 2;
     const amplitude = midY * 0.85;
 
-    for (let x = 0; x < width; x++) {
-      const peakIndex = Math.floor((x / width) * numPeaks);
+    // ponytail: cap draw columns — at max zoom a clip spans tens of thousands
+    // of px and per-pixel fillRects drop frames on every ctrl+scroll step.
+    const stride = Math.max(1, Math.ceil(width / 2048));
+    for (let x = 0; x < width; x += stride) {
+      const peakIndex = Math.floor(((x + stride / 2) / width) * numPeaks);
       const min = peaks[peakIndex * 2];
       const max = peaks[peakIndex * 2 + 1];
       const minY = midY + min * amplitude;
       const maxY = midY + max * amplitude;
-      ctx.fillRect(x, minY, 1, Math.max(1, maxY - minY));
+      ctx.fillRect(x, minY, stride, Math.max(1, maxY - minY));
     }
   }, [trackId, width, height, drawColor, status]);
 

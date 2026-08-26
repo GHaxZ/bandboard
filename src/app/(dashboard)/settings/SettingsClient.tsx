@@ -194,21 +194,6 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Identity */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/15 border border-ring/30 flex items-center justify-center text-sm font-bold text-accent-text uppercase flex-shrink-0">
-                {username.charAt(0) || "?"}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-foreground truncate">{username}</p>
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  Registered account — your progress follows you on every device you log in from.
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-border" />
-
             {/* Username */}
             <form onSubmit={handleUsernameChange} className="space-y-2">
               <Label

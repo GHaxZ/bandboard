@@ -138,7 +138,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
         </DialogHeader>
 
         {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
-        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto px-3 -mx-3">
           {/* Type picker — mirrors the Session/Vote badge colors */}
           <div className="grid grid-cols-2 gap-2">
             <button

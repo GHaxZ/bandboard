@@ -62,31 +62,24 @@ export function OriginalSongDashboard({
 
   return (
     <Card className="border-border bg-card overflow-hidden rounded-2xl shadow-xl">
-      <CardHeader className="border-b border-border pb-5 pt-6 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {coverArtSrc && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={coverArtSrc}
-              alt=""
-              className="w-14 h-14 rounded-xl object-cover border border-border flex-shrink-0"
-            />
-          )}
-          <div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/60 border border-dialog-border/50 px-2.5 py-1 rounded-full">
-              Song Details
-            </span>
-            <CardTitle className="text-2xl font-heading font-bold text-foreground mt-2 flex items-center gap-2">
-              {song.title}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium">
-              by {song.artist}
-            </CardDescription>
-          </div>
+      <CardHeader className="border-b border-border py-5 px-6 flex items-center gap-4">
+        {coverArtSrc && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverArtSrc}
+            alt=""
+            className="w-16 h-16 rounded-xl object-cover border border-border flex-shrink-0"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-2xl font-heading font-bold text-foreground truncate">
+            {song.title}
+          </CardTitle>
+          <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium truncate">
+            by {song.artist}
+          </CardDescription>
         </div>
-        {/* Stretches full-width on mobile (flex-col parent): practice left,
-            trash pushed right, open space centered. Desktop: inline cluster. */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 shrink-0">
           {onPractice && <PracticeButton onClick={onPractice} />}
 
           {onEdit && (
@@ -105,7 +98,7 @@ export function OriginalSongDashboard({
               variant="danger-subtle"
               size="icon"
               onClick={onDelete}
-              className="rounded-xl h-9 w-9 ml-auto"
+              className="rounded-xl h-9 w-9"
               title={deleteTitle ?? "Delete Song"}
             >
               <Trash2 className="w-4 h-4" />
