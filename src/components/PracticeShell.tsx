@@ -62,6 +62,63 @@ interface PracticeShellProps {
   mutedTrackIds?: Set<string>;
 }
 
+function OffsetField({
+  id,
+  label,
+  value,
+  onChange,
+  onCapture,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCapture: () => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
+          {label} (s)
+        </label>
+        <button
+          type="button"
+          onClick={onCapture}
+          className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
+          title="Capture current playback time"
+        >
+          <Clock className="w-2.5 h-2.5" /> Capture
+        </button>
+      </div>
+      <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(3600, Math.max(0, (parseFloat(value) || 0) - 0.1)).toFixed(1))}
+          className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
+        >
+          -
+        </button>
+        <input
+          id={id}
+          type="number"
+          step="0.1"
+          min="0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-transparent text-[11px] text-foreground text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(3600, (parseFloat(value) || 0) + 0.1).toFixed(1))}
+          className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PracticeShell({
   song,
   progressMap,
@@ -345,97 +402,20 @@ export function PracticeShell({
                     </div>
 
                     <div className="space-y-2.5">
-                      {/* Backing offset */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="backingOffsetField" className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
-                            {isVocals ? "Instrumental" : "Backing Track"} (s)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => coverState.setBackingOffset(coverState.getActiveCurrentTime().toFixed(1))}
-                            className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
-                            title="Capture current playback time"
-                          >
-                            <Clock className="w-2.5 h-2.5" /> Capture
-                          </button>
-                        </div>
-                        <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              coverState.setBackingOffset(Math.max(0, (parseFloat(coverState.backingOffset) || 0) - 0.1).toFixed(1))
-                            }
-                            className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
-                          >
-                            -
-                          </button>
-                          <input
-                            id="backingOffsetField"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={coverState.backingOffset}
-                            onChange={(e) => coverState.setBackingOffset(e.target.value)}
-                            className="bg-transparent text-[11px] text-foreground text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              coverState.setBackingOffset(((parseFloat(coverState.backingOffset) || 0) + 0.1).toFixed(1))
-                            }
-                            className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Tab offset */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="tabOffsetField" className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
-                            {isVocals ? "Vocal ref" : "Tab Video"} (s)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => coverState.setTabOffset(coverState.getActiveCurrentTime().toFixed(1))}
-                            className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
-                            title="Capture current playback time"
-                          >
-                            <Clock className="w-2.5 h-2.5" /> Capture
-                          </button>
-                        </div>
-                        <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              coverState.setTabOffset(Math.max(0, (parseFloat(coverState.tabOffset) || 0) - 0.1).toFixed(1))
-                            }
-                            className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-r border-border cursor-pointer flex items-center justify-center"
-                          >
-                            -
-                          </button>
-                          <input
-                            id="tabOffsetField"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={coverState.tabOffset}
-                            onChange={(e) => coverState.setTabOffset(e.target.value)}
-                            className="bg-transparent text-[11px] text-foreground text-center w-full h-full focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              coverState.setTabOffset(((parseFloat(coverState.tabOffset) || 0) + 0.1).toFixed(1))
-                            }
-                            className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 h-full hover:bg-muted/50 border-l border-border cursor-pointer flex items-center justify-center"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
+                      <OffsetField
+                        id="backingOffsetField"
+                        label={isVocals ? "Instrumental" : "Backing Track"}
+                        value={coverState.backingOffset}
+                        onChange={coverState.setBackingOffset}
+                        onCapture={() => coverState.setBackingOffset(coverState.getActiveCurrentTime().toFixed(1))}
+                      />
+                      <OffsetField
+                        id="tabOffsetField"
+                        label={isVocals ? "Vocal ref" : "Tab Video"}
+                        value={coverState.tabOffset}
+                        onChange={coverState.setTabOffset}
+                        onCapture={() => coverState.setTabOffset(coverState.getActiveCurrentTime().toFixed(1))}
+                      />
                     </div>
                   </div>
                 )}

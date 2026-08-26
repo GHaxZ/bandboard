@@ -55,6 +55,119 @@ function tuningsEqual(a: Record<string, string>, b: Record<string, string>): boo
   return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 }
 
+function CoverArtFields({
+  preview,
+  onSelect,
+  onRemove,
+}: {
+  preview: string | null;
+  onSelect: (file: File) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 flex-shrink-0">
+      <div className="w-24 h-24 rounded-xl border border-border overflow-hidden flex items-center justify-center bg-muted/30">
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="Cover art" className="w-full h-full object-cover" />
+        ) : (
+          <Music className="w-8 h-8 text-muted-foreground" />
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        <label className="text-[10px] font-bold text-accent-text hover:text-foreground cursor-pointer bg-btn-bg hover:bg-btn-hover border border-dialog-border rounded-lg px-2 py-1 flex items-center gap-1">
+          <ImageIcon className="w-3 h-3" /> Browse
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onSelect(f);
+            }}
+          />
+        </label>
+        {preview && (
+          <button
+            onClick={onRemove}
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive hover:bg-destructive/10 bg-background border border-destructive/30 rounded-lg px-2 py-1"
+          >
+            <Trash2 className="w-3 h-3" /> Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StemRow({
+  track,
+  onDelete,
+  onLabelChange,
+  onRoleChange,
+}: {
+  track: CustomTrack;
+  onDelete: (id: string) => void;
+  onLabelChange: (id: string, label: string) => void;
+  onRoleChange: (id: string, role: Role) => void;
+}) {
+  return (
+    <div className="p-4 bg-background/60 border border-border rounded-xl space-y-2.5">
+      {/* Row 1: File */}
+      <div className="flex items-center gap-2">
+        <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
+          File
+        </label>
+        <span className="text-sm text-foreground truncate flex-1 min-w-0">
+          {track.fileName}
+        </span>
+        <span className="text-sm text-foreground font-mono flex-shrink-0">
+          {track.duration != null ? formatTime(track.duration) : "--:--"}
+        </span>
+        <button
+          onClick={() => onDelete(track.id)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all border bg-background border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 flex-shrink-0"
+          title="Delete stem (applies on Save)"
+          aria-label="Delete stem"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Row 2: Name */}
+      <div className="flex items-center gap-2">
+        <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
+          Name
+        </label>
+        <Input
+          value={track.label}
+          onChange={(e) => onLabelChange(track.id, e.target.value)}
+          placeholder="Label"
+          className="bg-background border-border text-foreground text-sm rounded-lg h-9 flex-1"
+        />
+      </div>
+
+      {/* Row 3: Role */}
+      <div className="flex items-center gap-2">
+        <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
+          Role
+        </label>
+        <Select
+          value={track.role}
+          onChange={(e) => onRoleChange(track.id, e.target.value as Role)}
+          className="flex-1"
+        >
+          {INSTRUMENT_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABEL[r]}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 interface OriginalEditorProps {
   song: Song;
   tracks: CustomTrack[];
@@ -519,44 +632,17 @@ export function OriginalEditor({
         <CardContent className="space-y-4">
           <div className="flex gap-4">
             {/* Cover art */}
-            <div className="flex flex-col items-center gap-2 flex-shrink-0">
-              <div className="w-24 h-24 rounded-xl border border-border overflow-hidden flex items-center justify-center bg-muted/30">
-                {coverArtPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverArtPreview} alt="Cover art" className="w-full h-full object-cover" />
-                ) : (
-                  <Music className="w-8 h-8 text-muted-foreground" />
-                )}
-              </div>
-              <div className="flex gap-1.5">
-                <label className="text-[10px] font-bold text-accent-text hover:text-foreground cursor-pointer bg-btn-bg hover:bg-btn-hover border border-dialog-border rounded-lg px-2 py-1 flex items-center gap-1">
-                  <ImageIcon className="w-3 h-3" /> Browse
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        setCoverArtFile(f);
-                        setCoverArtMarkedForRemoval(false);
-                      }
-                    }}
-                  />
-                </label>
-                {coverArtPreview && (
-                  <button
-                    onClick={() => {
-                      setCoverArtFile(null);
-                      setCoverArtMarkedForRemoval(true);
-                    }}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive hover:bg-destructive/10 bg-background border border-destructive/30 rounded-lg px-2 py-1"
-                  >
-                    <Trash2 className="w-3 h-3" /> Remove
-                  </button>
-                )}
-              </div>
-            </div>
+            <CoverArtFields
+              preview={coverArtPreview}
+              onSelect={(f) => {
+                setCoverArtFile(f);
+                setCoverArtMarkedForRemoval(false);
+              }}
+              onRemove={() => {
+                setCoverArtFile(null);
+                setCoverArtMarkedForRemoval(true);
+              }}
+            />
 
             {/* Title + Artist */}
             <div className="flex-1 space-y-3">
@@ -703,61 +789,13 @@ export function OriginalEditor({
                   </span>
                 </div>
                 {(stemsByRole[role] ?? []).map((track) => (
-                  <div
+                  <StemRow
                     key={track.id}
-                    className="p-4 bg-background/60 border border-border rounded-xl space-y-2.5"
-                  >
-                    {/* Row 1: File */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
-                        File
-                      </label>
-                      <span className="text-sm text-foreground truncate flex-1 min-w-0">
-                        {track.fileName}
-                      </span>
-                      <span className="text-sm text-foreground font-mono flex-shrink-0">
-                        {track.duration != null ? formatTime(track.duration) : "--:--"}
-                      </span>
-                      <button
-                        onClick={() => handleStemDelete(track.id)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all border bg-background border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 flex-shrink-0"
-                        title="Delete stem (applies on Save)"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Row 2: Name */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
-                        Name
-                      </label>
-                      <Input
-                        value={track.label}
-                        onChange={(e) => handleStemLabelChange(track.id, e.target.value)}
-                        placeholder="Label"
-                        className="bg-background border-border text-foreground text-sm rounded-lg h-9 flex-1"
-                      />
-                    </div>
-
-                    {/* Row 3: Role */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider w-12 flex-shrink-0">
-                        Role
-                      </label>
-                      <Select
-                        value={track.role}
-                        onChange={(e) => handleStemRoleChange(track.id, e.target.value as Role)}
-                        className="flex-1"
-                      >
-                        {INSTRUMENT_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_LABEL[r]}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  </div>
+                    track={track}
+                    onDelete={handleStemDelete}
+                    onLabelChange={handleStemLabelChange}
+                    onRoleChange={handleStemRoleChange}
+                  />
                 ))}
               </div>
             ))

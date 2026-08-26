@@ -37,7 +37,7 @@ import { usePracticeKeyboard } from "@/hooks/usePracticeKeyboard";
 import { useSkipOverlay } from "@/hooks/useSkipOverlay";
 import { usePlayerStore } from "@/stores/player-store";
 import { getCoverArtUrl } from "./CoverArt";
-import { NO_VIDEO_SKIP_MS, SEEK_STEP_S } from "@/lib/constants";
+import { NO_VIDEO_SKIP_MS, SEEK_STEP_S, INSTRUMENT_ROLES, ROLE_LABEL } from "@/lib/constants";
 import type { Role } from "@/lib/constants";
 
 interface RehearsalAutoplayProps {
@@ -239,7 +239,6 @@ export function RehearsalAutoplay({
         lazyInflightRef.current = null;
         setLazyLoadingRoleId(null);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong, instrumentPreference]);
 
   const isLazyLoading = lazyLoadingRoleId !== null;
@@ -361,6 +360,7 @@ export function RehearsalAutoplay({
   };
 
   const handleAutoplayEnabledChange = async (val: boolean) => {
+    const prev = autoplayEnabled;
     setAutoplayEnabled(val);
     try {
       const res = await saveUserSettings({ autoplayEnabled: val });
@@ -368,17 +368,20 @@ export function RehearsalAutoplay({
       toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
     } catch (err) {
       console.error(err);
+      setAutoplayEnabled(prev);
       toast.error("Failed to save autoplay setting");
     }
   };
 
   const handleTimeoutChange = async (val: number) => {
+    const prev = transitionTimeout;
     setTransitionTimeout(val);
     try {
       const res = await saveUserSettings({ autoplayTimeout: val, autoplayEnabled });
       if (!res.success) throw new Error(res.error);
     } catch (err) {
       console.error(err);
+      setTransitionTimeout(prev);
       toast.error("Failed to save transition timer");
     }
   };
@@ -684,13 +687,13 @@ export function RehearsalAutoplay({
                 className="w-full"
               >
                 <TabsList className="bg-background border border-border p-0.5 rounded-xl h-auto flex w-full">
-                  {(["Guitar", "Bass", "Vocals", "Drums", "Piano/Keyboard"] as Role[]).map((inst) => (
+                  {INSTRUMENT_ROLES.filter((r) => r !== "Other").map((inst) => (
                     <TabsTrigger
                       key={inst}
                       value={inst}
                       className="px-1 py-1 text-[10px] font-bold rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all cursor-pointer flex-1 text-center"
                     >
-                      {inst === "Piano/Keyboard" ? "Keys" : inst}
+                      {ROLE_LABEL[inst]}
                     </TabsTrigger>
                   ))}
                 </TabsList>

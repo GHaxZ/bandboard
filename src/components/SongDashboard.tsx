@@ -43,6 +43,123 @@ const attemptedLazy = new Set<string>();
 // Module-scoped set so metadata backfill runs once per song per session.
 const attemptedMetaBackfill = new Set<string>();
 
+function NotationLink({
+  href,
+  icon: Icon,
+  label,
+  className,
+  iconClassName,
+}: {
+  href: string;
+  icon: typeof Music;
+  label: string;
+  className: string;
+  iconClassName: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        buttonVariants({ variant: "default", size: "sm" }),
+        "rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all",
+        className
+      )}
+    >
+      <Icon className={`w-3.5 h-3.5 ${iconClassName}`} />
+      {label}
+      <ExternalLink className="w-3 h-3 text-muted-foreground" />
+    </a>
+  );
+}
+
+function TuningChip({ tuning }: { tuning: string }) {
+  return (
+    <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-lg">
+      <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
+        Tuning:
+      </span>
+      <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
+        {tuning}
+      </span>
+    </div>
+  );
+}
+
+function MediaPanel({
+  title,
+  icon: Icon,
+  custom,
+  videoId,
+  hasDraft,
+  hasLink,
+  loadingText,
+  emptyText,
+  ctaText,
+  coverArtUrl,
+  isLazyLoading,
+  onOpen,
+}: {
+  title: string;
+  icon: typeof Play;
+  custom: { key: string; src: string; isVideo: boolean; label: string } | null;
+  videoId: string | null;
+  hasDraft: boolean;
+  hasLink: boolean;
+  loadingText: string;
+  emptyText: string;
+  ctaText: string;
+  coverArtUrl: string | null;
+  isLazyLoading: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
+      <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
+        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+          <Icon className="w-3.5 h-3.5 text-muted-foreground" /> {title}
+        </span>
+        <Button
+          size="sm"
+          onClick={onOpen}
+          className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
+        >
+          Change
+        </Button>
+      </div>
+      <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
+        {custom ? (
+          <CustomMediaPreview
+            key={custom.key}
+            src={custom.src}
+            isVideo={custom.isVideo}
+            coverArtUrl={coverArtUrl}
+            label={custom.label}
+          />
+        ) : isLazyLoading && !hasLink && !hasDraft ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+            <p className="text-xs text-muted-foreground">{loadingText}</p>
+          </div>
+        ) : videoId ? (
+          <YouTubePreview videoId={videoId} />
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-xs text-muted-foreground mb-4 font-medium">{emptyText}</p>
+            <Button
+              onClick={onOpen}
+              className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
+            >
+              {ctaText}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SongDashboard({
   song,
   onRefresh,
@@ -532,14 +649,7 @@ export function SongDashboard({
 
                               <div className="flex items-center gap-3.5">
                                 {(roleGroup.role === "Guitar" || roleGroup.role === "Bass") && (
-                                  <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-lg">
-                                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
-                                      Tuning:
-                                    </span>
-                                    <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
-                                      {track.tuning}
-                                    </span>
-                                  </div>
+                                  <TuningChip tuning={track.tuning} />
                                 )}
                                 <ChevronDown
                                   className={cn(
@@ -558,14 +668,7 @@ export function SongDashboard({
                                 </span>
                               </div>
                               {(roleGroup.role === "Guitar" || roleGroup.role === "Bass") && (
-                                <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-lg">
-                                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">
-                                    Tuning:
-                                  </span>
-                                  <span className="text-xs font-mono font-bold text-muted-foreground tracking-wide">
-                                    {track.tuning}
-                                  </span>
-                                </div>
+                                <TuningChip tuning={track.tuning} />
                               )}
                             </div>
                           )}
@@ -576,123 +679,75 @@ export function SongDashboard({
                               <div className="flex flex-wrap gap-2.5 pt-1">
                                 {roleGroup.role === "Guitar" || roleGroup.role === "Bass" ? (
                                   <>
-                                    <a
+                                    <NotationLink
                                       href={links.tab}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <Music className="w-3.5 h-3.5 text-primary" />
-                                      Interactive Tab
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
-                                    <a
+                                      icon={Music}
+                                      label="Interactive Tab"
+                                      className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+                                      iconClassName="text-primary"
+                                    />
+                                    <NotationLink
                                       href={links.sheet}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <FileText className="w-3.5 h-3.5 text-role-keys" />
-                                      Sheet Music
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
-                                    <a
+                                      icon={FileText}
+                                      label="Sheet Music"
+                                      className="bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground"
+                                      iconClassName="text-role-keys"
+                                    />
+                                    <NotationLink
                                       href={links.chords}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-success/10 hover:bg-success/20 border border-success/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <FileText className="w-3.5 h-3.5 text-role-bass" />
-                                      Chords Sheet
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
+                                      icon={FileText}
+                                      label="Chords Sheet"
+                                      className="bg-success/10 hover:bg-success/20 border border-success/40 text-foreground"
+                                      iconClassName="text-role-bass"
+                                    />
                                   </>
                                 ) : roleGroup.role === "Piano/Keyboard" ? (
                                   <>
-                                    <a
+                                    <NotationLink
                                       href={links.sheet}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <FileText className="w-3.5 h-3.5 text-role-keys" />
-                                      Sheet Music
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
-                                    <a
+                                      icon={FileText}
+                                      label="Sheet Music"
+                                      className="bg-accent-soft hover:bg-accent-strong border border-ring/40 text-foreground"
+                                      iconClassName="text-role-keys"
+                                    />
+                                    <NotationLink
                                       href={links.chords}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-success/10 hover:bg-success/20 border border-success/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <FileText className="w-3.5 h-3.5 text-role-bass" />
-                                      Chords Sheet
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
+                                      icon={FileText}
+                                      label="Chords Sheet"
+                                      className="bg-success/10 hover:bg-success/20 border border-success/40 text-foreground"
+                                      iconClassName="text-role-bass"
+                                    />
                                   </>
                                 ) : roleGroup.role === "Vocals" ? (
                                   <>
-                                    <a
+                                    <NotationLink
                                       href={
                                         song.lyricsUrl ||
                                         `https://genius.com/search?q=${encodeURIComponent(
                                           song.artist + " " + song.title
                                         )}`
                                       }
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-role-drums/10 hover:bg-role-drums/20 border-role-drums/40 text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <FileText className="w-3.5 h-3.5 text-role-drums" />
-                                      Open Lyrics
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
-                                    <a
+                                      icon={FileText}
+                                      label="Open Lyrics"
+                                      className="bg-role-drums/10 hover:bg-role-drums/20 border-role-drums/40 text-foreground"
+                                      iconClassName="text-role-drums"
+                                    />
+                                    <NotationLink
                                       href={links.tab}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        buttonVariants({ variant: "default", size: "sm" }),
-                                        "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                      )}
-                                    >
-                                      <Music className="w-3.5 h-3.5 text-primary" />
-                                      Interactive Tab
-                                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                    </a>
+                                      icon={Music}
+                                      label="Interactive Tab"
+                                      className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+                                      iconClassName="text-primary"
+                                    />
                                   </>
                                 ) : (
-                                  <a
+                                  <NotationLink
                                     href={links.tab}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(
-                                      buttonVariants({ variant: "default", size: "sm" }),
-                                      "bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl flex items-center gap-1.5 text-xs font-bold py-2 px-3 transition-all"
-                                    )}
-                                  >
-                                    <Music className="w-3.5 h-3.5 text-primary" />
-                                    Interactive Tab
-                                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                                  </a>
+                                    icon={Music}
+                                    label="Interactive Tab"
+                                    className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground"
+                                    iconClassName="text-primary"
+                                  />
                                 )}
                               </div>
                             </div>
@@ -706,144 +761,74 @@ export function SongDashboard({
                 {/* Backing Track & Video Lessons */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Backing Track */}
-                  <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
-                    <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
-                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Play className="w-3.5 h-3.5 text-muted-foreground" />{" "}
-                        {roleGroup.role === "Vocals"
-                          ? "Backing Track (Instrumental)"
-                          : "Backing Track"}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setVideoSelectorState({
-                            isOpen: true,
-                            trackId: roleGroup.id,
-                            type: "backing",
-                            instrumentName: roleGroup.role,
-                          })
-                        }
-                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
-                      >
-                        Change
-                      </Button>
-                    </div>
-                    <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {effBackingCustom ? (
-                        <CustomMediaPreview
-                          key={effBackingCustom.key}
-                          src={effBackingCustom.src}
-                          isVideo={effBackingCustom.isVideo}
-                          coverArtUrl={coverArtUrl}
-                          label={effBackingCustom.label}
-                        />
-                      ) : isLazyLoading && roleGroup.backingTrackLink === null && !backingDraft ? (
-                        <div className="flex flex-col items-center justify-center py-8">
-                          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-                          <p className="text-xs text-muted-foreground">
-                            Searching YouTube backing track...
-                          </p>
-                        </div>
-                      ) : effBackingVideoId ? (
-                        <YouTubePreview videoId={effBackingVideoId} />
-                      ) : (
-                        <div className="text-center py-8">
-                          <p className="text-xs text-muted-foreground mb-4 font-medium">
-                            No backing track link found.
-                          </p>
-                          <Button
-                            onClick={() =>
-                              setVideoSelectorState({
-                                isOpen: true,
-                                trackId: roleGroup.id,
-                                type: "backing",
-                                instrumentName: roleGroup.role,
-                              })
-                            }
-                            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
-                          >
-                            Search Backing Track
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <MediaPanel
+                    title={
+                      roleGroup.role === "Vocals"
+                        ? "Backing Track (Instrumental)"
+                        : "Backing Track"
+                    }
+                    icon={Play}
+                    custom={effBackingCustom}
+                    videoId={effBackingVideoId}
+                    hasDraft={!!backingDraft}
+                    hasLink={!!roleGroup.backingTrackLink}
+                    loadingText="Searching YouTube backing track..."
+                    emptyText="No backing track link found."
+                    ctaText="Search Backing Track"
+                    coverArtUrl={coverArtUrl}
+                    isLazyLoading={isLazyLoading}
+                    onOpen={() =>
+                      setVideoSelectorState({
+                        isOpen: true,
+                        trackId: roleGroup.id,
+                        type: "backing",
+                        instrumentName: roleGroup.role,
+                      })
+                    }
+                  />
 
                   {/* Tab/Reference Video */}
-                  <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
-                    <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
-                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Video className="w-3.5 h-3.5 text-muted-foreground" />{" "}
-                        {roleGroup.role === "Vocals"
-                          ? "Original Song (Vocal Reference)"
-                          : roleGroup.role === "Piano/Keyboard"
-                            ? "Video Lesson / Cover"
-                            : "Tab Video Lesson"}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setVideoSelectorState({
-                            isOpen: true,
-                            trackId: roleGroup.id,
-                            type: "tab",
-                            instrumentName: roleGroup.role,
-                          })
-                        }
-                        className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
-                      >
-                        Change
-                      </Button>
-                    </div>
-                    <div className="flex-1 p-4 flex flex-col justify-center min-h-[220px]">
-                      {effTabCustom ? (
-                        <CustomMediaPreview
-                          key={effTabCustom.key}
-                          src={effTabCustom.src}
-                          isVideo={effTabCustom.isVideo}
-                          coverArtUrl={coverArtUrl}
-                          label={effTabCustom.label}
-                        />
-                      ) : isLazyLoading && roleGroup.tabVideoLink === null && !tabDraft ? (
-                        <div className="flex flex-col items-center justify-center py-8">
-                          <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-                          <p className="text-xs text-muted-foreground">
-                            {roleGroup.role === "Vocals"
-                              ? "Searching original song..."
-                              : "Searching YouTube lesson..."}
-                          </p>
-                        </div>
-                      ) : effTabVideoId ? (
-                        <YouTubePreview videoId={effTabVideoId} />
-                      ) : (
-                        <div className="text-center py-8">
-                          <p className="text-xs text-muted-foreground mb-4 font-medium">
-                            {roleGroup.role === "Vocals"
-                              ? "No video reference found."
-                              : "No video lesson or cover found."}
-                          </p>
-                          <Button
-                            onClick={() =>
-                              setVideoSelectorState({
-                                isOpen: true,
-                                trackId: roleGroup.id,
-                                type: "tab",
-                                instrumentName: roleGroup.role,
-                              })
-                            }
-                            className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
-                          >
-                            {roleGroup.role === "Vocals"
-                              ? "Search Original Song"
-                              : roleGroup.role === "Piano/Keyboard"
-                                ? "Search Video Lesson"
-                                : "Search Tab Video"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <MediaPanel
+                    title={
+                      roleGroup.role === "Vocals"
+                        ? "Original Song (Vocal Reference)"
+                        : roleGroup.role === "Piano/Keyboard"
+                          ? "Video Lesson / Cover"
+                          : "Tab Video Lesson"
+                    }
+                    icon={Video}
+                    custom={effTabCustom}
+                    videoId={effTabVideoId}
+                    hasDraft={!!tabDraft}
+                    hasLink={!!roleGroup.tabVideoLink}
+                    loadingText={
+                      roleGroup.role === "Vocals"
+                        ? "Searching original song..."
+                        : "Searching YouTube lesson..."
+                    }
+                    emptyText={
+                      roleGroup.role === "Vocals"
+                        ? "No video reference found."
+                        : "No video lesson or cover found."
+                    }
+                    ctaText={
+                      roleGroup.role === "Vocals"
+                        ? "Search Original Song"
+                        : roleGroup.role === "Piano/Keyboard"
+                          ? "Search Video Lesson"
+                          : "Search Tab Video"
+                    }
+                    coverArtUrl={coverArtUrl}
+                    isLazyLoading={isLazyLoading}
+                    onOpen={() =>
+                      setVideoSelectorState({
+                        isOpen: true,
+                        trackId: roleGroup.id,
+                        type: "tab",
+                        instrumentName: roleGroup.role,
+                      })
+                    }
+                  />
                 </div>
 
                 <PracticeLogCard
