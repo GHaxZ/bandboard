@@ -491,7 +491,7 @@ export function SongDashboard({
         </div>
         {/* Stretches full-width on mobile (flex-col parent): practice left,
             trash pushed right, open space centered. Desktop: inline cluster. */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full md:w-auto">
           {onPractice && <PracticeButton onClick={onPractice} />}
 
           {onDelete && (

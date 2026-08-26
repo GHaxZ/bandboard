@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { usePlayerStore } from "@/stores/player-store";
-import { savePracticeMarkers, saveUserSettings } from "@/app/actions/user";
+import { savePracticeMarkers } from "@/app/actions/user";
+import { writeDeviceVolume, writeDeviceSpeed } from "@/lib/device-media";
 import { MAX_MARKERS } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -35,8 +36,7 @@ interface UsePracticeControlsResult {
  *
  * - Hydrates the store's `volume`/`speed`/`markers` once on mount from the
  *   caller-supplied initial values.
- * - Persists subsequent volume/speed slider changes back to the user's
- *   settings row (debounced 500ms, one per setting).
+ * - Persists subsequent volume/speed slider changes to device cookies.
  * - Exposes marker add/delete handlers that save to `savePracticeMarkers`.
  */
 export function usePracticeControls(
@@ -60,10 +60,10 @@ export function usePracticeControls(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced persistence of volume / speed back to userSettings. Skip the
+  // Debounced persistence of volume / speed to device cookies. Skip the
   // first run per setting: the hydration effect above sets hydratedRef in the
   // same commit, so without a skip the mount would schedule a redundant
-  // saveUserSettings 500ms after every practice mount. The pending value is
+  // cookie write 500ms after every practice mount. The pending value is
   // flushed on unmount so a change made <500ms before exiting isn't dropped.
   const volumeSkipFirst = useRef(true);
   const pendingVolumeRef = useRef<number | null>(null);
@@ -76,16 +76,14 @@ export function usePracticeControls(
     pendingVolumeRef.current = volume;
     const t = setTimeout(() => {
       pendingVolumeRef.current = null;
-      saveUserSettings({ volume }).catch((e) => console.error("saveUserSettings(volume) failed:", e));
+      writeDeviceVolume(volume);
     }, 500);
     return () => clearTimeout(t);
   }, [volume]);
   useEffect(() => {
     return () => {
       if (pendingVolumeRef.current !== null) {
-        saveUserSettings({ volume: pendingVolumeRef.current }).catch((e) =>
-          console.error("saveUserSettings(volume) flush failed:", e)
-        );
+        writeDeviceVolume(pendingVolumeRef.current);
       }
     };
   }, []);
@@ -101,16 +99,14 @@ export function usePracticeControls(
     pendingSpeedRef.current = speed;
     const t = setTimeout(() => {
       pendingSpeedRef.current = null;
-      saveUserSettings({ playbackSpeed: speed }).catch((e) => console.error("saveUserSettings(speed) failed:", e));
+      writeDeviceSpeed(speed);
     }, 500);
     return () => clearTimeout(t);
   }, [speed]);
   useEffect(() => {
     return () => {
       if (pendingSpeedRef.current !== null) {
-        saveUserSettings({ playbackSpeed: pendingSpeedRef.current }).catch((e) =>
-          console.error("saveUserSettings(speed) flush failed:", e)
-        );
+        writeDeviceSpeed(pendingSpeedRef.current);
       }
     };
   }, []);

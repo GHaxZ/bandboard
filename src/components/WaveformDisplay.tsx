@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, memo } from "react";
 import { useTheme } from "next-themes";
 import { getWaveformPeaks, getCachedPeaks } from "@/lib/waveform";
 
@@ -26,7 +26,9 @@ function useThemeColor(fallback: string): string {
   return color;
 }
 
-export function WaveformDisplay({
+// memo: the parent (TrackLanes) re-renders every rAF frame while playing and
+// on every zoom step; props are primitives so memo skips redundant canvas work.
+export const WaveformDisplay = memo(function WaveformDisplay({
   trackId,
   srcUrl,
   width,
@@ -114,4 +116,4 @@ export function WaveformDisplay({
       className="pointer-events-none"
     />
   );
-}
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -63,6 +63,19 @@ export function RehearsalDetailClient({
     });
   }
 
+  // Self-heal a stale ?song= (song removed from setlist / dead bookmark):
+  // once the fresh list lands, point the URL at the song actually displayed.
+  useEffect(() => {
+    const requested = searchParams.get("song");
+    if (!requested) return;
+    if (rehearsalDetails.rehearsalSongs.some((rs) => rs.songId === requested)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    const first = rehearsalDetails.rehearsalSongs[0]?.songId;
+    if (first) params.set("song", first);
+    else params.delete("song");
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [searchParams, rehearsalDetails.rehearsalSongs, pathname, router]);
+
   function handleSelectSong(songId: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("song", songId);
@@ -93,7 +106,7 @@ export function RehearsalDetailClient({
         else params.delete("song");
         router.replace(`${pathname}?${params.toString()}`);
       }
-      refreshData();
+      await refreshData();
     } catch (err) {
       console.error(err);
       toast.error("Failed to remove song: " + String(err));
@@ -133,6 +146,7 @@ export function RehearsalDetailClient({
               activeSongId={activeSongId}
               onSelectSong={handleSelectSong}
               onRefresh={refreshData}
+              onRemoveSong={handleRemoveFromSetlist}
               progressMap={progressMap}
               onPracticeSong={(songId) => router.push(`/songs/${songId}/practice`)}
               onStartAutoplay={() => router.push(`/rehearsals/${rehearsalId}/practice`)}
@@ -142,13 +156,13 @@ export function RehearsalDetailClient({
 
           <div className="lg:col-span-8">
             {(() => {
-              // A stale ?song= (removed from the setlist, dead bookmark) must
-              // fall through to the empty state, not render a blank pane.
-              const currentRehSong = activeSongId
-                ? rehearsalDetails.rehearsalSongs.find(
-                    (rs) => rs.songId === activeSongId
-                  )
-                : undefined;
+              // Explicit ?song= wins when valid; a stale or missing one falls
+              // back to the first song (the heal effect repairs the URL).
+              // Only a genuinely EMPTY setlist renders the empty state.
+              const currentRehSong =
+                rehearsalDetails.rehearsalSongs.find(
+                  (rs) => rs.songId === activeSongId
+                ) ?? rehearsalDetails.rehearsalSongs[0];
               if (!currentRehSong) {
                 return (
                   <div className="text-center py-20 bg-card/40 border border-border rounded-2xl p-6 text-muted-foreground">

@@ -27,6 +27,7 @@ import { CustomPlaybackHUD } from "./CustomPlaybackHUD";
 import { ClientDate } from "./ClientDate";
 import { toast } from "sonner";
 import { getUserSettings, saveUserSettings } from "@/app/actions/user";
+import { readDeviceVolumeClient, readDeviceSpeedClient, writeDeviceVolume, writeDeviceSpeed } from "@/lib/device-media";
 import type { RehearsalDetails, ProgressMap, Song } from "@/types/models";
 import { resolveBackingMedia } from "@/lib/backing-media";
 import { getSongDetails, lazyLoadTrackMedia } from "@/app/actions/songs";
@@ -105,10 +106,11 @@ export function RehearsalAutoplay({
       .then((s) => {
         setAutoplayEnabled(s.autoplayEnabled);
         setTransitionTimeout(s.autoplayTimeout);
-        // Hydrate saved volume/speed like song practice does — otherwise a
-        // fresh load silently plays at store defaults until a slider is touched.
-        setVolume(s.volume);
-        setSpeed(s.playbackSpeed);
+        // Hydrate saved volume/speed from device cookies like song practice
+        // does — otherwise a fresh load silently plays at store defaults
+        // until a slider is touched.
+        setVolume(readDeviceVolumeClient());
+        setSpeed(readDeviceSpeedClient());
       })
       .catch(() => {})
       .finally(() => {
@@ -121,6 +123,18 @@ export function RehearsalAutoplay({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist volume/speed changes to device cookies (skip-first: hydration
+  // above sets the store from the same cookies).
+  const mediaPersistSkipRef = useRef(true);
+  useEffect(() => {
+    if (mediaPersistSkipRef.current) {
+      mediaPersistSkipRef.current = false;
+      return;
+    }
+    writeDeviceVolume(volume);
+    writeDeviceSpeed(speed);
+  }, [volume, speed]);
 
   // Countdown ticker
   useEffect(() => {
@@ -393,7 +407,7 @@ export function RehearsalAutoplay({
   const dashOffset = circumference - ((countdown ?? 0) / totalForRing) * circumference;
 
   return (
-    <div className="fixed inset-0 z-50 h-dvh bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="min-h-dvh bg-background text-foreground flex flex-col">
       <header className="flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center border-b border-border bg-card/40 px-4 md:px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3 min-w-0">
           <Button
@@ -422,10 +436,10 @@ export function RehearsalAutoplay({
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+      <div className="flex flex-col">
         {/* Player */}
-        <div className="flex-1 lg:flex-[7] flex flex-col justify-center min-h-0 overflow-y-auto lg:overflow-hidden bg-background/60">
-          <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 h-full justify-center">
+        <div className="flex flex-col bg-background/60">
+          <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 py-6 px-4">
             <div
               className="w-full aspect-video bg-black border border-border rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
               onMouseLeave={blurActiveIframe}
@@ -675,7 +689,7 @@ export function RehearsalAutoplay({
         </div>
 
         {/* Sidebar */}
-        <div className="w-full lg:w-80 lg:border-l border-border bg-card/10 flex flex-col overflow-hidden flex-shrink-0 min-h-0">
+        <div className="w-full border-t border-border bg-card/10 flex flex-col">
           <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card/40">
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -824,7 +838,7 @@ export function RehearsalAutoplay({
             </span>
           </div>
 
-          <div className="flex-grow overflow-y-auto p-3 space-y-2.5 min-h-0 scrollbar-thin">
+          <div className="p-3 space-y-2.5">
             {queue.map((rs, index) => {
               const isSongActive = index === currentIndex;
               const isSongCompleted = index < currentIndex;

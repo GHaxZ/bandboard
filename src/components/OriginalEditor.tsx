@@ -34,6 +34,7 @@ import { VolumeSpeedControls } from "./VolumeSpeedControls";
 import { updateOriginalMetadata } from "@/app/actions/songs";
 import { updateCustomTrack, deleteCustomTrack } from "@/app/actions/customTracks";
 import { saveScratchpadNotes } from "@/app/actions/user";
+import { readDeviceVolumeClient, readDeviceSpeedClient, writeDeviceVolume, writeDeviceSpeed } from "@/lib/device-media";
 import {
   INSTRUMENT_ROLES,
   ROLE_LABEL,
@@ -221,6 +222,23 @@ export function OriginalEditor({
   const setSpeed = usePlayerStore((s) => s.setSpeed);
   const setPlaying = usePlayerStore((s) => s.setPlaying);
   const reset = usePlayerStore((s) => s.reset);
+
+  // Device volume/speed live in cookies (see lib/device-media.ts). Hydrate
+  // once on mount so the editor matches practice modes; persist changes.
+  useEffect(() => {
+    setVolume(readDeviceVolumeClient());
+    setSpeed(readDeviceSpeedClient());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const mediaPersistSkipRef = useRef(true);
+  useEffect(() => {
+    if (mediaPersistSkipRef.current) {
+      mediaPersistSkipRef.current = false;
+      return;
+    }
+    writeDeviceVolume(volume);
+    writeDeviceSpeed(speed);
+  }, [volume, speed]);
 
   useEffect(() => {
     reset();

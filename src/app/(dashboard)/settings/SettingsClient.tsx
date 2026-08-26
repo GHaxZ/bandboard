@@ -10,6 +10,9 @@ import {
   UserRound,
   SunMoon,
   Trash2,
+  KeyRound,
+  LogOut,
+  TriangleAlert,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { PageHeader } from "@/components/PageHeader";
@@ -191,12 +194,28 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {/* Identity */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/15 border border-ring/30 flex items-center justify-center text-sm font-bold text-accent-text uppercase flex-shrink-0">
+                {username.charAt(0) || "?"}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-foreground truncate">{username}</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Registered account — your progress follows you on every device you log in from.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-border" />
+
+            {/* Username */}
             <form onSubmit={handleUsernameChange} className="space-y-2">
               <Label
                 htmlFor="newUsername"
-                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"
               >
-                Change Username
+                <UserRound className="w-3 h-3" /> Username
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -206,7 +225,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   placeholder="New username..."
                   disabled={savingUsername}
                   autoComplete="off"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
+                  className="bg-background border-border text-foreground text-xs px-3 rounded-xl h-10"
                 />
                 <Button
                   type="submit"
@@ -218,9 +237,10 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               </div>
             </form>
 
+            {/* Password */}
             <form onSubmit={handlePasswordChange} className="space-y-2">
-              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                Change Password
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <KeyRound className="w-3 h-3" /> Password
               </h3>
               <Label
                 htmlFor="currentPassword"
@@ -236,7 +256,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 placeholder="Current password..."
                 disabled={savingPassword}
                 autoComplete="current-password"
-                className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
+                className="bg-background border-border text-foreground text-xs px-3 rounded-xl h-10"
               />
               <div className="flex gap-2">
                 <Input
@@ -248,7 +268,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   aria-label="New password"
                   disabled={savingPassword}
                   autoComplete="new-password"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
+                  className="bg-background border-border text-foreground text-xs px-3 rounded-xl h-10"
                 />
                 <Button
                   type="submit"
@@ -260,8 +280,14 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               </div>
             </form>
 
-            {/* Log Out is routine, not destructive — kept out of the Danger Zone */}
-            <div className="pt-2 border-t border-border">
+            {/* Session — routine, deliberately outside the Danger Zone */}
+            <div className="pt-3 border-t border-border space-y-2">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <LogOut className="w-3 h-3" /> Session
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Ends your session on this device. Your progress stays saved.
+              </p>
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -274,35 +300,35 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               </Button>
             </div>
 
-            <div className="pt-2 space-y-2 border-t border-border">
-              <h3 className="text-[10px] font-bold text-destructive uppercase tracking-wider">
-                Danger Zone
-              </h3>
-              <Label
-                htmlFor="deletePassword"
-                className="text-[10px] font-bold text-destructive uppercase tracking-wider"
-              >
-                Confirm with password
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="deletePassword"
-                  type="password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  placeholder="Confirm with your password..."
-                  disabled={deleting}
-                  autoComplete="current-password"
-                  className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-destructive rounded-xl h-10"
-                />
-                <Button
-                  variant="danger-subtle"
-                  onClick={() => setConfirmDeleteOpen(true)}
-                  disabled={deleting || !deletePassword}
-                  className="text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Account
-                </Button>
+            {/* Danger Zone */}
+            <div className="pt-3 border-t border-border">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                <h3 className="text-[10px] font-bold text-destructive uppercase tracking-wider flex items-center gap-1.5">
+                  <TriangleAlert className="w-3 h-3" /> Danger Zone
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Permanently deletes your account and all progress. This cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="deletePassword"
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Confirm with your password..."
+                    disabled={deleting}
+                    autoComplete="current-password"
+                    className="bg-background border-border text-foreground text-xs px-3 rounded-xl h-10 focus-visible:border-destructive"
+                  />
+                  <Button
+                    variant="danger-subtle"
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={deleting || !deletePassword}
+                    className="text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Account
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>

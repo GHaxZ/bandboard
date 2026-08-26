@@ -2,6 +2,8 @@ import { getSongDetails } from "@/app/actions/songs";
 import { getCustomTracks } from "@/app/actions/customTracks";
 import { getUserSettings, getProgressMap } from "@/app/actions/user";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { VOLUME_COOKIE, SPEED_COOKIE, parseDeviceVolume, parseDeviceSpeed } from "@/lib/device-media";
 import { PracticeModeClient } from "./PracticeModeClient";
 
 interface PracticeModePageProps {
@@ -12,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PracticeModePage({ params }: PracticeModePageProps) {
   const resolvedParams = await params;
+  const cookieStore = await cookies();
   const [song, tracks, settings, initialProgressMap] = await Promise.all([
     getSongDetails(resolvedParams.id),
     getCustomTracks(resolvedParams.id),
@@ -28,8 +31,8 @@ export default async function PracticeModePage({ params }: PracticeModePageProps
       initialTracks={tracks}
       preferredInstrument={settings.preferredInstrument}
       initialProgressMap={initialProgressMap}
-      initialVolume={settings.volume}
-      initialSpeed={settings.playbackSpeed}
+      initialVolume={parseDeviceVolume(cookieStore.get(VOLUME_COOKIE)?.value)}
+      initialSpeed={parseDeviceSpeed(cookieStore.get(SPEED_COOKIE)?.value)}
     />
   );
 }

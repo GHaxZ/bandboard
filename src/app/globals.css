@@ -199,12 +199,12 @@
   100% {
     box-shadow:
       0 0 0 3px color-mix(in oklab, var(--ring) 14%, transparent),
-      0 0 10px color-mix(in oklab, var(--ring) 12%, transparent);
+      0 0 6px color-mix(in oklab, var(--ring) 12%, transparent);
   }
   50% {
     box-shadow:
       0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent),
-      0 0 20px color-mix(in oklab, var(--ring) 20%, transparent);
+      0 0 8px color-mix(in oklab, var(--ring) 20%, transparent);
   }
 }
 

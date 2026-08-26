@@ -69,6 +69,9 @@ export function TrackLanes({
   const scrollRef = useRef<HTMLDivElement>(null);
   const pxPerSecRef = useRef(pxPerSec);
   const onZoomChangeRef = useRef(onZoomChange);
+  const zoomRafRef = useRef<number | null>(null);
+  const pendingZoomFactorRef = useRef<number | null>(null);
+  const lastWheelXRef = useRef(0);
 
   useEffect(() => {
     pxPerSecRef.current = pxPerSec;
@@ -85,24 +88,42 @@ export function TrackLanes({
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      const rect = el.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left + el.scrollLeft;
-      const cursorT = cursorX / pxPerSecRef.current;
+      // Accumulate pinch/wheel deltas and apply ONE zoom step per animation
+      // frame — trackpads fire ctrl+wheel at 60+/s and per-event React updates
+      // plus canvas redraws stutter the timeline.
+      pendingZoomFactorRef.current =
+        (pendingZoomFactorRef.current ?? 1) * (e.deltaY < 0 ? 1.1 : 1 / 1.1);
+      lastWheelXRef.current = e.clientX;
+      if (zoomRafRef.current !== null) return;
+      zoomRafRef.current = requestAnimationFrame(() => {
+        zoomRafRef.current = null;
+        const target = scrollRef.current;
+        const factor = pendingZoomFactorRef.current;
+        pendingZoomFactorRef.current = null;
+        if (!target || factor === null) return;
+        const rect = target.getBoundingClientRect();
+        const cursorX = lastWheelXRef.current - rect.left + target.scrollLeft;
+        const cursorT = cursorX / pxPerSecRef.current;
 
-      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      const newPxPerSec = Math.max(
-        DAW_PX_PER_SEC_MIN,
-        Math.min(DAW_PX_PER_SEC_MAX, pxPerSecRef.current * factor)
-      );
+        const newPxPerSec = Math.max(
+          DAW_PX_PER_SEC_MIN,
+          Math.min(DAW_PX_PER_SEC_MAX, pxPerSecRef.current * factor)
+        );
 
-      const newCursorX = cursorT * newPxPerSec;
-      el.scrollLeft = Math.max(0, newCursorX - (e.clientX - rect.left));
+        const newCursorX = cursorT * newPxPerSec;
+        target.scrollLeft = Math.max(0, newCursorX - (lastWheelXRef.current - rect.left));
 
-      onZoomChangeRef.current?.(newPxPerSec);
+        onZoomChangeRef.current?.(newPxPerSec);
+      });
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => el.removeEventListener("wheel", handleWheel);
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current);
+      zoomRafRef.current = null;
+      pendingZoomFactorRef.current = null;
+    };
   }, []);
 
   const maxEnd = tracks.reduce((max, t) => {

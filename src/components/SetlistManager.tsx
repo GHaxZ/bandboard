@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   addSongToRehearsalSetlist,
-  removeSongFromRehearsalSetlist,
   reorderRehearsalSongs,
 } from "@/app/actions/rehearsals";
 import { ArrowUp, ArrowDown, Trash2, Plus, Music, ListMusic, Play } from "lucide-react";
@@ -31,6 +30,8 @@ interface SetlistManagerProps {
   activeSongId: string | null;
   onSelectSong: (songId: string) => void;
   onRefresh: () => void;
+  /** Parent-owned removal: optimistic state update + URL fix + refetch. */
+  onRemoveSong?: (songId: string) => Promise<void>;
   progressMap?: ProgressMap;
   onPracticeSong?: (songId: string) => void;
   onStartAutoplay?: () => void;
@@ -44,6 +45,7 @@ export function SetlistManager({
   activeSongId,
   onSelectSong,
   onRefresh,
+  onRemoveSong,
   progressMap,
   onPracticeSong,
   onStartAutoplay,
@@ -88,16 +90,9 @@ export function SetlistManager({
     if (pendingActionIds.has(songId)) return;
     setPendingActionIds((prev) => new Set(prev).add(songId));
     try {
-      const res = await removeSongFromRehearsalSetlist(rehearsalId, songId);
-      if (res.success) {
-        if (activeSongId === songId) {
-          const remaining = rehearsalSongs.filter((rs) => rs.songId !== songId);
-          if (remaining.length > 0) onSelectSong(remaining[0].songId);
-        }
-        onRefresh();
-      } else {
-        toast.error("Failed to remove song: " + res.error);
-      }
+      // Parent owns the list state and the ?song= URL; it updates optimistically
+      // and reconciles after the awaited refetch.
+      await onRemoveSong?.(songId);
     } catch (err) {
       console.error(err);
       toast.error("Failed to remove song: " + String(err));

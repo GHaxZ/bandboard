@@ -210,6 +210,8 @@ export const userSettings = sqliteTable('user_settings', {
   preferredInstrument: text('preferred_instrument').notNull().default('Guitar'),
   autoplayEnabled: integer('autoplay_enabled', { mode: 'boolean' }).notNull().default(true),
   autoplayTimeout: integer('autoplay_timeout').notNull().default(5),
+  // ponytail: dead since the cookie migration (lib/device-media.ts); kept to
+  // avoid a migration — drop when convenient.
   volume: integer('volume').notNull().default(100),
   playbackSpeed: real('playback_speed').notNull().default(1.0),
   updatedAt: integer('updated_at').notNull(),
