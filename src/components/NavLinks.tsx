@@ -57,7 +57,7 @@ export function MobileTabBar() {
   const pathname = usePathname();
 
   return (
-    <footer className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/90 backdrop-blur-lg border-t border-border px-6 py-2 flex items-center justify-around shadow-2xl">
+    <footer className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/90 backdrop-blur-lg border-t border-border px-6 pt-2 [padding-bottom:max(env(safe-area-inset-bottom),0.5rem)] flex items-center justify-around shadow-2xl">
       {LINKS.map(({ href, shortLabel, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (

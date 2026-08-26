@@ -29,6 +29,7 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         (tag === "INPUT" ||
           tag === "TEXTAREA" ||
           tag === "SELECT" ||
+          tag === "BUTTON" ||
           (active as HTMLElement)?.isContentEditable)
       ) {
         return;

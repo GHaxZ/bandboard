@@ -218,6 +218,7 @@ export function SetlistManager({
                     onClick={() => onPracticeSong?.(rs.songId)}
                     className="h-8 w-8 text-accent-text hover:text-accent-text-strong hover:bg-primary/15 rounded-lg mr-1 cursor-pointer"
                     title="Practice Mode"
+                    aria-label="Practice Mode"
                   >
                     <Play className="w-4 h-4 fill-current" />
                   </Button>
@@ -228,6 +229,7 @@ export function SetlistManager({
                     onClick={() => handleMove(index, "up")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Up"
+                    aria-label="Move Up"
                   >
                     <ArrowUp className="w-4 h-4" />
                   </Button>
@@ -238,6 +240,7 @@ export function SetlistManager({
                     onClick={() => handleMove(index, "down")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Down"
+                    aria-label="Move Down"
                   >
                     <ArrowDown className="w-4 h-4" />
                   </Button>
@@ -248,6 +251,7 @@ export function SetlistManager({
                     onClick={() => handleRemoveSong(rs.songId)}
                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-1 disabled:opacity-40"
                     title="Remove from Setlist"
+                    aria-label="Remove from Setlist"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

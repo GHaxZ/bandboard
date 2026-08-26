@@ -102,6 +102,7 @@ export function RehearsalHeader({
             onClick={() => setConfirmDeleteOpen(true)}
             className="rounded-xl h-9 w-9 shrink-0"
             title="Delete Session"
+            aria-label="Delete Session"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

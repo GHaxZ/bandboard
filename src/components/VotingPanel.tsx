@@ -232,6 +232,7 @@ export function VotingPanel({
                         onClick={() => onRequestRemoveNomination(song.id)}
                         className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg ml-auto min-[420px]:ml-0.5 disabled:opacity-40"
                         title="Remove nomination (and its votes/comments)"
+                        aria-label="Remove nomination"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

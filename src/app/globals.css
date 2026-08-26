@@ -217,6 +217,7 @@
   .animate-pulse,
   .animate-ping,
   .animate-skip-alert,
+  .animate-in,
   .field-glow:focus-visible {
     animation: none;
   }

@@ -141,7 +141,7 @@ export function TrackLanes({
       if (Math.abs(e.clientX - dragState.pointerXAtDown) < DRAG_THRESHOLD_PX) return;
       setDragState((prev) => (prev ? { ...prev, active: true } : null));
     }
-    const deltaSec = (e.clientX - dragState.pointerXAtDown) / pxPerSec;
+    const deltaSec = (e.clientX - dragState.pointerXAtDown) / pxPerSecRef.current;
     const newOffset = Math.max(0, dragState.startOffsetAtDown + deltaSec);
     setDragState((prev) => (prev ? { ...prev, currentOffset: newOffset } : null));
   }
@@ -217,6 +217,8 @@ export function TrackLanes({
                         : "bg-background border-border text-muted-foreground hover:text-foreground"
                     )}
                     title={isMuted ? "Unmute" : "Mute"}
+                    aria-label={isMuted ? "Unmute" : "Mute"}
+                    aria-pressed={isMuted}
                   >
                     {isMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                   </button>
@@ -229,6 +231,8 @@ export function TrackLanes({
                         : "bg-background border-border text-muted-foreground hover:text-foreground"
                     )}
                     title={isSoloed ? "Unsolo" : "Solo"}
+                    aria-label={isSoloed ? "Unsolo" : "Solo"}
+                    aria-pressed={isSoloed}
                   >
                     <Headphones className="w-3 h-3" />
                   </button>
@@ -244,6 +248,7 @@ export function TrackLanes({
         <div className="relative" style={{ width: timelineWidth, minWidth: "100%" }}>
           <div
             className="h-10 border-b border-border relative cursor-pointer select-none"
+            style={{ touchAction: "none" }}
             onPointerDown={handleRulerPointerDown}
             onPointerMove={handleRulerPointerMove}
             onPointerUp={handleRulerPointerUp}

@@ -219,11 +219,14 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
             </form>
 
             <form onSubmit={handlePasswordChange} className="space-y-2">
+              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Change Password
+              </h3>
               <Label
                 htmlFor="currentPassword"
                 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
               >
-                Change Password
+                Current password
               </Label>
               <Input
                 id="currentPassword"
@@ -242,6 +245,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New password (min. 8 chars)..."
+                  aria-label="New password"
                   disabled={savingPassword}
                   autoComplete="new-password"
                   className="bg-background border-border text-foreground text-xs px-3 focus-visible:ring-ring focus-visible:ring-1 focus-visible:border-ring rounded-xl h-10"
@@ -271,11 +275,14 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
             </div>
 
             <div className="pt-2 space-y-2 border-t border-border">
+              <h3 className="text-[10px] font-bold text-destructive uppercase tracking-wider">
+                Danger Zone
+              </h3>
               <Label
                 htmlFor="deletePassword"
                 className="text-[10px] font-bold text-destructive uppercase tracking-wider"
               >
-                Danger Zone
+                Confirm with password
               </Label>
               <div className="flex gap-2">
                 <Input

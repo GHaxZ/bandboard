@@ -35,9 +35,8 @@ export function LibraryDashboard({
 
   async function refreshData() {
     startTransition(async () => {
-      const updatedSongs = await getSongs();
+      const [updatedSongs, map] = await Promise.all([getSongs(), getProgressMap()]);
       setSongsList(updatedSongs);
-      const map = await getProgressMap();
       setProgressMap(map);
     });
   }

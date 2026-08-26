@@ -94,9 +94,9 @@ export function UploadTrackDialog({
       setError(`File too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB).`);
       return;
     }
-    toast.success("Track added to draft");
     try {
       onUploaded(file, role, label.trim() || file.name);
+      toast.success("Track added to draft");
     } catch (err) {
       console.error("UploadTrackDialog onUploaded failed:", err);
       toast.error("Failed to add stem to draft: " + String(err));

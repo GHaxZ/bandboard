@@ -190,6 +190,7 @@ export function KanbanBoard({
                                         disabled={isSaving}
                                         className="text-muted-foreground hover:text-foreground p-2 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(leftStatus)}`}
+                                        aria-label={`Move to ${getLabel(leftStatus)}`}
                                       >
                                         <ChevronLeft className="w-4 h-4" />
                                       </button>
@@ -218,6 +219,7 @@ export function KanbanBoard({
                                         disabled={isSaving}
                                         className="text-muted-foreground hover:text-foreground p-2 bg-card/45 hover:bg-muted border border-border/60 rounded-lg transition-all disabled:opacity-40 disabled:pointer-events-none"
                                         title={`Move to ${getLabel(rightStatus)}`}
+                                        aria-label={`Move to ${getLabel(rightStatus)}`}
                                       >
                                         <ChevronRight className="w-4 h-4" />
                                       </button>

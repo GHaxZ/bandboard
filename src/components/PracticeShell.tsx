@@ -112,8 +112,9 @@ export function PracticeShell({
   const { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer } = useSkipOverlay();
 
   // Keyboard shortcuts
+  const hasBothVideos = coverState?.hasBothVideos ?? false;
   usePracticeKeyboard({
-    onToggleVideo: capabilities.canToggle ? onToggleVideo : undefined,
+    onToggleVideo: capabilities.canToggle && hasBothVideos ? onToggleVideo : undefined,
     onPlayPause: () => {
       engine.playPause();
     },
@@ -149,7 +150,6 @@ export function PracticeShell({
   const prog = progressMap[song.id];
 
   const isVocals = coverState?.isVocals ?? false;
-  const hasBothVideos = coverState?.hasBothVideos ?? false;
   const activeRoleGroup = coverState?.activeRoleGroup;
 
   return (
@@ -324,6 +324,7 @@ export function PracticeShell({
                           onClick={() => handleDeleteMarker(idx)}
                           className="text-muted-foreground hover:text-destructive px-2 h-full hover:bg-destructive/10 border-l border-border transition-all cursor-pointer flex items-center"
                           title="Delete marker"
+                          aria-label="Delete marker"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

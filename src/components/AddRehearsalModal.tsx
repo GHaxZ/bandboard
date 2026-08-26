@@ -114,6 +114,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
   // Discard must actually clear the draft — otherwise reopening shows a
   // phantom-valid form that re-triggers the discard prompt on close.
   function resetForm() {
+    setError(null);
     setTitle("");
     setDateTimeStr("");
     setNotes("");
