@@ -68,8 +68,11 @@ export function CustomPlaybackHUD({
     const tick = () => {
       const eng = engineRef.current;
       const live = eng.getCurrentTime?.() ?? 0;
-      setCurrentTime(live);
-      setDuration(eng.duration ?? 0);
+      // Bail-out setters: identical values skip the re-render entirely, so an
+      // idle/paused HUD stops re-rendering at 60fps.
+      setCurrentTime((prev) => (Math.abs(prev - live) > 0.01 ? live : prev));
+      const dur = eng.duration ?? 0;
+      setDuration((prev) => (Math.abs(prev - dur) > 0.01 ? dur : prev));
       const pending = pendingSeekRef.current;
       if (pending != null && Math.abs(live - pending) < 0.5) {
         pendingSeekRef.current = null;

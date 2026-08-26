@@ -33,6 +33,10 @@ export type MediaDraft =
   | { kind: "youtube"; url: string }
   | { kind: "custom"; file: File; previewUrl: string };
 
+// Session cache for auto-search results, keyed by slot. Manual searches bypass
+// it (explicit user intent). Successes only — failures stay retryable.
+const autoSearchCache = new Map<string, YouTubeVideo[]>();
+
 interface VideoSelectorProps {
   isOpen: boolean;
   onClose: () => void;
@@ -71,6 +75,8 @@ export function VideoSelector({
   const [customError, setCustomError] = useState<string | null>(null);
   /** Persistent playback-support notice; shown while an undecodable file is staged. */
   const [customWarn, setCustomWarn] = useState<string | null>(null);
+  /** True when the last search could not run (rate-limited / external failure). */
+  const [searchError, setSearchError] = useState(false);
 
   // Tracks the latest search request — responses from an older in-flight
   // request (auto-search on open racing a manual search) are ignored.
@@ -80,14 +86,29 @@ export function VideoSelector({
     if (isOpen) {
       setCustomError(null);
       setCustomWarn(null);
+      setSearchError(false);
       const defaultQuery = getYouTubeQuery(songArtist, songTitle, role, type, instrumentName);
       setQuery(defaultQuery);
       if (defaultQuery.trim()) {
+        const cacheKey = `${trackId}:${type}`;
+        const cached = autoSearchCache.get(cacheKey);
+        if (cached) {
+          setResults(cached);
+          return;
+        }
         const requestId = ++searchRequestIdRef.current;
         setIsLoading(true);
         searchYouTubeVideosAction(defaultQuery)
           .then((videos) => {
-            if (requestId === searchRequestIdRef.current) setResults(videos);
+            if (requestId !== searchRequestIdRef.current) return;
+            if (videos === null) {
+              setSearchError(true);
+              setResults([]);
+            } else {
+              autoSearchCache.set(cacheKey, videos);
+              setSearchError(false);
+              setResults(videos);
+            }
           })
           .catch((e) => console.error(e))
           .finally(() => {
@@ -103,9 +124,18 @@ export function VideoSelector({
     setIsLoading(true);
     try {
       const videos = await searchYouTubeVideosAction(searchQuery);
-      if (requestId === searchRequestIdRef.current) setResults(videos);
+      if (requestId === searchRequestIdRef.current) {
+        if (videos === null) {
+          setSearchError(true);
+          setResults([]);
+        } else {
+          setSearchError(false);
+          setResults(videos);
+        }
+      }
     } catch (e) {
       console.error(e);
+      if (requestId === searchRequestIdRef.current) setSearchError(true);
     } finally {
       if (requestId === searchRequestIdRef.current) setIsLoading(false);
     }
@@ -244,7 +274,9 @@ export function VideoSelector({
                 </div>
               ) : results.length === 0 ? (
                 <div className="text-center py-4 text-xs text-muted-foreground">
-                  No videos found. Try a different query.
+                  {searchError
+                    ? "Search failed — try again."
+                    : "No videos found. Try a different query."}
                 </div>
               ) : (
                 results.map((video) => {

@@ -40,6 +40,8 @@ interface SongDashboardProps {
 
 // Module-scoped set so we only attempt lazy-load once per roleGroup per session.
 const attemptedLazy = new Set<string>();
+// Module-scoped set so metadata backfill runs once per song per session.
+const attemptedMetaBackfill = new Set<string>();
 
 export function SongDashboard({
   song,
@@ -302,9 +304,15 @@ export function SongDashboard({
     }
   }, [song.roleGroups, activeTrackId, lazyLoadedTrackId, isLazyLoading, onRefresh]);
 
-  // Backfill missing metadata for legacy rows on demand (not automatic)
+  // Backfill missing metadata for legacy rows — once per song per session, so
+  // revisits don't burn RATE_LIMITS.scrape when the scrape finds nothing.
   useEffect(() => {
-    if (song && (!song.albumArt || !song.lyricsUrl)) {
+    if (
+      song &&
+      !attemptedMetaBackfill.has(song.id) &&
+      (!song.albumArt || !song.lyricsUrl)
+    ) {
+      attemptedMetaBackfill.add(song.id);
       refreshSongMetadata(song.id)
         .then((res) => {
           if (res.success && isMountedRef.current) onRefresh();

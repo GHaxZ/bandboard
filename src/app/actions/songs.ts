@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { songs, tracks, roleGroups, customTracks } from "@/db/schema";
 import { eq, asc, and, not, sql } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
+import type { YouTubeVideo } from "@/lib/youtube";
 import { getYouTubeQuery } from "@/lib/youtube-query";
 import {
   fetchSongsterr,
@@ -484,16 +485,20 @@ export async function lazyLoadTrackMedia(
 // ---------------------------------------------------------------------------
 // YouTube search (for VideoSelector)
 // ---------------------------------------------------------------------------
-export async function searchYouTubeVideosAction(query: string) {
+/** Returns videos, [] for genuinely empty results, or null when the search
+ *  could not run (unauthorized / rate-limited / external failure). */
+export async function searchYouTubeVideosAction(
+  query: string
+): Promise<YouTubeVideo[] | null> {
   try {
     const user = await requireAuth();
-    if (!scrapeAllowed(user.id)) return [];
+    if (!scrapeAllowed(user.id)) return null;
     const results = await searchYouTube(query);
     return results.slice(0, 10);
   } catch (error) {
-    if (error instanceof AuthError) return [];
+    if (error instanceof AuthError) return null;
     console.error("Failed to search YouTube videos:", error);
-    return [];
+    return null;
   }
 }
 

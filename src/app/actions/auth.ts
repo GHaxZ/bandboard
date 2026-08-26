@@ -74,16 +74,17 @@ export async function register(
       return { success: false, error: 'Passwords do not match.' };
     }
 
-    // BAND_SECRET gates registration only (invite-style deployments).
+    const { device } = await getClientKey();
+    if (!rateLimit(`register:${device}`, RATE_LIMITS.register.max, RATE_LIMITS.register.windowMs)) {
+      return { success: false, error: 'Too many attempts. Try again later.' };
+    }
+
+    // BAND_SECRET gates registration only (invite-style deployments). Checked
+    // AFTER the limiter so wrong-code guesses consume attempt budget.
     const secret = process.env.BAND_SECRET;
     if (secret && !safeEqual(secret, inviteCode ?? '')) {
       await sleep(BASE_DELAY_MS);
       return { success: false, error: 'Incorrect band invite code.' };
-    }
-
-    const { device } = await getClientKey();
-    if (!rateLimit(`register:${device}`, RATE_LIMITS.register.max, RATE_LIMITS.register.windowMs)) {
-      return { success: false, error: 'Too many attempts. Try again later.' };
     }
 
     const cookieStore = await cookies();

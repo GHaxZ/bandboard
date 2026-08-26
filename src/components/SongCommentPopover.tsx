@@ -64,6 +64,9 @@ export function SongCommentPopover({
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // Comment count at last poll, so the read-watermark only advances when new
+  // messages actually arrived (not on every 2s tick).
+  const lastSeenCountRef = useRef(0);
 
   const loadComments = useCallback(async () => {
     const res = await getSongComments(rehearsalId, songId);
@@ -97,7 +100,15 @@ export function SongCommentPopover({
     const t = setInterval(() => {
       if (!isSending) {
         loadComments()
-          .then(() => markCommentsRead(rehearsalId, songId))
+          .then((res) => {
+            // Advance the read-watermark only when something new arrived —
+            // writing every 2s tick was thousands of pointless upserts per
+            // open day.
+            if (res.comments.length > lastSeenCountRef.current) {
+              lastSeenCountRef.current = res.comments.length;
+              markCommentsRead(rehearsalId, songId);
+            }
+          })
           .catch((err) => console.error("Failed to refresh comments:", err));
       }
     }, 2000);
@@ -110,6 +121,7 @@ export function SongCommentPopover({
     setIsLoading(true);
     try {
       const res = await loadComments();
+      lastSeenCountRef.current = res.comments.length;
       setWatermarkAtOpen(res.myLastReadAt);
       setLatestAtOpen(
         res.comments.length ? res.comments[res.comments.length - 1].createdAt : 0
