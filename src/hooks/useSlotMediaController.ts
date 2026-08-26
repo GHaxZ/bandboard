@@ -158,13 +158,6 @@ export function useSlotMediaController(
         setMuted: (m) => {
           if (mediaElRef.current) mediaElRef.current.muted = m;
         },
-        setVolume: (v) => {
-          if (mediaElRef.current)
-            mediaElRef.current.volume = Math.max(0, Math.min(1, v / 100));
-        },
-        setPlaybackRate: (r) => {
-          if (mediaElRef.current) mediaElRef.current.playbackRate = r;
-        },
       };
     }
     // YT case: wrap the YTPlayer ref.
@@ -215,20 +208,6 @@ export function useSlotMediaController(
         try {
           if (m) ytHook.playerRef.current?.mute();
           else ytHook.playerRef.current?.unMute();
-        } catch {
-          // ignore
-        }
-      },
-      setVolume: (v) => {
-        try {
-          ytHook.playerRef.current?.setVolume(v);
-        } catch {
-          // ignore
-        }
-      },
-      setPlaybackRate: (r) => {
-        try {
-          ytHook.playerRef.current?.setPlaybackRate(r);
         } catch {
           // ignore
         }

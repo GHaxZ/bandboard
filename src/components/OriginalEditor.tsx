@@ -50,6 +50,11 @@ import { usePlayerStore } from "@/stores/player-store";
 import { useSaveBar } from "@/hooks/use-save-bar";
 import { navigateWithGuard } from "@/stores/save-bar-store";
 
+function tuningsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
 interface OriginalEditorProps {
   song: Song;
   tracks: CustomTrack[];
@@ -192,7 +197,7 @@ export function OriginalEditor({
   const metaDirty =
     titleDraft !== song.title ||
     artistDraft !== song.artist ||
-    JSON.stringify(tuningsDraft) !== JSON.stringify(song.tunings ?? {}) ||
+    !tuningsEqual(tuningsDraft, song.tunings ?? {}) ||
     coverArtFile !== null ||
     coverArtMarkedForRemoval ||
     notesDraft !== initialScratchpadNotes;
@@ -367,9 +372,9 @@ export function OriginalEditor({
     try {
       // 1. Metadata
       const metaPatch: { title?: string; artist?: string; tunings?: Record<string, string> | null; coverArtStoredName?: string | null } = {};
-      if (titleDraft !== song.title) { metaPatch.title = titleDraft; metaPatch.artist = artistDraft; }
-      if (artistDraft !== song.artist && !metaPatch.artist) { metaPatch.artist = artistDraft; }
-      if (JSON.stringify(tuningsDraft) !== JSON.stringify(song.tunings ?? {})) {
+      if (titleDraft !== song.title) metaPatch.title = titleDraft;
+      if (artistDraft !== song.artist) metaPatch.artist = artistDraft;
+      if (!tuningsEqual(tuningsDraft, song.tunings ?? {})) {
         metaPatch.tunings = Object.keys(tuningsDraft).length > 0 ? tuningsDraft : null;
       }
       if (coverArtMarkedForRemoval) {

@@ -46,7 +46,11 @@ export const roleGroups = sqliteTable(
     backingCustomTrackId: text('backing_custom_track_id').references(() => customTracks.id, { onDelete: 'set null' }),
     tabCustomTrackId: text('tab_custom_track_id').references(() => customTracks.id, { onDelete: 'set null' }),
   },
-  (table) => [index('role_groups_song_id_idx').on(table.songId)]
+  (table) => [
+    index('role_groups_song_id_idx').on(table.songId),
+    index('role_groups_backing_custom_track_id_idx').on(table.backingCustomTrackId),
+    index('role_groups_tab_custom_track_id_idx').on(table.tabCustomTrackId),
+  ]
 );
 
 // ---------------------------------------------------------------------------
@@ -129,7 +133,6 @@ export const rehearsalVotes = sqliteTable(
   },
   (table) => [
     uniqueIndex('rehearsal_votes_unique').on(table.rehearsalId, table.songId, table.userUuid),
-    index('rehearsal_votes_rehearsal_id_idx').on(table.rehearsalId),
   ]
 );
 
@@ -195,7 +198,6 @@ export const rehearsalSongs = sqliteTable(
   },
   (table) => [
     primaryKey({ columns: [table.rehearsalId, table.songId] }),
-    index('rehearsal_songs_rehearsal_id_idx').on(table.rehearsalId),
     index('rehearsal_songs_song_id_idx').on(table.songId),
   ]
 );
@@ -225,6 +227,8 @@ export const userSongProgress = sqliteTable(
       .notNull()
       .references(() => songs.id, { onDelete: 'cascade' }),
     status: text('status').$type<ProgressStatus>().notNull().default('not_started'), // ProgressStatus
+    // ponytail: integer percent (50–200), unlike userSettings.playbackSpeed REAL
+    // multiplier (0.5–2.0). Unifying means a data migration; not worth it yet.
     speed: integer('speed').notNull().default(100),
     notes: text('notes'),
     scratchpadNotes: text('scratchpad_notes'),
@@ -239,7 +243,6 @@ export const userSongProgress = sqliteTable(
   },
   (table) => [
     uniqueIndex('user_song_unique_idx').on(table.userUuid, table.songId),
-    index('user_song_progress_user_uuid_idx').on(table.userUuid),
   ]
 );
 

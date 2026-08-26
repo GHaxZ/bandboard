@@ -13,9 +13,6 @@ export interface MediaController {
    * -1 unstarted, 0 ended, 1 playing, 2 paused, 5 cued. */
   getState(): number;
   setMuted(muted: boolean): void;
-  /** Accepts volume in 0..100 (matches the userSettings store). */
-  setVolume(volume: number): void;
-  setPlaybackRate(rate: number): void;
 }
 
 /** Minimal playback surface exposed to PracticeShell so the unified UI can

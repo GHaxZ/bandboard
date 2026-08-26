@@ -269,7 +269,7 @@ export function SongDashboard({
     const standardRoleGroups = song.roleGroups.filter((rg) => rg.role !== "Other");
     const activeRoleGroup = standardRoleGroups.find((rg) => rg.id === activeTrackId);
 
-    if (!activeRoleGroup || activeRoleGroup.role === "Other") return;
+    if (!activeRoleGroup) return;
 
     const needsBacking = activeRoleGroup.backingTrackLink === null;
     const needsTabVideo = activeRoleGroup.tabVideoLink === null;

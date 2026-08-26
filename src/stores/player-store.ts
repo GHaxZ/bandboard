@@ -47,7 +47,7 @@ interface PlayerStore {
   setPlaying: (v: boolean) => void;
   setVolume: (v: number) => void;
   setSpeed: (v: number) => void;
-  registerSeek: (target: number) => void;
+  registerSeek: () => void;
 
   setActiveVideo: (v: ActiveVideo) => void;
   setMarkers: (m: number[]) => void;
@@ -92,7 +92,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   setSpeed: (v) => set({ speed: v }),
   // seekTarget was removed as dead state; only the timestamp is kept so the
   // sync engine can debounce seeks.
-  registerSeek: (_target) => set({ lastSeekAt: Date.now() }),
+  registerSeek: () => set({ lastSeekAt: Date.now() }),
 
   setActiveVideo: (v) => set({ activeVideo: v }),
   setMarkers: (m) => set({ markers: m }),

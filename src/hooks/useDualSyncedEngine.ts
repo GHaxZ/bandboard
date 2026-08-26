@@ -208,7 +208,7 @@ export function useDualSyncedEngine({
       let target = Math.max(0, baseTime + deltaSeconds);
       const duration = active.getDuration();
       if (duration && target > duration) target = duration;
-      registerSeek(target);
+      registerSeek();
       active.seekTo(target, true);
       if (inactive) mirrorToInactive(target, active, inactive);
     } catch {
@@ -221,7 +221,7 @@ export function useDualSyncedEngine({
     const inactive = getInactive();
     if (!active) return;
     try {
-      registerSeek(time);
+      registerSeek();
       active.seekTo(time, true);
       if (inactive) mirrorToInactive(time, active, inactive);
     } catch {

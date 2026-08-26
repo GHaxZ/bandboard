@@ -20,6 +20,7 @@ import {
   Info,
   FileText,
   ExternalLink,
+  Clock,
 } from "lucide-react";
 import { useSaveBar } from "@/hooks/use-save-bar";
 import { usePracticeControls } from "@/hooks/usePracticeControls";
@@ -356,7 +357,7 @@ export function PracticeShell({
                             className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
                             title="Capture current playback time"
                           >
-                            <ClockIcon className="w-2.5 h-2.5" /> Capture
+                            <Clock className="w-2.5 h-2.5" /> Capture
                           </button>
                         </div>
                         <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
@@ -402,7 +403,7 @@ export function PracticeShell({
                             className="text-[9px] text-accent-text hover:text-foreground px-1.5 py-0.5 bg-accent-soft hover:bg-accent-strong border border-ring/40 rounded flex items-center gap-1 cursor-pointer transition-all"
                             title="Capture current playback time"
                           >
-                            <ClockIcon className="w-2.5 h-2.5" /> Capture
+                            <Clock className="w-2.5 h-2.5" /> Capture
                           </button>
                         </div>
                         <div className="flex items-center bg-background/60 border border-border rounded-lg overflow-hidden h-7 w-full justify-between">
@@ -663,14 +664,5 @@ export function PracticeShell({
         </div>
       </div>
     </div>
-  );
-}
-
-function ClockIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
   );
 }

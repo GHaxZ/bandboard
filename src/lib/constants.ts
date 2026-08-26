@@ -24,8 +24,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 // ---------------------------------------------------------------------------
 // Song types — cover vs original
 // ---------------------------------------------------------------------------
-export const SONG_TYPES = ['cover', 'original'] as const;
-export type SongType = (typeof SONG_TYPES)[number];
+export type SongType = 'cover' | 'original';
 
 export const SONG_TYPE_LABEL: Record<SongType, string> = {
   cover: 'Cover',
@@ -48,8 +47,7 @@ export const SONG_TYPE_BADGE: Record<SongType, { text: string; soft: string; bor
 // ---------------------------------------------------------------------------
 // Rehearsal types — manual session vs song vote (mirrors SONG_TYPE_BADGE)
 // ---------------------------------------------------------------------------
-export const REHEARSAL_TYPES = ['manual', 'vote'] as const;
-export type RehearsalType = (typeof REHEARSAL_TYPES)[number];
+export type RehearsalType = 'manual' | 'vote';
 
 export const REHEARSAL_TYPE_LABEL: Record<RehearsalType, string> = {
   manual: 'Session',
@@ -123,10 +121,6 @@ export const PROGRESS_STATUSES = [
     border: 'border-purple-600/30 dark:border-purple-800',
   },
 ];
-
-export const PROGRESS_STATUS_ORDER: ProgressStatus[] = PROGRESS_STATUSES.map(
-  (s) => s.id
-);
 
 export function progressStatusMeta(id: string) {
   return (

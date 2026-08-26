@@ -51,7 +51,7 @@ export async function GET(
           'Accept-Ranges': 'bytes',
           'Content-Length': String(end - start + 1),
           'Content-Type': contentType,
-          'Cache-Control': 'no-store, max-age=0',
+          'Cache-Control': 'private, no-store',
           'X-Content-Type-Options': 'nosniff',
         },
       });
@@ -64,7 +64,7 @@ export async function GET(
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
         'Content-Length': String(total),
-        'Cache-Control': 'no-store, max-age=0',
+        'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },
     });

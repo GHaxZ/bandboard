@@ -145,7 +145,7 @@ export function useAutoplayEngine({
         const dur = p.getDuration();
         let target = Math.max(0, base + deltaSeconds);
         if (dur && target > dur) target = dur;
-        usePlayerStore.getState().registerSeek(target);
+        usePlayerStore.getState().registerSeek();
         p.seekTo(target, true);
       } catch {
         // ignore
@@ -155,7 +155,7 @@ export function useAutoplayEngine({
       if (!el) return;
       let target = Math.max(0, el.currentTime + deltaSeconds);
       if (el.duration && target > el.duration) target = el.duration;
-      usePlayerStore.getState().registerSeek(target);
+      usePlayerStore.getState().registerSeek();
       el.currentTime = target;
     } else if (media.kind === "multistem") {
       mt.seekBy(deltaSeconds);
@@ -212,7 +212,7 @@ export function useAutoplayEngine({
       const p = yt.playerRef?.current;
       if (!p) return;
       try {
-        usePlayerStore.getState().registerSeek(target);
+        usePlayerStore.getState().registerSeek();
         p.seekTo(target, true);
       } catch {
         // ignore
@@ -220,7 +220,7 @@ export function useAutoplayEngine({
     } else if (media.kind === "custom-file") {
       const el = customMediaRef.current;
       if (!el) return;
-      usePlayerStore.getState().registerSeek(target);
+      usePlayerStore.getState().registerSeek();
       // Clamp against the loaded duration only when it's actually known —
       // before metadata loads, duration is NaN and `NaN || 0` would snap
       // every seek back to 0.

@@ -47,10 +47,14 @@ export function WaveformDisplay({
       return;
     }
     setStatus("loading");
-    getWaveformPeaks(trackId, srcUrl).then((result) => {
-      if (cancelled) return;
-      setStatus(result ? "ready" : "failed");
-    });
+    getWaveformPeaks(trackId, srcUrl)
+      .then((result) => {
+        if (cancelled) return;
+        setStatus(result ? "ready" : "failed");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("failed");
+      });
     return () => {
       cancelled = true;
     };

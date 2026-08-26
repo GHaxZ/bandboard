@@ -75,6 +75,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
           'Content-Range': `bytes ${start}-${end}/${totalSize}`,
           'Accept-Ranges': 'bytes',
           'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'private, no-store',
         },
       });
     }
@@ -88,6 +89,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         'Content-Length': String(totalSize),
         'Accept-Ranges': 'bytes',
         'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error) {
