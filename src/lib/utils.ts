@@ -74,6 +74,30 @@ export function getAlternativeLinks(tabLink: string) {
 }
 
 /**
+ * ID of the entry that should become selected after `removedId` is removed
+ * from `list`: the entry below it, else the one above (the new last), else
+ * null when the list ends up empty.
+ */
+export function neighborId<T>(
+  list: T[],
+  removedId: string,
+  getId: (item: T) => string
+): string | null {
+  const idx = list.findIndex((item) => getId(item) === removedId);
+  if (idx === -1) return null;
+  const remaining = list.filter((item) => getId(item) !== removedId);
+  if (remaining.length === 0) return null;
+  return getId(remaining[Math.min(idx, remaining.length - 1)]);
+}
+
+/** Timestamp → "YYYY-MM-DDTHH:mm" for <input type="datetime-local"> (local time). */
+export function toDateTimeLocal(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
  * RFC4122 v4 UUID that works in non-secure browser contexts (plain HTTP,
  * non-localhost hosts) where crypto.randomUUID() is undefined.
  * ponytail: falls back to getRandomValues v4; upgrade to randomUUID only

@@ -38,7 +38,7 @@ import type {
   VotingState,
 } from "@/types/models";
 import type { Role } from "@/lib/constants";
-import { formatTimeLeft } from "@/lib/utils";
+import { formatTimeLeft, neighborId } from "@/lib/utils";
 
 interface VotingClientProps {
   rehearsalId: string;
@@ -72,6 +72,9 @@ export function VotingClient({
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Carries the intended post-deletion selection across the optimistic-update /
+  // navigation race so the self-heal effect picks the neighbor, not song #1.
+  const desiredSongRef = useRef<string | null>(null);
 
   // Countdown tick (30s is plenty for minute-precision labels).
   useEffect(() => {
@@ -126,6 +129,31 @@ export function VotingClient({
 
   const activeSongId = searchParams.get("song") || state.candidates[0]?.song.id || null;
 
+  // Display order of the candidate list (votes desc, earliest nomination asc) —
+  // same ranking VotingPanel renders.
+  const rankedCandidates = [...state.candidates].sort(
+    (a, b) => b.voteCount - a.voteCount || a.addedAt - b.addedAt
+  );
+
+  // Self-heal a stale ?song= (nomination removed elsewhere / dead bookmark):
+  // point the URL at the intended song, else the top of the displayed list.
+  useEffect(() => {
+    const requested = searchParams.get("song");
+    const ids = state.candidates.map((c) => c.song.id);
+    if (requested && ids.includes(requested)) {
+      desiredSongRef.current = null;
+      return;
+    }
+    const target = desiredSongRef.current ?? ids[0] ?? null;
+    desiredSongRef.current = null;
+    // Nothing to fix (e.g. empty list, no stale param) — avoid a no-op replace.
+    if ((target ?? null) === (requested ?? null)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (target) params.set("song", target);
+    else params.delete("song");
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [searchParams, state.candidates, pathname, router]);
+
   function handleSelectSong(songId: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("song", songId);
@@ -177,18 +205,14 @@ export function VotingClient({
       toast.error("Failed to remove song: " + (res.error ?? "unknown error"));
       return;
     }
-    // Optimistic removal; refreshVotingState() reconciles.
+    // Select the displayed neighbor: below the removed rank, else the new last.
+    desiredSongRef.current = neighborId(rankedCandidates, songId, (c) => c.song.id);
+    // Optimistic removal; refreshVotingState() reconciles. The heal effect
+    // repairs ?song= once state settles.
     setState((prev) => ({
       ...prev,
       candidates: prev.candidates.filter((c) => c.song.id !== songId),
     }));
-    if (activeSongId === songId) {
-      const remaining = state.candidates.filter((c) => c.song.id !== songId);
-      const params = new URLSearchParams(searchParams.toString());
-      if (remaining.length > 0) params.set("song", remaining[0].song.id);
-      else params.delete("song");
-      router.replace(`${pathname}?${params.toString()}`);
-    }
     await refreshVotingState();
   }
 
@@ -231,7 +255,9 @@ export function VotingClient({
   const selectedCandidate = activeSongId
     ? state.candidates.find((c) => c.song.id === activeSongId)
     : undefined;
-  const currentSong = selectedCandidate?.song;
+  // Fall back to the top of the displayed list so the pane never flashes
+  // "No Song Selected" while a stale ?song= is being healed.
+  const currentSong = selectedCandidate?.song ?? rankedCandidates[0]?.song;
 
   const timeLeft = formatTimeLeft(state.votingEndsAt - now);
 

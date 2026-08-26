@@ -88,7 +88,7 @@ export async function updateRehearsal(
   try {
     await requireAuth();
     const row = await db
-      .select({ type: rehearsals.type, finalizedAt: rehearsals.finalizedAt })
+      .select({ type: rehearsals.type, finalizedAt: rehearsals.finalizedAt, votingEndsAt: rehearsals.votingEndsAt })
       .from(rehearsals)
       .where(eq(rehearsals.id, rehearsalId))
       .get();
@@ -96,17 +96,26 @@ export async function updateRehearsal(
 
     // Vote settings are only editable while the vote is open.
     const voteEditable = row.type === "vote" && !row.finalizedAt;
-    const err = validateRehearsal({
-      title,
-      date,
-      ...(voteEditable
-        ? {
-            type: "vote" as const,
-            votingEndsAt: opts?.votingEndsAt,
-            songSelectionCount: opts?.songSelectionCount,
-          }
-        : {}),
-    });
+    // ponytail: re-sending the stored (possibly past) end must not fail —
+    // only a CHANGED end has to satisfy the future rule.
+    const endsChanged =
+      voteEditable &&
+      opts?.votingEndsAt !== undefined &&
+      opts.votingEndsAt !== row.votingEndsAt;
+    const err = validateRehearsal(
+      {
+        title,
+        date,
+        ...(voteEditable
+          ? {
+              type: "vote" as const,
+              votingEndsAt: opts?.votingEndsAt,
+              songSelectionCount: opts?.songSelectionCount,
+            }
+          : {}),
+      },
+      { allowPastVotingEnd: voteEditable && !endsChanged }
+    );
     if (err) return { success: false, error: err };
 
     await db

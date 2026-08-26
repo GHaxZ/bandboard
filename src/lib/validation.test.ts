@@ -58,26 +58,55 @@ describe("validateRehearsal", () => {
   });
 
   it("rejects votingEndsAt after the rehearsal date", () => {
+    const future = Date.now() + 7 * 24 * 60 * 60 * 1000;
     expect(
       validateRehearsal({
         title: "x",
-        date: 1000,
+        date: future,
         type: "vote",
-        votingEndsAt: 2000,
+        votingEndsAt: future + 1000,
         songSelectionCount: 3,
       })
     ).toBe("Voting must end before the rehearsal starts");
   });
 
   it("accepts votingEndsAt at or before the rehearsal date", () => {
+    const future = Date.now() + 7 * 24 * 60 * 60 * 1000;
     expect(
       validateRehearsal({
         title: "x",
-        date: 1000,
+        date: future,
         type: "vote",
-        votingEndsAt: 1000,
+        votingEndsAt: future,
         songSelectionCount: 3,
       })
+    ).toBeNull();
+  });
+
+  it("rejects votingEndsAt in the past", () => {
+    expect(
+      validateRehearsal({
+        title: "x",
+        date: Date.now() + 100_000,
+        type: "vote",
+        votingEndsAt: Date.now() - 1000,
+        songSelectionCount: 3,
+      })
+    ).toBe("Voting end must be in the future");
+  });
+
+  it("allows a past votingEndsAt under the edit exemption", () => {
+    expect(
+      validateRehearsal(
+        {
+          title: "x",
+          date: Date.now() + 100_000,
+          type: "vote",
+          votingEndsAt: Date.now() - 1000,
+          songSelectionCount: 3,
+        },
+        { allowPastVotingEnd: true }
+      )
     ).toBeNull();
   });
 

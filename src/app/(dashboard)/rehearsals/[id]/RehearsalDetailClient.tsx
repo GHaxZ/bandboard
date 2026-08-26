@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -21,6 +21,7 @@ import {
 import { getProgressMap } from "@/app/actions/user";
 import type { RehearsalDetails, Song, ProgressMap } from "@/types/models";
 import type { Role } from "@/lib/constants";
+import { neighborId } from "@/lib/utils";
 
 interface RehearsalDetailClientProps {
   rehearsalId: string;
@@ -46,6 +47,8 @@ export function RehearsalDetailClient({
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
+  // Intended post-deletion selection; consumed by the self-heal effect below.
+  const desiredSongRef = useRef<string | null>(null);
 
   // Manual sessions AND finished votes can (re-)start a voting. Open votes
   // render VotingClient instead of this component, so they never get here.
@@ -63,14 +66,21 @@ export function RehearsalDetailClient({
   }
 
   // Self-heal a stale ?song= (song removed from setlist / dead bookmark):
-  // once the fresh list lands, point the URL at the song actually displayed.
+  // once the fresh list lands, point the URL at the intended song — the
+  // neighbor recorded by the remove handler, else the first song.
   useEffect(() => {
     const requested = searchParams.get("song");
-    if (!requested) return;
-    if (rehearsalDetails.rehearsalSongs.some((rs) => rs.songId === requested)) return;
+    const ids = rehearsalDetails.rehearsalSongs.map((rs) => rs.songId);
+    if (requested && ids.includes(requested)) {
+      desiredSongRef.current = null;
+      return;
+    }
+    const target = desiredSongRef.current ?? ids[0] ?? null;
+    desiredSongRef.current = null;
+    // Nothing to fix (e.g. empty list, no stale param) — avoid a no-op replace.
+    if ((target ?? null) === (requested ?? null)) return;
     const params = new URLSearchParams(searchParams.toString());
-    const first = rehearsalDetails.rehearsalSongs[0]?.songId;
-    if (first) params.set("song", first);
+    if (target) params.set("song", target);
     else params.delete("song");
     router.replace(`${pathname}?${params.toString()}`);
   }, [searchParams, rehearsalDetails.rehearsalSongs, pathname, router]);
@@ -90,8 +100,13 @@ export function RehearsalDetailClient({
       toast.error("Failed to remove song: " + res.error);
       return;
     }
+    // Select the setlist neighbor: below the removed slot, else the new last.
+    desiredSongRef.current = neighborId(
+      rehearsalDetails.rehearsalSongs,
+      songId,
+      (rs) => rs.songId
+    );
     // Optimistic: drop it from local state now; refreshData() reconciles.
-    // The self-heal effect repairs a stale ?song= pointing at the removed song.
     setRehearsalDetails((prev) => ({
       ...prev,
       rehearsalSongs: prev.rehearsalSongs.filter((rs) => rs.songId !== songId),

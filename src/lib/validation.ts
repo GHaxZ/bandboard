@@ -73,7 +73,11 @@ export function validateStartOffsets(o: Record<string, unknown>): string | null 
   return null;
 }
 
-export function validateRehearsal(r: Record<string, unknown>): string | null {
+export function validateRehearsal(
+  r: Record<string, unknown>,
+  opts?: { /** Exemption for editing a row whose stored end is already past. */
+    allowPastVotingEnd?: boolean }
+): string | null {
   if (r.title !== undefined && (typeof r.title !== 'string' || !r.title.trim())) {
     return 'title is required';
   }
@@ -99,6 +103,14 @@ export function validateRehearsal(r: Record<string, unknown>): string | null {
     r.votingEndsAt > r.date
   ) {
     return 'Voting must end before the rehearsal starts';
+  }
+  if (
+    !opts?.allowPastVotingEnd &&
+    r.type === 'vote' &&
+    typeof r.votingEndsAt === 'number' &&
+    r.votingEndsAt <= Date.now()
+  ) {
+    return 'Voting end must be in the future';
   }
   return null;
 }

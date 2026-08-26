@@ -483,22 +483,23 @@ export function SongDashboard({
           <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium truncate">
             by {song.artist}
           </CardDescription>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onPractice && <PracticeButton onClick={onPractice} />}
-
-          {onDelete && (
-            <Button
-              variant="danger-subtle"
-              size="icon"
-              onClick={onDelete}
-              className="rounded-xl h-9 w-9"
-              title={deleteTitle ?? "Delete Song"}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          {onPractice && (
+            <div className="mt-3">
+              <PracticeButton onClick={onPractice} />
+            </div>
           )}
         </div>
+        {onDelete && (
+          <Button
+            variant="danger-subtle"
+            size="icon"
+            onClick={onDelete}
+            className="rounded-xl h-9 w-9 shrink-0"
+            title={deleteTitle ?? "Delete Song"}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
       </CardHeader>
 
       <CardContent className="p-6">

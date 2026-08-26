@@ -78,33 +78,33 @@ export function OriginalSongDashboard({
           <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium truncate">
             by {song.artist}
           </CardDescription>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onPractice && <PracticeButton onClick={onPractice} />}
-
-          {onEdit && (
-            <Button
-              variant="secondary"
-              onClick={onEdit}
-              className="rounded-xl h-9 px-4 text-xs font-bold"
-              title="Edit Original"
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </Button>
-          )}
-
-          {onDelete && (
-            <Button
-              variant="danger-subtle"
-              size="icon"
-              onClick={onDelete}
-              className="rounded-xl h-9 w-9"
-              title={deleteTitle ?? "Delete Song"}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          {(onPractice || onEdit) && (
+            <div className="flex items-center gap-2 mt-3">
+              {onPractice && <PracticeButton onClick={onPractice} />}
+              {onEdit && (
+                <Button
+                  variant="secondary"
+                  onClick={onEdit}
+                  className="rounded-xl h-9 px-4 text-xs font-bold"
+                  title="Edit Original"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </Button>
+              )}
+            </div>
           )}
         </div>
+        {onDelete && (
+          <Button
+            variant="danger-subtle"
+            size="icon"
+            onClick={onDelete}
+            className="rounded-xl h-9 w-9 shrink-0"
+            title={deleteTitle ?? "Delete Song"}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
       </CardHeader>
 
       <CardContent className="p-6 space-y-6">

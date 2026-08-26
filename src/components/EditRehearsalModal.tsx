@@ -18,7 +18,7 @@ import { updateRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Save } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn } from "@/lib/utils";
+import { cn, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN } from "@/lib/constants";
 
@@ -36,12 +36,6 @@ interface EditRehearsalModalProps {
   onSuccess: () => void;
 }
 
-function toDateTimeLocal(ts: number): string {
-  const d = new Date(ts);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSuccess }: EditRehearsalModalProps) {
   const [title, setTitle] = useState(rehearsal.title);
   const [dateTimeStr, setDateTimeStr] = useState("");
@@ -51,6 +45,9 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // Picker floor for the voting-end input, captured at open-time so render
+  // stays pure (react-hooks/purity). Empty = no min.
+  const [minEndsStr, setMinEndsStr] = useState("");
 
   // Pre-compute the "original" snapshot for dirty detection (runs once per open)
   const original = useMemo(() => {
@@ -76,6 +73,11 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
       if (voting) {
         setVotingEndsStr(toDateTimeLocal(voting.votingEndsAt));
         setSelectionCount(String(voting.songSelectionCount));
+        // ponytail: no min when the stored end is already past — native
+        // rangeUnderflow would block even title-only saves.
+        setMinEndsStr(
+          voting.votingEndsAt > Date.now() ? toDateTimeLocal(Date.now()) : ""
+        );
       }
     }
   }, [isOpen, rehearsal, voting]);
@@ -112,6 +114,13 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
       if (voting) {
         const endsTs = new Date(votingEndsStr).getTime();
         if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
+        // Unchanged stored end may be past (expired-but-open vote) — only a
+        // CHANGED end has to be in the future.
+        if (endsTs !== voting.votingEndsAt && endsTs <= Date.now()) {
+          setError("Voting end must be in the future.");
+          setIsLoading(false);
+          return false;
+        }
         const count = Math.round(Number(selectionCount));
         if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
           setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
@@ -203,6 +212,7 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
                   type="datetime-local"
                   required
                   disabled={isLoading}
+                  min={minEndsStr || undefined}
                   value={votingEndsStr}
                   onChange={(e) => setVotingEndsStr(e.target.value)}
                   className="rounded-xl w-full"

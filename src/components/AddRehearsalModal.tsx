@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import { createRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Plus, Vote as VoteIcon, Music as MusicIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn } from "@/lib/utils";
+import { cn, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN, REHEARSAL_TYPE_BADGE } from "@/lib/constants";
 import type { RehearsalType } from "@/lib/constants";
@@ -39,6 +39,14 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // Picker floor for the voting-end input, captured at open-time so render
+  // stays pure (react-hooks/purity).
+  const [minEndsStr, setMinEndsStr] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setMinEndsStr(toDateTimeLocal(Date.now()));
+  }, [isOpen]);
 
   const isReady =
     title.trim().length > 0 &&
@@ -60,6 +68,11 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
       if (rehearsalType === "vote") {
         const endsTs = new Date(votingEndsStr).getTime();
         if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
+        if (endsTs <= Date.now()) {
+          setError("Voting end must be in the future.");
+          setIsLoading(false);
+          return false;
+        }
         if (endsTs > timestamp) {
           setError("Voting must end before the rehearsal starts.");
           setIsLoading(false);
@@ -227,6 +240,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                   type="datetime-local"
                   required
                   disabled={isLoading}
+                  min={minEndsStr || undefined}
                   value={votingEndsStr}
                   onChange={(e) => setVotingEndsStr(e.target.value)}
                   className="rounded-xl w-full"

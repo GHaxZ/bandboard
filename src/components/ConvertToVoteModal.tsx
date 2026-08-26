@@ -16,7 +16,7 @@ import { convertRehearsalToVote } from "@/app/actions/votes";
 import { Loader2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn } from "@/lib/utils";
+import { cn, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN } from "@/lib/constants";
 
@@ -35,15 +35,13 @@ interface ConvertToVoteModalProps {
   onSuccess: () => void;
 }
 
-function toDateTimeLocal(ts: number): string {
-  const d = new Date(ts);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** Default end: 24h before the rehearsal, but never less than 1h from now. */
+/** Preset end: 24h before the rehearsal. If that already passed, the closest
+ *  valid moment (≥1h from now, still before the rehearsal). May still be
+ *  invalid for imminent/past rehearsals — submit-time validation catches it. */
 function defaultVotingEnd(rehearsalDate: number): number {
-  return Math.max(Date.now() + 60 * 60 * 1000, rehearsalDate - 24 * 60 * 60 * 1000);
+  const dayBefore = rehearsalDate - 24 * 60 * 60 * 1000;
+  if (dayBefore > Date.now()) return dayBefore;
+  return Math.min(rehearsalDate - 60_000, Date.now() + 60 * 60 * 1000);
 }
 
 export function ConvertToVoteModal({
@@ -54,29 +52,37 @@ export function ConvertToVoteModal({
 }: ConvertToVoteModalProps) {
   const [votingEndsStr, setVotingEndsStr] = useState("");
   const [selectionCount, setSelectionCount] = useState("3");
+  // Pristine value + picker floor, captured at open-time so render stays pure.
+  const [baselineEndsStr, setBaselineEndsStr] = useState("");
+  const [minEndsStr, setMinEndsStr] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   // Autofill vote settings from the rehearsal's previous vote state when it
-  // has one. Title/date/notes are NOT editable here — the conversion action
-  // doesn't accept them, so editing would silently discard input.
+  // has one AND it is still in the future; otherwise fall back to the preset.
+  // Title/date/notes are NOT editable here — the conversion action doesn't
+  // accept them, so editing would silently discard input.
   useEffect(() => {
     if (!isOpen) return;
-    setVotingEndsStr(
-      toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date))
-    );
+    const baseline =
+      rehearsal.votingEndsAt !== null && rehearsal.votingEndsAt > Date.now()
+        ? rehearsal.votingEndsAt
+        : defaultVotingEnd(rehearsal.date);
+    const baselineStr = toDateTimeLocal(baseline);
+    setVotingEndsStr(baselineStr);
+    setBaselineEndsStr(baselineStr);
+    setMinEndsStr(toDateTimeLocal(Date.now()));
     setSelectionCount(String(rehearsal.songSelectionCount ?? 3));
   }, [isOpen, rehearsal]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!isOpen) return false;
     return (
-      votingEndsStr !==
-        toDateTimeLocal(rehearsal.votingEndsAt ?? defaultVotingEnd(rehearsal.date)) ||
+      votingEndsStr !== baselineEndsStr ||
       selectionCount !== String(rehearsal.songSelectionCount ?? 3)
     );
-  }, [isOpen, votingEndsStr, selectionCount, rehearsal]);
+  }, [isOpen, votingEndsStr, baselineEndsStr, selectionCount, rehearsal]);
 
   async function doSubmit(): Promise<boolean> {
     if (!votingEndsStr) return false;
@@ -87,6 +93,11 @@ export function ConvertToVoteModal({
     try {
       const endsTs = new Date(votingEndsStr).getTime();
       if (isNaN(endsTs)) throw new Error("Invalid voting end date or time");
+      if (endsTs <= Date.now()) {
+        setError("Voting end must be in the future.");
+        setIsLoading(false);
+        return false;
+      }
       const count = Math.round(Number(selectionCount));
       if (!Number.isInteger(count) || count < VOTE_SELECTION_MIN) {
         setError(`Songs to select must be an integer of at least ${VOTE_SELECTION_MIN}.`);
@@ -154,6 +165,7 @@ export function ConvertToVoteModal({
               type="datetime-local"
               required
               disabled={isLoading}
+              min={minEndsStr || undefined}
               value={votingEndsStr}
               onChange={(e) => setVotingEndsStr(e.target.value)}
               className="rounded-xl w-full"
