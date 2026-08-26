@@ -18,7 +18,7 @@ import { createRehearsal } from "@/app/actions/rehearsals";
 import { Loader2, Calendar, Plus, Vote as VoteIcon, Music as MusicIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn, toDateTimeLocal } from "@/lib/utils";
+import { cn, defaultVotingEnd, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN, REHEARSAL_TYPE_BADGE } from "@/lib/constants";
 import type { RehearsalType } from "@/lib/constants";
@@ -42,11 +42,24 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
   // Picker floor for the voting-end input, captured at open-time so render
   // stays pure (react-hooks/purity).
   const [minEndsStr, setMinEndsStr] = useState("");
+  // Tracks whether the user hand-edited the voting end; until then the
+  // rehearsal date drives it (re-prefilled on every date change).
+  const [endsTouched, setEndsTouched] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setMinEndsStr(toDateTimeLocal(Date.now()));
+    setEndsTouched(false);
   }, [isOpen]);
+
+  // Date drives the deadline: prefill "Voting Ends" to 24h before the
+  // rehearsal until the user edits that field themselves.
+  useEffect(() => {
+    if (!isOpen || rehearsalType !== "vote" || endsTouched) return;
+    const ts = new Date(dateTimeStr).getTime();
+    if (!dateTimeStr || isNaN(ts)) return;
+    setVotingEndsStr(toDateTimeLocal(defaultVotingEnd(ts)));
+  }, [isOpen, rehearsalType, dateTimeStr, endsTouched]);
 
   const isReady =
     title.trim().length > 0 &&
@@ -134,6 +147,7 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
     setVotingEndsStr("");
     setSelectionCount("3");
     setRehearsalType("manual");
+    setEndsTouched(false);
   }
 
   return (
@@ -242,7 +256,10 @@ export function AddRehearsalModal({ isOpen, onClose, onSuccess }: AddRehearsalMo
                   disabled={isLoading}
                   min={minEndsStr || undefined}
                   value={votingEndsStr}
-                  onChange={(e) => setVotingEndsStr(e.target.value)}
+                  onChange={(e) => {
+                    setVotingEndsStr(e.target.value);
+                    setEndsTouched(true);
+                  }}
                   className="rounded-xl w-full"
                 />
               </div>

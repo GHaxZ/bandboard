@@ -16,7 +16,7 @@ import { convertRehearsalToVote } from "@/app/actions/votes";
 import { Loader2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
-import { cn, toDateTimeLocal } from "@/lib/utils";
+import { cn, defaultVotingEnd, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN } from "@/lib/constants";
 
@@ -33,15 +33,6 @@ interface ConvertToVoteModalProps {
     songSelectionCount: number | null;
   };
   onSuccess: () => void;
-}
-
-/** Preset end: 24h before the rehearsal. If that already passed, the closest
- *  valid moment (≥1h from now, still before the rehearsal). May still be
- *  invalid for imminent/past rehearsals — submit-time validation catches it. */
-function defaultVotingEnd(rehearsalDate: number): number {
-  const dayBefore = rehearsalDate - 24 * 60 * 60 * 1000;
-  if (dayBefore > Date.now()) return dayBefore;
-  return Math.min(rehearsalDate - 60_000, Date.now() + 60 * 60 * 1000);
 }
 
 export function ConvertToVoteModal({

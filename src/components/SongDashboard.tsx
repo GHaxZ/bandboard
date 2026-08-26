@@ -473,11 +473,11 @@ export function SongDashboard({
           <img
             src={coverArtUrl}
             alt=""
-            className="w-16 h-16 rounded-xl object-cover border border-border flex-shrink-0"
+            className="w-24 h-24 rounded-xl object-cover border border-border flex-shrink-0"
           />
         )}
         <div className="min-w-0 flex-1">
-          <CardTitle className="text-2xl font-heading font-bold text-foreground truncate">
+          <CardTitle className="text-xl font-heading font-bold text-foreground truncate">
             {song.title}
           </CardTitle>
           <CardDescription className="text-muted-foreground text-xs mt-0.5 font-medium truncate">

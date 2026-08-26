@@ -90,6 +90,15 @@ export function neighborId<T>(
   return getId(remaining[Math.min(idx, remaining.length - 1)]);
 }
 
+/** Preset voting end: 24h before the rehearsal. If that already passed, the
+ *  closest valid moment (≥1h from now, still before the rehearsal). May still
+ *  be invalid for imminent/past rehearsals — submit-time validation catches it. */
+export function defaultVotingEnd(rehearsalDate: number): number {
+  const dayBefore = rehearsalDate - 24 * 60 * 60 * 1000;
+  if (dayBefore > Date.now()) return dayBefore;
+  return Math.min(rehearsalDate - 60_000, Date.now() + 60 * 60 * 1000);
+}
+
 /** Timestamp → "YYYY-MM-DDTHH:mm" for <input type="datetime-local"> (local time). */
 export function toDateTimeLocal(ts: number): string {
   const d = new Date(ts);
