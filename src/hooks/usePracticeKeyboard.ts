@@ -20,21 +20,9 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      const tag = active?.tagName;
-      // Skip when focus is inside a form control (Tab still switches video
-      // everywhere else — this is the intended "at all times" behavior).
-      if (
-        active &&
-        (tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          tag === "BUTTON" ||
-          (active as HTMLElement)?.isContentEditable)
-      ) {
-        return;
-      }
-
+      // Tab ALWAYS switches video when a toggle handler exists — regardless
+      // of what is focused (buttons, sliders, inputs). Without a handler
+      // (editor, single-feed covers, autoplay) Tab falls through to default.
       if (e.key === "Tab") {
         if (configRef.current.onToggleVideo) {
           e.preventDefault();
@@ -43,6 +31,23 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         }
         return;
       }
+
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      // Exempt only text-entry surfaces for the remaining keys — typing there
+      // must produce characters. Buttons/sliders/tab-triggers are deliberately
+      // NOT exempt: after clicking any control, playback keys must still
+      // respond (preventDefault also stops the focused control re-activating).
+      if (
+        active &&
+        (tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          (active as HTMLElement)?.isContentEditable)
+      ) {
+        return;
+      }
+
       if (e.key === " ") {
         if (configRef.current.onPlayPause) {
           e.preventDefault();

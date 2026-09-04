@@ -33,9 +33,12 @@ export function useIframeFocusGuard() {
   useEffect(() => {
     const handleBlur = () => {
       // Clear any pending timeout first — rapid successive blurs would
-      // otherwise stack timers (harmless since the handler is idempotent,
-      // but it leaks closures until they fire).
+      // otherwise stack timers.
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      // Immediate attempt (activeElement is usually already the iframe) plus
+      // a delayed retry for browsers that update activeElement after the
+      // blur event — shrinks the window where keys silently go to the iframe.
+      blurActiveIframe();
       timeoutRef.current = setTimeout(blurActiveIframe, 50);
     };
 

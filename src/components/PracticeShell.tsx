@@ -253,7 +253,6 @@ export function PracticeShell({
                 canToggle={capabilities.canToggle}
                 onToggle={onToggleVideo}
                 activeVideoLabel={coverState?.activeVideo}
-                timeOffset={displayOffset}
                 youTubeMode={youTubeMode}
               />
             )}
@@ -360,7 +359,7 @@ export function PracticeShell({
                         <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
                           0
                         </kbd>
-                        0.0s
+                        {displayOffset.toFixed(1)}s
                       </button>
                     </div>
                     {markers.map((time, idx) => (
@@ -376,7 +375,7 @@ export function PracticeShell({
                           <kbd className="bg-card px-1 py-0.2 rounded border border-border font-mono text-[8px] text-accent-text mr-1.5">
                             {idx + 1}
                           </kbd>
-                          {time.toFixed(1)}s
+                          {(time + displayOffset).toFixed(1)}s
                         </button>
                         <button
                           onClick={() => handleDeleteMarker(idx)}

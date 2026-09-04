@@ -466,11 +466,6 @@ export function RehearsalAutoplay({
                     get isPlaying() { return usePlayerStore.getState().isPlaying; },
                   }}
                   isPlaying={isPlaying}
-                  timeOffset={
-                    backingMedia.kind === "youtube" || backingMedia.kind === "custom-file"
-                      ? backingMedia.offset
-                      : 0
-                  }
                 />
               )}
 
