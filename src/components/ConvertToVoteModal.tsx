@@ -16,6 +16,7 @@ import { convertRehearsalToVote } from "@/app/actions/votes";
 import { Loader2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FormError } from "@/components/FormError";
+import { RehearsalDateTimeFields } from "./RehearsalDateTimeFields";
 import { cn, defaultVotingEnd, toDateTimeLocal } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { VOTE_SELECTION_MIN } from "@/lib/constants";
@@ -144,24 +145,14 @@ export function ConvertToVoteModal({
 
         {/* ponytail: footer scrolls with the form; pin it only if this reads badly */}
         <form onSubmit={handleSubmit} className="space-y-4 my-2 min-h-0 overflow-y-auto px-3 -mx-3">
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="convertVotingEnds"
-              className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-            >
-              Voting Ends
-            </Label>
-            <Input
-              id="convertVotingEnds"
-              type="datetime-local"
-              required
-              disabled={isLoading}
-              min={minEndsStr || undefined}
-              value={votingEndsStr}
-              onChange={(e) => setVotingEndsStr(e.target.value)}
-              className="rounded-xl w-full"
-            />
-          </div>
+          <RehearsalDateTimeFields
+            id="convertVotingEnds"
+            label="Voting Ends"
+            min={minEndsStr || undefined}
+            value={votingEndsStr}
+            onChange={setVotingEndsStr}
+            disabled={isLoading}
+          />
 
           <div className="space-y-1.5">
             <Label

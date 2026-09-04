@@ -200,24 +200,14 @@ export function EditRehearsalModal({ isOpen, onClose, rehearsal, voting, onSucce
 
           {voting && (
             <>
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="editVotingEnds"
-                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                >
-                  Voting Ends
-                </Label>
-                <Input
-                  id="editVotingEnds"
-                  type="datetime-local"
-                  required
-                  disabled={isLoading}
-                  min={minEndsStr || undefined}
-                  value={votingEndsStr}
-                  onChange={(e) => setVotingEndsStr(e.target.value)}
-                  className="rounded-xl w-full"
-                />
-              </div>
+              <RehearsalDateTimeFields
+                id="editVotingEnds"
+                label="Voting Ends"
+                min={minEndsStr || undefined}
+                value={votingEndsStr}
+                onChange={setVotingEndsStr}
+                disabled={isLoading}
+              />
 
               <div className="space-y-1.5">
                 <Label

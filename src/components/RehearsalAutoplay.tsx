@@ -407,7 +407,7 @@ export function RehearsalAutoplay({
   const dashOffset = circumference - ((countdown ?? 0) / totalForRing) * circumference;
 
   return (
-    <div className="min-h-dvh bg-background text-foreground flex flex-col">
+    <div className="min-h-dvh lg:h-dvh lg:overflow-hidden bg-background text-foreground flex flex-col">
       <header className="flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center border-b border-border bg-card/40 px-4 md:px-6 py-4 flex-shrink-0 w-full">
         <div className="flex items-center gap-3 min-w-0">
           <Button
@@ -436,9 +436,9 @@ export function RehearsalAutoplay({
         </div>
       </header>
 
-      <div className="flex flex-col">
+      <div className="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0">
         {/* Player */}
-        <div className="flex flex-col bg-background/60">
+        <div className="flex flex-col bg-background/60 lg:flex-1 lg:min-w-0 lg:min-h-0 lg:overflow-y-auto">
           <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 py-6 px-4">
             <div
               className="w-full aspect-video bg-black border border-border rounded-2xl overflow-hidden relative shadow-2xl shadow-black/90 flex-shrink-0"
@@ -684,7 +684,7 @@ export function RehearsalAutoplay({
         </div>
 
         {/* Sidebar */}
-        <div className="w-full border-t border-border bg-card/10 flex flex-col">
+        <div className="w-full border-t border-border bg-card/10 flex flex-col lg:w-96 lg:flex-shrink-0 lg:border-t-0 lg:border-l">
           <div className="p-4 border-b border-border space-y-4 flex-shrink-0 bg-card/40">
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -833,7 +833,7 @@ export function RehearsalAutoplay({
             </span>
           </div>
 
-          <div className="p-3 space-y-2.5">
+          <div className="p-3 space-y-2.5 lg:flex-1 lg:min-h-0 lg:overflow-y-auto scrollbar-thin">
             {queue.map((rs, index) => {
               const isSongActive = index === currentIndex;
               const isSongCompleted = index < currentIndex;
