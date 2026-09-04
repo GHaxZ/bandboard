@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import { VolumeSpeedControls } from "./VolumeSpeedControls";
 import { SEEK_STEP_S } from "@/lib/constants";
 import type { PlaybackEngine } from "@/lib/media-controller";
 import type { Song, ProgressMap, CustomTrack } from "@/types/models";
+import { resolveMarkers } from "@/types/models";
 import type { Role } from "@/lib/constants";
 import type { CoverState } from "@/hooks/useCoverPracticeEngine";
 
@@ -143,11 +144,19 @@ export function PracticeShell({
   const displayOffset = coverState?.displayOffset ?? 0;
 
   // Shared volume/speed/markers (identical across cover and original).
+  // Markers are per-instrument: covers key by roleGroup id, originals by role.
+  const markerKey = coverState ? coverState.activeTrackId : (activeRole ?? "");
+  const savedMarkers = useMemo(
+    () => resolveMarkers(progressMap[song.id], markerKey),
+    [progressMap, song.id, markerKey]
+  );
+
   const practiceControls = usePracticeControls({
     songId: song.id,
+    markerKey,
     initialVolume,
     initialSpeed,
-    initialMarkers: progressMap[song.id]?.practiceMarkers ?? [],
+    initialMarkers: savedMarkers,
     getCurrentTime: () => engine.getCurrentTime() - displayOffset,
     onRefresh,
   });

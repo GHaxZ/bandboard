@@ -320,16 +320,25 @@ export function SongDashboard({
   // Sync activeTrackId when activeRole prop changes (URL-driven)
   useEffect(() => {
     if (activeRole) {
+      // "other-tab" is a synthetic tab value; the real "Other" roleGroup id
+      // matches no TabsTrigger, so it must never be assigned as activeTrackId.
+      if (activeRole.toLowerCase() === "other") {
+        if (
+          song.roleGroups.some(
+            (rg) => rg.role === "Other" && rg.tracks.length > 0
+          )
+        ) {
+          setActiveTrackId("other-tab");
+        }
+        return;
+      }
       const matching = song.roleGroups.find(
-        (rg) => rg.role.toLowerCase() === activeRole.toLowerCase()
+        (rg) =>
+          rg.role !== "Other" &&
+          rg.role.toLowerCase() === activeRole.toLowerCase()
       );
       if (matching) {
         setActiveTrackId(matching.id);
-      } else if (
-        activeRole.toLowerCase() === "other" &&
-        song.roleGroups.some((rg) => rg.role === "Other")
-      ) {
-        setActiveTrackId("other-tab");
       }
     }
   }, [activeRole, song.roleGroups]);

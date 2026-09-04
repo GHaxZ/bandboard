@@ -147,13 +147,15 @@ export interface UserProgress {
   speed: number;
   notes: string | null;
   scratchpadNotes: string | null;
-  practiceMarkers: number[] | null;
+  // Keyed by roleGroupId (covers) or instrument role (originals). The
+  // '__legacy__' key holds the pre-split flat marker list; used as fallback
+  // for keys without their own set.
+  practiceMarkers: Record<string, number[]> | null;
   // Keyed by role group id. The '__legacy__' key holds pre-split offsets
   // migrated from the old per-song columns; used as a fallback for role
   // groups without their own entry.
   offsets: Record<string, RoleGroupOffsets>;
 }
-
 export type ProgressMap = Record<string, UserProgress>;
 
 export const DEFAULT_PROGRESS: UserProgress = {
@@ -179,6 +181,24 @@ export function resolveOffsets(
   if (!progress || !progress.offsets) return ZERO_OFFSETS;
   if (roleGroupId && progress.offsets[roleGroupId]) return progress.offsets[roleGroupId];
   return progress.offsets['__legacy__'] ?? ZERO_OFFSETS;
+}
+
+const EMPTY_MARKERS: number[] = [];
+
+/**
+ * Resolve the saved practice markers for a given instrument key (roleGroupId
+ * for covers, role for originals). Falls back to the pre-split '__legacy__'
+ * list, then to empty. Mirrors resolveOffsets.
+ */
+export function resolveMarkers(
+  progress: UserProgress | undefined | null,
+  markerKey: string | null | undefined
+): number[] {
+  if (!progress || !progress.practiceMarkers) return EMPTY_MARKERS;
+  if (markerKey && progress.practiceMarkers[markerKey]) {
+    return progress.practiceMarkers[markerKey];
+  }
+  return progress.practiceMarkers['__legacy__'] ?? EMPTY_MARKERS;
 }
 
 /** IDs of every track with the given role — the "mute my instrument" set. */

@@ -12,6 +12,8 @@ interface UsePracticeControlsOpts {
   initialVolume: number;
   initialSpeed: number;
   initialMarkers: number[];
+  /** Bucket key: roleGroupId (covers) or instrument role (originals). */
+  markerKey: string;
   /** Used by handleSaveCurrentTimeAsMarker to capture the player's current
    * time. Caller passes the engine's `getActiveCurrentTime`. */
   getCurrentTime: () => number;
@@ -42,7 +44,7 @@ interface UsePracticeControlsResult {
 export function usePracticeControls(
   opts: UsePracticeControlsOpts
 ): UsePracticeControlsResult {
-  const { songId, initialVolume, initialSpeed, initialMarkers, getCurrentTime, onRefresh } = opts;
+  const { songId, markerKey, initialVolume, initialSpeed, initialMarkers, getCurrentTime, onRefresh } = opts;
   const volume = usePlayerStore((s) => s.volume);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const speed = usePlayerStore((s) => s.speed);
@@ -50,15 +52,21 @@ export function usePracticeControls(
   const markers = usePlayerStore((s) => s.markers);
   const setMarkers = usePlayerStore((s) => s.setMarkers);
 
-  // Hydrate store from initial values once on mount.
+  // Hydrate volume/speed from initial values once on mount.
   const hydratedRef = useRef(false);
   useEffect(() => {
     setVolume(initialVolume);
     setSpeed(initialSpeed);
-    setMarkers([...initialMarkers].sort((a, b) => a - b));
     hydratedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Markers are per-instrument: re-hydrate whenever the active instrument
+  // changes (PracticeShell passes a memoized array from the latest progressMap).
+  useEffect(() => {
+    setMarkers([...initialMarkers].sort((a, b) => a - b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerKey]);
 
   // Debounced persistence of volume / speed to device cookies. Skip the
   // first run per setting: the hydration effect above sets hydratedRef in the
@@ -123,7 +131,7 @@ export function usePracticeControls(
         (a, b) => a - b
       );
       try {
-        await savePracticeMarkers(songId, updated);
+        await savePracticeMarkers(songId, markerKey, updated);
         // Only reflect in the store after the save succeeded — a failed save
         // must not leave a phantom marker that vanishes on next hydration.
         setMarkers(updated);
@@ -134,7 +142,7 @@ export function usePracticeControls(
         toast.error("Failed to save marker: " + String(err));
       }
     },
-    [markers, setMarkers, songId, onRefresh]
+    [markers, setMarkers, songId, markerKey, onRefresh]
   );
 
   const handleSaveCurrentTimeAsMarker = useCallback(async () => {
@@ -148,7 +156,7 @@ export function usePracticeControls(
     async (indexToDelete: number) => {
       const updated = markers.filter((_, idx) => idx !== indexToDelete);
       try {
-        await savePracticeMarkers(songId, updated);
+        await savePracticeMarkers(songId, markerKey, updated);
         // Apply only after the save succeeded — otherwise a failed delete
         // would drop the marker from the UI while the DB still has it.
         setMarkers(updated);
@@ -160,7 +168,7 @@ export function usePracticeControls(
         toast.error("Failed to delete marker: " + String(err));
       }
     },
-    [markers, setMarkers, songId, onRefresh]
+    [markers, setMarkers, songId, markerKey, onRefresh]
   );
 
   return {

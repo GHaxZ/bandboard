@@ -328,7 +328,9 @@ export function useCoverPracticeEngine({
                 </>
               )
             ) : (
-              <div id="backing-player-div" className="w-full h-full" />
+              <div className="w-full h-full">
+                <div id="backing-player-div" className="w-full h-full" />
+              </div>
             )}
           </div>
         )}
@@ -373,7 +375,9 @@ export function useCoverPracticeEngine({
                 </>
               )
             ) : (
-              <div id="tab-player-div" className="w-full h-full" />
+              <div className="w-full h-full">
+                <div id="tab-player-div" className="w-full h-full" />
+              </div>
             )}
           </div>
         )}

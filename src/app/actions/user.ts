@@ -118,11 +118,16 @@ export async function saveUserSettings(
 // Progress
 // ---------------------------------------------------------------------------
 function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
-  let markers: number[] | null = null;
+  let markers: Record<string, number[]> | null = null;
   if (r.practiceMarkers) {
     try {
       const parsed = JSON.parse(r.practiceMarkers);
-      if (Array.isArray(parsed)) markers = parsed as number[];
+      if (Array.isArray(parsed)) {
+        // Pre-split flat list → legacy entry, same fold as offsets.
+        markers = { __legacy__: parsed as number[] };
+      } else if (parsed && typeof parsed === 'object') {
+        markers = parsed as Record<string, number[]>;
+      }
     } catch {
       markers = null;
     }
@@ -277,6 +282,7 @@ export async function saveScratchpadNotes(
 
 export async function savePracticeMarkers(
   songId: string,
+  markerKey: string,
   markers: number[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -286,7 +292,23 @@ export async function savePracticeMarkers(
 
     const uuid = await getUserUuid();
     const now = Date.now();
-    const serialized = JSON.stringify(markers);
+    const existing = await db
+      .select({ practiceMarkers: userSongProgress.practiceMarkers })
+      .from(userSongProgress)
+      .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
+      .limit(1);
+    let map: Record<string, number[]> = {};
+    if (existing[0]?.practiceMarkers) {
+      try {
+        const parsed = JSON.parse(existing[0].practiceMarkers);
+        if (Array.isArray(parsed)) map = { __legacy__: parsed as number[] };
+        else if (parsed && typeof parsed === 'object') map = parsed as Record<string, number[]>;
+      } catch {
+        map = {};
+      }
+    }
+    map[markerKey] = markers;
+    const serialized = JSON.stringify(map);
     await db
       .insert(userSongProgress)
       .values({

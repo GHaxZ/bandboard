@@ -234,7 +234,7 @@ export const userSongProgress = sqliteTable(
     speed: integer('speed').notNull().default(100),
     notes: text('notes'),
     scratchpadNotes: text('scratchpad_notes'),
-    practiceMarkers: text('practice_markers'), // JSON number[]
+    practiceMarkers: text('practice_markers'), // JSON Record<string, number[]> keyed by roleGroupId/role; '__legacy__' = pre-split flat list
     // Per-role-group offsets: { [roleGroupId]: { backing, tab } }. The two
     // legacy columns below remain as the fallback source for offsets saved
     // before the per-instrument split (read into '__legacy__' at_query time).
