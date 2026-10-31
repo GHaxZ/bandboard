@@ -1,12 +1,14 @@
 # Security review
 
 **Implementation update:** The findings below record the original review before
-hardening. Authentication, sessions, organizer permissions, registration policy,
+hardening. Authentication, sessions, registration policy,
 streamed upload limits, image decoding, persistent quotas/leases, origin/header
 protections, bounded inputs/waveforms and encrypted-snapshot support have since
 been implemented. See [SECURITY.md](SECURITY.md) for current behavior, upgrade
 instructions and operational limits. Development advisories and live-volume
-encryption remain explicit deployment/maintenance requirements.
+encryption remain explicit deployment/maintenance requirements. Organizer roles
+and member-management controls were subsequently removed at the user's request;
+signed-in members retain equal access to shared content.
 
 Reviewed 2026-10-31. Repository-wide searches covered application source, server actions, API routes, authentication, database schema/migrations, browser rendering, dependencies, and Docker/deployment configuration. Detailed inspection focused on security boundaries. Generated output and vendored dependency source were excluded from the manual review; dependencies were checked using npm audit. This is a source review, not a penetration test or verification of the running production deployment. No application behavior was changed.
 

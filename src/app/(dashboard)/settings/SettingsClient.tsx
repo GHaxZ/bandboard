@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { saveUserSettings } from "@/app/actions/user";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  logout, logoutOtherSessions, setMemberRole,
+  logout, logoutOtherSessions,
   changeUsername,
   changePassword,
   deleteAccount,
@@ -34,15 +34,13 @@ import type { Role } from "@/lib/constants";
 interface SettingsClientProps {
   preferredInstrument: Role;
   username: string;
-  members: { id: string; username: string; role: "admin" | "member" }[];
 }
 
-export function SettingsClient({ preferredInstrument, username, members }: SettingsClientProps) {
+export function SettingsClient({ preferredInstrument, username }: SettingsClientProps) {
   const router = useRouter();
   const [instrument, setInstrument] = useState<Role>(preferredInstrument);
   const [savingInstrument, setSavingInstrument] = useState(false);
 
-  const [updatingMember, setUpdatingMember] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -277,25 +275,32 @@ export function SettingsClient({ preferredInstrument, username, members }: Setti
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Ends your session on this device. Your progress stays saved.
               </p>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await logout();
-                  // Clear all in-memory user state before another login.
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-                  window.location.href = "/login";
-                }}
-                className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
-              >
-                Log Out
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    await logout();
+                    // Clear all in-memory user state before another login.
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                    window.location.href = "/login";
+                  }}
+                  className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
+                >
+                  Log Out
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const result = await logoutOtherSessions();
+                    if (result.success) toast.success("Other devices have been signed out.");
+                    else toast.error(result.error);
+                  }}
+                  className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
+                >
+                  Log Out Other Devices
+                </Button>
+              </div>
             </div>
-
-            <Button variant="outline" onClick={async () => {
-              const result = await logoutOtherSessions();
-              if (result.success) toast.success("Other devices have been signed out.");
-              else toast.error(result.error);
-            }}>Sign out other devices</Button>
 
             {/* Danger Zone */}
             <div className="pt-3 border-t border-border">
@@ -332,20 +337,6 @@ export function SettingsClient({ preferredInstrument, username, members }: Setti
         </Card>
       </div>
 
-      {members.length > 0 && <Card>
-        <CardHeader><CardTitle>Band members</CardTitle><CardDescription>Organizers manage shared media, rehearsals, and member permissions.</CardDescription></CardHeader>
-        <CardContent className="space-y-3">{members.map(member => <div key={member.id} className="flex items-center justify-between gap-3">
-          <span>{member.username} · {member.role === 'admin' ? 'Organizer' : 'Member'}</span>
-          <Button variant="outline" disabled={updatingMember !== null} onClick={async () => {
-            setUpdatingMember(member.id);
-            try {
-              const result = await setMemberRole(member.id, member.role === 'admin' ? 'member' : 'admin');
-              if (!result.success) toast.error(result.error);
-              else { toast.success('Permissions updated.'); router.refresh(); }
-            } finally { setUpdatingMember(null); }
-          }}>{member.role === 'admin' ? 'Make member' : 'Make organizer'}</Button>
-        </div>)}</CardContent>
-      </Card>}
       <ConfirmDialog
         isOpen={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}

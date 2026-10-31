@@ -10,7 +10,7 @@ import {
   users,
 } from "@/db/schema";
 import { eq, and, asc, sql, inArray, notInArray } from "drizzle-orm";
-import { requireAdminMutation, requireMutation, requireAuth, AuthError, getUserUuid } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError, getUserUuid } from "@/lib/auth";
 import { validateRehearsal } from "@/lib/validation";
 import { assertCapacity } from "@/lib/capacity";
 import { rateLimit } from "@/lib/rate-limit";
@@ -227,9 +227,7 @@ export async function removeNomination(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = await requireMutation();
-    const nomination = db.select().from(rehearsalSongs).where(and(eq(rehearsalSongs.rehearsalId, rehearsalId), eq(rehearsalSongs.songId, songId))).get();
-    if (user.role !== 'admin' && nomination?.addedBy !== user.id) return { success: false, error: 'Only the nominator or an organizer can remove this song.' };
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (!voteIsOpen(r)) return { success: false, error: 'Voting has ended' };
@@ -311,7 +309,7 @@ export async function endVotingNow(
   rehearsalId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (r.finalizedAt || !voteIsOpen(r)) return { success: true }; // already closed
@@ -338,7 +336,7 @@ export async function convertRehearsalToVote(
   songSelectionCount: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r) return { success: false, error: 'Rehearsal not found' };
     if (voteIsOpen(r)) return { success: false, error: 'This voting is still active' };

@@ -259,7 +259,6 @@ export const users = sqliteTable(
     id: text('id').primaryKey(),
     username: text('username').notNull(),
     passwordHash: text('password_hash').notNull(),
-    role: text('role').$type<'admin' | 'member'>().notNull().default('member'),
     createdAt: integer('created_at').notNull(),
   },
   (table) => [uniqueIndex('users_username_unique').on(sql`lower(${table.username})`)]

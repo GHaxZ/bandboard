@@ -1,4 +1,3 @@
-import { PermissionsProvider } from "@/components/PermissionsProvider";
 import Link from "next/link";
 import { AudioLines } from "lucide-react";
 import { NavTabs, MobileTabBar } from "@/components/NavLinks";
@@ -10,10 +9,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!(await getSessionUser())) redirect("/login");
   return (
-    <PermissionsProvider organizer={user.role === "admin"}>
     <div className="flex-1 min-h-dvh flex flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border px-6 py-4 flex items-center justify-between">
         <Link href="/rehearsals" className="flex items-center gap-2.5 hover:opacity-90">
@@ -34,6 +31,5 @@ export default async function DashboardLayout({
 
       <MobileTabBar />
     </div>
-    </PermissionsProvider>
   );
 }

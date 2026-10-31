@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { rehearsals, rehearsalSongs, rehearsalVotes } from "@/db/schema";
 import { eq, asc, and, gt, sql, inArray } from "drizzle-orm";
-import { requireAdminMutation, requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
 import { INPUT_LIMITS } from "@/lib/constants";
 import { assertCapacity } from "@/lib/capacity";
 import { validateRehearsal } from "@/lib/validation";
@@ -48,7 +48,7 @@ export async function createRehearsal(
   opts?: RehearsalVoteOptions & { type?: "manual" | "vote" }
 ): Promise<{ success: boolean; error?: string; rehearsalId?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const type = opts?.type ?? "manual";
     const err = validateRehearsal({
       title,
@@ -94,7 +94,7 @@ export async function updateRehearsal(
   opts?: RehearsalVoteOptions
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const row = await db
       .select({ type: rehearsals.type, finalizedAt: rehearsals.finalizedAt, votingEndsAt: rehearsals.votingEndsAt })
       .from(rehearsals)
@@ -153,7 +153,7 @@ export async function deleteRehearsal(
   rehearsalId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     await db.delete(rehearsals).where(eq(rehearsals.id, rehearsalId));
     return { success: true };
   } catch (error) {
@@ -297,7 +297,7 @@ export async function addSongToRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
@@ -333,7 +333,7 @@ export async function removeSongFromRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
@@ -379,7 +379,7 @@ export async function reorderRehearsalSongs(
   songIdsInOrder: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };

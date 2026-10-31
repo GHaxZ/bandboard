@@ -10,7 +10,7 @@ import { authCookieOptions } from './auth-cookies';
 export class AuthError extends Error {
   constructor(msg = 'Unauthorized', public status = 401) { super(msg); this.name = 'AuthError'; }
 }
-export interface SessionUser { id: string; username: string; role: 'admin' | 'member' }
+export interface SessionUser { id: string; username: string }
 export function sessionDigest(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -19,7 +19,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
   const now = Date.now();
   try {
-    const row = db.select({ id: users.id, username: users.username, role: users.role, lastSeenAt: sessions.lastSeenAt })
+    const row = db.select({ id: users.id, username: users.username, lastSeenAt: sessions.lastSeenAt })
       .from(sessions).innerJoin(users, eq(users.id, sessions.userId))
       .where(and(eq(sessions.token, sessionDigest(token)), gt(sessions.createdAt, now - SESSION_MAX_AGE * 1000),
         gt(sessions.lastSeenAt, now - SESSION_IDLE_MS))).get();
@@ -27,7 +27,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (row.lastSeenAt < now - SESSION_TOUCH_MS) {
       db.update(sessions).set({ lastSeenAt: now }).where(eq(sessions.token, sessionDigest(token))).run();
     }
-    return { id: row.id, username: row.username, role: row.role };
+    return { id: row.id, username: row.username };
   } catch (error) { console.error('Session lookup failed:', error); return null; }
 }
 export async function getUserUuid(): Promise<string> { return (await requireAuth()).id; }
@@ -36,21 +36,11 @@ export async function requireAuth(): Promise<SessionUser> {
   if (!user) throw new AuthError();
   return user;
 }
-export async function requireAdmin(): Promise<SessionUser> {
-  const user = await requireAuth();
-  if (user.role !== 'admin') throw new AuthError('Organizer permission required', 403);
-  return user;
-}
 export async function requireMutation(): Promise<SessionUser> {
   const user = await requireAuth();
   if (!rateLimit(`mutations:${user.id}`, RATE_LIMITS.mutations.max, RATE_LIMITS.mutations.windowMs)) {
     throw new AuthError('Too many changes. Please try again shortly.', 429);
   }
-  return user;
-}
-export async function requireAdminMutation(): Promise<SessionUser> {
-  const user = await requireMutation();
-  if (user.role !== 'admin') throw new AuthError('Organizer permission required', 403);
   return user;
 }
 /** Recheck credentials inside the write transaction to prevent stale-password login races. */

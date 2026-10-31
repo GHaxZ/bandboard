@@ -14,9 +14,8 @@ vi.mock('@/db', async () => {
 });
 vi.mock('@/lib/auth', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/auth')>(),
-  requireAuth: async () => ({ id: 'member', username: 'member', role: 'admin' }),
-  requireMutation: async () => ({ id: 'member', username: 'member', role: 'admin' }),
-  requireAdminMutation: async () => ({ id: 'member', username: 'member', role: 'admin' }),
+  requireAuth: async () => ({ id: 'member', username: 'member' }),
+  requireMutation: async () => ({ id: 'member', username: 'member' }),
   getUserUuid: async () => 'member',
 }));
 vi.mock('@/lib/uploads', async (importOriginal) => ({

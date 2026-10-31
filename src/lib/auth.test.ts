@@ -11,7 +11,7 @@ import { getProgressMap, getSongProgress } from '@/app/actions/user';
 import { endVotingNow, finalizeIfDue, getSongComments, getVotingState, markCommentsRead } from '@/app/actions/votes';
 import { proxy } from '@/proxy';
 import { NextRequest } from 'next/server';
-import { register, login, logout, changePassword, deleteAccount, setMemberRole } from '@/app/actions/auth';
+import { register, login, logout, changePassword, deleteAccount } from '@/app/actions/auth';
 
 const requestCookies = vi.hoisted(() => new Map<string, string>());
 vi.mock('next/headers', () => ({
@@ -41,7 +41,7 @@ beforeEach(() => {
   db.delete(users).run();
   db.delete(songs).run();
   db.delete(rehearsals).run();
-  db.insert(users).values({ id: userId, username: 'member', role: 'admin', passwordHash: 'unused', createdAt: Date.now() }).run();
+  db.insert(users).values({ id: userId, username: 'member', passwordHash: 'unused', createdAt: Date.now() }).run();
   db.insert(sessions).values({ token: sessionDigest(validToken), userId, createdAt: Date.now(), lastSeenAt: Date.now() }).run();
   db.insert(songs).values({ id: 'song', title: 'Song', artist: 'Band', createdAt: Date.now() }).run();
   db.insert(rehearsals).values({ id: 'vote', title: 'Vote', date: Date.now() + 10000, type: 'vote', votingEndsAt: Date.now() - 1000, songSelectionCount: 1 }).run();
@@ -63,7 +63,6 @@ describe('authenticated data access', () => {
     const registered = await getSessionUser();
     expect(registered?.username).toBe('NewMember');
     expect(registered?.id).not.toBe(fakeToken);
-    expect(registered?.role).toBe('member');
     const newUserId = registered!.id;
     await logout();
     expect(await getSessionUser()).toBeNull();
@@ -74,7 +73,7 @@ describe('authenticated data access', () => {
     expect(await changePassword('test-password-123', 'new-test-password-123')).toEqual({ success: true });
     expect(db.select().from(sessions).where(eq(sessions.userId, newUserId)).all()).toHaveLength(1);
     expect(requestCookies.get(SESSION_COOKIE)).not.toBe(previousToken);
-    expect(await getSessionUser()).toEqual({ id: newUserId, username: 'NewMember', role: 'member' });
+    expect(await getSessionUser()).toEqual({ id: newUserId, username: 'NewMember' });
     vi.unstubAllEnvs();
   });
 
@@ -158,16 +157,31 @@ describe('security policy', () => {
     await expect(startSession(userId, 'stale-hash')).rejects.toBeInstanceOf(AuthError);
     expect(db.select().from(sessions).all()).toHaveLength(1);
   });
-  it('blocks member organizer actions and prevents demoting the last organizer', async () => {
+  it('allows signed-in members to manage shared songs, voting and rehearsals', async () => {
     requestCookies.set(SESSION_COOKIE, validToken);
-    expect((await setMemberRole(userId, 'member')).success).toBe(false);
-    db.update(users).set({ role: 'member' }).run();
-    expect((await setMemberRole(userId, 'admin')).success).toBe(false);
+    expect((await deleteSong('song')).success).toBe(true);
+    db.update(rehearsals).set({ votingEndsAt: Date.now() + 60_000 }).run();
+    expect((await endVotingNow('vote')).success).toBe(true);
+    expect((await deleteRehearsal('vote')).success).toBe(true);
+    expect(db.select().from(songs).all()).toEqual([]);
+    expect(db.select().from(rehearsals).all()).toEqual([]);
+  });
+  it('still rejects shared-content mutations with a forged session', async () => {
+    requestCookies.set(SESSION_COOKIE, fakeToken);
     expect((await deleteSong('song')).success).toBe(false);
     expect((await deleteRehearsal('vote')).success).toBe(false);
     expect((await endVotingNow('vote')).success).toBe(false);
     expect(db.select().from(songs).all()).toHaveLength(1);
-    expect(db.select().from(rehearsals).get()?.finalizedAt).toBeNull();
+    expect(db.select().from(rehearsals).all()).toHaveLength(1);
+  });
+  it('allows the last remaining account to delete itself after password verification', async () => {
+    const { hashPassword } = await import('./passwords');
+    db.update(users).set({ passwordHash: await hashPassword('test-password-123') }).run();
+    requestCookies.set(SESSION_COOKIE, validToken);
+    expect(await deleteAccount('test-password-123')).toEqual({ success: true });
+    expect(db.select().from(users).all()).toEqual([]);
+    expect(db.select().from(sessions).all()).toEqual([]);
+    expect(await getSessionUser()).toBeNull();
   });
   it('shares the password-verification budget across password changes and deletion', async () => {
     requestCookies.set(SESSION_COOKIE, validToken);

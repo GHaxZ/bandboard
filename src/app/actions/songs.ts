@@ -16,7 +16,7 @@ import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
-import { requireAdminMutation, requireMutation, requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { INPUT_LIMITS, RATE_LIMITS } from "@/lib/constants";
 import type { Song } from "@/types/models";
@@ -227,7 +227,7 @@ export async function updateOriginalMetadata(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!current) return { success: false, error: "Song not found." };
     if (current.songType !== 'original') return { success: false, error: "Not an original song" };
@@ -289,7 +289,7 @@ export async function updateRoleGroupCustomArtifact(
   customTrackId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     if (type !== "backing" && type !== "tab") return { success: false, error: "Invalid media slot." };
     const result = db.transaction((tx) => {
       const rg = tx.select().from(roleGroups).where(eq(roleGroups.id, roleGroupId)).get();
@@ -372,7 +372,7 @@ export async function deleteSong(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
 
     // Collect file references before deleting the row
     const customRows = await db
@@ -414,7 +414,7 @@ export async function updateRoleGroupVideo(
   videoUrl: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     if (
       videoUrl !== null &&
       videoUrl !== NO_VIDEO_SENTINEL &&

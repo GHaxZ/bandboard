@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { customTracks, roleGroups } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { deleteStoredFile } from "@/lib/uploads";
-import { requireAdminMutation, requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
 import type { CustomTrack } from "@/types/models";
 import { INSTRUMENT_ROLES, INPUT_LIMITS, type Role } from "@/lib/constants";
 
@@ -37,7 +37,7 @@ export async function updateCustomTrack(
   }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     if (
       patch.role !== undefined &&
       !(INSTRUMENT_ROLES as readonly string[]).includes(patch.role)
@@ -77,7 +77,7 @@ export async function deleteCustomTrack(
   trackId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdminMutation();
+    await requireMutation();
     const rows = await db
       .select({ storedName: customTracks.storedName })
       .from(customTracks)

@@ -1,21 +1,18 @@
 # Security and deployment
 
 This is one shared band workspace. Personal settings, notes and practice progress
-are account-scoped. All members can read shared content, add songs/media,
-nominate songs, comment and vote. Organizers can edit/delete shared media,
-configure rehearsals, change setlists, manage permissions and end/reopen voting.
-Members can remove their own nominations. These permissions are checked on the
-server independently of the UI.
+are account-scoped. All signed-in band members have the same permissions for
+shared songs, media, rehearsals, nominations and voting. There is no organizer or
+administrator role. Authentication and abuse limits still apply to all actions.
 
 ## Upgrade and account behavior
 
 Back up the database and uploads before upgrading. Migration 0011 preserves
-accounts/content, promotes the oldest account (creation time, then ID) to the
-initial organizer, and revokes existing sessions once. Everyone must log in
-again. The organizer can promote others in Settings; the last organizer cannot
-be demoted or delete their account. Review that initial account if registrations
-were previously exposed publicly. New accounts never claim unsigned device IDs
-or historical anonymous private data.
+accounts/content and revokes existing sessions once. Everyone must log in again.
+Migration 0012 removes the account-role column introduced in the first hardening
+revision, preserving accounts, content and active hashed sessions. The earlier
+migration is retained so installations that already applied it can upgrade safely.
+New accounts never claim unsigned device IDs or historical anonymous private data.
 
 Legacy scrypt passwords work and upgrade to Argon2id on login. Existing shorter
 passwords remain valid until changed. New passwords require 12–1024 characters.
@@ -26,15 +23,14 @@ hashes; restore its matching database snapshot if rolling back the application.
 
 Sessions use random 256-bit tokens, with only SHA-256 digests stored in SQLite.
 They expire after 30 days or seven idle days. Password changes rotate the current
-token and revoke all others atomically. Settings offers “Sign out other devices.”
+token and revoke all others atomically. Settings offers “Log Out Other Devices.”
 At most ten sessions per account are retained. Session cookies are HttpOnly,
 SameSite=Lax and Secure in production.
 
 Registration defaults to `REGISTRATION_MODE=invite`. It works only with a nonempty
 `BAND_SECRET` and matching invite code. `closed` disables registration; `open`
 explicitly permits public member registration. Invalid/missing invite configuration
-closes registration. Bootstrap the first organizer using a strong invite before
-exposing an empty installation. Rotating the invite does not revoke existing
+closes registration. Configure a strong invite before exposing an empty installation. Rotating the invite does not revoke existing
 accounts; review any accounts admitted before the upgrade.
 
 ## HTTPS and ingress
@@ -137,7 +133,7 @@ output. Next explicitly copies .env despite tracing exclusions, so package with
 ## Checks and remaining limits
 
 Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run build`.
-Tests cover populated-database migration, roles, session expiry/revocation,
+Tests cover populated-database migration, equal member permissions, session expiry/revocation,
 legacy hashes, KDF concurrency, quotas, multipart overflow/cancellation cleanup,
 origins and image normalization.
 
@@ -152,9 +148,9 @@ managed secret rotation or verification of production infrastructure.
 
 ## Verification for this change
 
-129 tests, type checking, lint and production build passed. The sanitized
+The initial hardening passed 129 tests, type checking, lint and production build. The sanitized
 standalone runtime was smoke-tested in Docker with real Chromium: invite signup,
-organizer/member restrictions, secure cookie flags, streamed uploads, WebP cover
+the then-present role restrictions, secure cookie flags, streamed uploads, WebP cover
 normalization, protected downloads, malformed media and wrong-origin rejection,
 and zero CSP violations. No temporary media or resource leases remained.
 Encrypted snapshot round trips, privilege drop, backup isolation and encryption
@@ -164,3 +160,13 @@ The complete multi-stage Docker build exceeded this environment's disk quota
 with its VFS storage driver. Dependencies installed successfully; the runtime
 stage was instead built and tested using the verified local production bundle.
 No production deployment or existing application database was modified.
+
+The subsequent role-removal revision restores equal shared-content permissions,
+removes member-management controls and the last-organizer deletion restriction,
+and styles “Log Out Other Devices” consistently with “Log Out.” Its migration
+also preserves active sessions from already-upgraded databases. All other
+hardening choices remain in place pending the user's review.
+
+Role-removal verification: 131 tests, type checking, lint and the production build
+passed. Chromium confirmed matching logout-button styling, removal of member
+management and the role column, and shared editing access after migration.

@@ -3,7 +3,7 @@ import { rename, rm } from 'node:fs/promises';
 import { db } from '@/db';
 import { songs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { requireAdmin, AuthError } from '@/lib/auth';
+import { requireAuth, AuthError } from '@/lib/auth';
 import { UPLOAD_LIMITS, RATE_LIMITS, RESOURCE_LIMITS } from '@/lib/constants';
 import { rateLimit } from '@/lib/rate-limit';
 import { storedPath, deleteStoredFile, validateMagicBytes } from '@/lib/uploads';
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   let normalized: Awaited<ReturnType<typeof normalizeCover>> | undefined;
   try {
     if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
-    const user = await requireAdmin();
+    const user = await requireAuth();
     if (!rateLimit(`uploads:${user.id}`, RATE_LIMITS.uploads.max, RATE_LIMITS.uploads.windowMs)) throw new ResourceLimitError();
     lease = acquireLease('upload', user.id, RESOURCE_LIMITS.uploads, RESOURCE_LIMITS.userUploads, RESOURCE_LIMITS.uploadLeaseMs, UPLOAD_LIMITS.coverArt);
     upload = await readUploadForm(request, UPLOAD_LIMITS.coverArt);
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (!songId || songId.length > 100) throw new UploadInputError('Missing song');
     if (!validateMagicBytes(file.prefix, file.type, 'image', file.size)) throw new UploadInputError('Invalid image content or dimensions');
     normalized = await normalizeCover(file.tempName);
-    await requireAdmin(); // Recheck after decoding and streaming.
+    await requireAuth(); // Recheck after decoding and streaming.
     finalName = `cover-${crypto.randomUUID()}.webp`;
     await rename(storedPath(normalized.tempName), storedPath(finalName));
     const oldName = db.transaction(tx => {

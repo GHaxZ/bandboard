@@ -6,7 +6,7 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { sessions, users, userSettings, userSongProgress, rehearsalVotes, commentReads,
   rehearsalSongComments, rehearsalSongs, storedFiles } from '@/db/schema';
-import { getSessionUser, requireAdmin, requireMutation, sessionDigest, startSession, AuthError } from '@/lib/auth';
+import { requireMutation, sessionDigest, startSession, AuthError } from '@/lib/auth';
 import { hashPassword, verifyPassword, validateNewPassword, validPasswordInput,
   needsPasswordRehash, upgradePasswordHash, secretEqual, PasswordBusyError } from '@/lib/passwords';
 import { getClientKey, reserveLoginAttempt, clearLoginAttempts, reserveRegistrationAttempt, rateLimit } from '@/lib/rate-limit';
@@ -29,7 +29,7 @@ export async function isInviteRequired(): Promise<boolean> { return (await getRe
 export async function register(username: string, password: string, confirmPassword?: string, inviteCode?: string): Promise<Result> {
   try {
     const status = await getRegistrationStatus();
-    if (!status.enabled) return { success: false, error: 'Registration is closed. Contact your band organizer.' };
+    if (!status.enabled) return { success: false, error: 'Registration is closed. Ask a bandmate for access.' };
     const name = typeof username === 'string' ? username.trim() : '';
     if (!USERNAME_RE.test(name)) return { success: false, error: 'Username must be 3–32 characters (letters, numbers, - or _).' };
     const passwordError = validateNewPassword(password);
@@ -45,8 +45,7 @@ export async function register(username: string, password: string, confirmPasswo
     const id = randomUUID(); // Never adopt an unsigned browser identifier.
     db.transaction(tx => {
       assertCapacity(tx, users, INPUT_LIMITS.members);
-      const first = !tx.select({ id: users.id }).from(users).limit(1).get();
-      tx.insert(users).values({ id, username: name, passwordHash, role: first ? 'admin' : 'member', createdAt: Date.now() }).run();
+      tx.insert(users).values({ id, username: name, passwordHash, createdAt: Date.now() }).run();
     }, { behavior: 'immediate' });
     await startSession(id, passwordHash);
     return { success: true };
@@ -116,9 +115,6 @@ export async function deleteAccount(password: string): Promise<Result> {
     db.transaction(tx => {
       const current = tx.select().from(users).where(eq(users.id, user.id)).get();
       if (!current || current.passwordHash !== row.passwordHash) throw new AuthError('Credentials changed. Please sign in again.');
-      if (current.role === 'admin' && tx.select().from(users).where(eq(users.role, 'admin')).all().length <= 1) {
-        throw new AuthError('Make another member an organizer before deleting your account.');
-      }
       tx.delete(userSongProgress).where(eq(userSongProgress.userUuid, user.id)).run();
       tx.delete(userSettings).where(eq(userSettings.userUuid, user.id)).run();
       tx.delete(rehearsalVotes).where(eq(rehearsalVotes.userUuid, user.id)).run();
@@ -130,26 +126,6 @@ export async function deleteAccount(password: string): Promise<Result> {
     }, { behavior: 'immediate' });
     const store = await cookies();
     store.delete(SESSION_COOKIE); store.delete(UID_COOKIE);
-    return { success: true };
-  } catch (error) { return failure(error); }
-}
-export async function getMembers(): Promise<{ id: string; username: string; role: 'admin' | 'member' }[]> {
-  const user = await getSessionUser();
-  if (user?.role !== 'admin') return [];
-  return db.select({ id: users.id, username: users.username, role: users.role }).from(users).orderBy(users.createdAt).all();
-}
-export async function setMemberRole(id: string, role: 'admin' | 'member'): Promise<Result> {
-  try {
-    await requireAdmin(); await requireMutation();
-    if (role !== 'admin' && role !== 'member') return { success: false, error: 'Invalid role.' };
-    db.transaction(tx => {
-      const target = tx.select().from(users).where(eq(users.id, id)).get();
-      if (!target) throw new AuthError('Member not found.');
-      if (target.role === 'admin' && role === 'member' && tx.select().from(users).where(eq(users.role, 'admin')).all().length <= 1) {
-        throw new AuthError('Keep at least one organizer.');
-      }
-      tx.update(users).set({ role }).where(eq(users.id, id)).run();
-    }, { behavior: 'immediate' });
     return { success: true };
   } catch (error) { return failure(error); }
 }

@@ -1,7 +1,5 @@
 "use client";
 
-import { useIsOrganizer } from "@/components/PermissionsProvider";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -68,7 +66,6 @@ export function VotingClient({
   const [state, setState] = useState<VotingState>(initialState);
   const [songs, setSongs] = useState<Song[]>(songsList);
   const [progressMap, setProgressMap] = useState<ProgressMap>(initialProgressMap);
-  const isOrganizer = useIsOrganizer();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -302,7 +299,7 @@ export function VotingClient({
 
         {/* flex-wrap: labeled buttons overflow narrow phones otherwise */}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {isOrganizer && !state.finalizedAt && (
+          {!state.finalizedAt && (
             <Button
               variant="secondary"
               onClick={() => setConfirmEndOpen(true)}
@@ -313,7 +310,6 @@ export function VotingClient({
           )}
           <Button
             variant="secondary"
-            disabled={!isOrganizer}
             onClick={() => setIsEditOpen(true)}
             className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
@@ -322,7 +318,7 @@ export function VotingClient({
           <Button
             variant="danger-subtle"
             size="icon"
-            disabled={!isOrganizer || isDeleting}
+            disabled={isDeleting}
             onClick={() => setConfirmDeleteOpen(true)}
             className="rounded-xl h-9 w-9 shrink-0"
             title="Delete Session"
@@ -391,7 +387,7 @@ export function VotingClient({
                     song={currentSong}
                     onRefresh={handleRefreshAll}
                     onDelete={
-                      (votingClosed || (!isOrganizer && state.candidates.find(c => c.song.id === currentSong.id)?.addedByUsername !== currentUsername))
+                      votingClosed
                         ? undefined
                         : () => setPendingRemoveId(currentSong.id)
                     }
@@ -407,7 +403,7 @@ export function VotingClient({
                   song={currentSong}
                   onRefresh={handleRefreshAll}
                   onDelete={
-                    (votingClosed || (!isOrganizer && state.candidates.find(c => c.song.id === currentSong.id)?.addedByUsername !== currentUsername))
+                    votingClosed
                       ? undefined
                       : () => setPendingRemoveId(currentSong.id)
                   }
