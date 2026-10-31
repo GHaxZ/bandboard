@@ -1,144 +1,67 @@
 import { NextResponse } from 'next/server';
+import { rename } from 'node:fs/promises';
 import { db } from '@/db';
 import { songs, customTracks } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { INSTRUMENT_ROLES } from '@/lib/constants';
-import type { Role } from '@/lib/constants';
-import { UPLOAD_LIMITS, RATE_LIMITS } from '@/lib/constants';
-import { ensureUploadDir, allowedMime, extForMime, storedPath, validateMagicBytes, deleteStoredFile } from '@/lib/uploads';
+import { INSTRUMENT_ROLES, UPLOAD_LIMITS, RATE_LIMITS, INPUT_LIMITS, RESOURCE_LIMITS, type Role } from '@/lib/constants';
+import { allowedMime, extForMime, storedPath, validateMagicBytes, deleteStoredFile } from '@/lib/uploads';
 import { requireAuth, AuthError } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';
-import fs from 'fs';
-import type { CustomTrack } from '@/types/models';
-import { readUploadForm, UploadTooLargeError } from '@/lib/form-data';
+import { readUploadForm, UploadTooLargeError, UploadInputError, type StreamedUpload } from '@/lib/form-data';
+import { acquireLease, commitStoredFile, ResourceLimitError } from '@/lib/resource-limits';
+import { isSameOrigin } from '@/lib/request-security';
 
 export const dynamic = 'force-dynamic';
-
-const VALID_ROLES = INSTRUMENT_ROLES as readonly string[];
-
 export async function POST(request: Request) {
+  let upload: StreamedUpload | undefined;
+  let lease: ReturnType<typeof acquireLease> | undefined;
+  let finalName: string | undefined;
+  let committed = false;
   try {
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
     const user = await requireAuth();
-    if (!rateLimit(`uploads:${user.id}`, RATE_LIMITS.uploads.max, RATE_LIMITS.uploads.windowMs)) {
-      return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
+    if (!rateLimit(`uploads:${user.id}`, RATE_LIMITS.uploads.max, RATE_LIMITS.uploads.windowMs)) throw new ResourceLimitError();
+    lease = acquireLease('upload', user.id, RESOURCE_LIMITS.uploads, RESOURCE_LIMITS.userUploads,
+      RESOURCE_LIMITS.uploadLeaseMs, UPLOAD_LIMITS.stem);
+    upload = await readUploadForm(request, UPLOAD_LIMITS.stem);
+    const { fields, file } = upload;
+    const { songId, role, label, kind } = fields;
+    const startOffset = fields.startOffset === undefined ? 0 : Number(fields.startOffset);
+    const duration = fields.duration === undefined ? null : Number(fields.duration);
+    if ((fields.startOffset !== undefined && !fields.startOffset.trim()) ||
+      (fields.duration !== undefined && !fields.duration.trim()) || !Number.isFinite(startOffset) ||
+      Math.abs(startOffset) > 86400 || (duration !== null && (!Number.isFinite(duration) || duration < 0 || duration > 86400))) {
+      throw new UploadInputError('Invalid track timing');
     }
-
-    const form = await readUploadForm(request, UPLOAD_LIMITS.stem);
-    const songId = form.get('songId');
-    const role = form.get('role');
-    const label = form.get('label');
-    const file = form.get('file');
-    const kind = form.get('kind');
-    const startOffsetField = form.get('startOffset');
-    const durationField = form.get('duration');
-    const startOffset = startOffsetField === null ? 0 : Number(startOffsetField);
-    const duration = durationField === null ? null : Number(durationField);
-    if (
-      (startOffsetField !== null && (typeof startOffsetField !== 'string' || !startOffsetField.trim())) ||
-      (durationField !== null && (typeof durationField !== 'string' || !durationField.trim())) ||
-      !Number.isFinite(startOffset) ||
-      (duration !== null && (!Number.isFinite(duration) || duration < 0))
-    ) {
-      return NextResponse.json({ error: 'Invalid track timing' }, { status: 400 });
-    }
-
-    if (typeof songId !== 'string' || !songId) {
-      return NextResponse.json({ error: 'Missing songId' }, { status: 400 });
-    }
-    if (typeof role !== 'string' || !VALID_ROLES.includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
-    }
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
-    }
-    if (!allowedMime(file.type)) {
-      return NextResponse.json({ error: 'File type not allowed: ' + file.type }, { status: 400 });
-    }
-    if (kind === 'stem' && file.type.startsWith('video/')) {
-      return NextResponse.json({ error: 'Only audio files are allowed for stems.' }, { status: 400 });
-    }
-    if (file.size > UPLOAD_LIMITS.stem) {
-      return NextResponse.json(
-        { error: `File too large (max ${UPLOAD_LIMITS.stem / 1024 / 1024}MB)` },
-        { status: 400 }
-      );
-    }
-
-    const songExists = await db
-      .select({ id: songs.id })
-      .from(songs)
-      .where(eq(songs.id, songId))
-      .limit(1);
-    if (songExists.length === 0) {
-      return NextResponse.json({ error: 'Song not found' }, { status: 400 });
-    }
-
-    const buf = Buffer.from(await file.arrayBuffer());
-
-    // Magic-byte validation
-    if (!validateMagicBytes(buf, file.type, 'stem')) {
-      return NextResponse.json({ error: 'File content does not match declared type' }, { status: 400 });
-    }
-
-    const finalLabel =
-      typeof label === 'string' && label.trim() ? label.trim() : file.name || 'Untitled';
-
-    ensureUploadDir();
-    const storedName = crypto.randomUUID() + extForMime(file.type);
-    const tmpName = storedName + '.tmp';
-    fs.writeFileSync(storedPath(tmpName), buf);
-
-    // Rename to the final name BEFORE the DB insert, and unlink on insert
-    // failure. The old order (insert → rename) left a dangling DB row when the
-    // rename failed, and an orphaned .tmp when the insert failed.
-    fs.renameSync(storedPath(tmpName), storedPath(storedName));
-
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    try {
-      await db.insert(customTracks).values({
-        id,
-        songId,
-        role: role as Role,
-        label: finalLabel,
-        fileName: file.name,
-        storedName,
-        mimeType: file.type,
-        sizeBytes: file.size,
-        duration,
-        startOffset,
-        isVideo: file.type.startsWith('video/'),
-        createdAt: now,
-      });
-    } catch (insertError) {
-      deleteStoredFile(storedName);
-      throw insertError;
-    }
-
-    const track: CustomTrack = {
-      id,
-      songId,
-      role: role as Role,
-      label: finalLabel,
-      fileName: file.name,
-      storedName,
-      mimeType: file.type,
-      sizeBytes: file.size,
-      duration,
-      startOffset,
-      isVideo: file.type.startsWith('video/'),
-      createdAt: now,
-    };
-
-    return NextResponse.json({ track }, { status: 200 });
+    if (!songId || songId.length > 100 || !(INSTRUMENT_ROLES as readonly string[]).includes(role) ||
+      (kind !== undefined && !['stem', 'backing', 'tab'].includes(kind))) throw new UploadInputError('Invalid song or role');
+    if (!allowedMime(file.type) || (kind === 'stem' && file.type.startsWith('video/'))) throw new UploadInputError('File type not allowed');
+    if (!validateMagicBytes(file.prefix, file.type, 'stem', file.size)) throw new UploadInputError('File content does not match declared type');
+    if (label && label.length > INPUT_LIMITS.label) throw new UploadInputError('Label is too long');
+    if (!db.select({ id: songs.id }).from(songs).where(eq(songs.id, songId)).get()) throw new UploadInputError('Song not found');
+    await requireAuth(); // Recheck after streaming in case the session was revoked.
+    finalName = crypto.randomUUID() + extForMime(file.type);
+    await rename(storedPath(file.tempName), storedPath(finalName));
+    const track = { id: crypto.randomUUID(), songId, role: role as Role, label: (label?.trim() || file.name || 'Untitled').slice(0, INPUT_LIMITS.label),
+      fileName: file.name, storedName: finalName, mimeType: file.type, sizeBytes: file.size, duration,
+      startOffset, isVideo: file.type.startsWith('video/'), createdAt: Date.now() };
+    db.transaction(tx => {
+      commitStoredFile(lease!.id, finalName!, user.id, file.size);
+      tx.insert(customTracks).values(track).run();
+    }, { behavior: 'immediate' });
+    committed = true;
+    return NextResponse.json({ track });
   } catch (error) {
-    if (error instanceof UploadTooLargeError) {
-      return NextResponse.json({ error: 'Upload too large' }, { status: 413 });
-    }
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: 'Upload too large' }, { status: 413 });
+    if (error instanceof UploadInputError) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof ResourceLimitError) return NextResponse.json({ error: error.message }, { status: 429, headers: { 'Retry-After': '60' } });
     console.error('Upload failed:', error);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+  } finally {
+    if (finalName && !committed) await deleteStoredFile(finalName);
+    await upload?.cleanup();
+    if (upload) lease?.settleBytes(upload.file.size);
+    lease?.release();
   }
 }

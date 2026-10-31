@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { isInviteRequired } from "@/app/actions/auth";
+import { getRegistrationStatus } from "@/app/actions/auth";
 import { LoginForm } from "./LoginForm";
 import { getSessionUser } from "@/lib/auth";
 import { safeNext } from "@/lib/navigation";
@@ -21,10 +21,10 @@ export default async function LoginPage({
     const pathname = new URL(target, "http://bandboard.local").pathname;
     redirect(pathname === "/login" || pathname === "/login/" ? "/" : target);
   }
-  const inviteRequired = await isInviteRequired();
+  const registration = await getRegistrationStatus();
   return (
     <Suspense fallback={null}>
-      <LoginForm inviteRequired={inviteRequired} />
+      <LoginForm inviteRequired={registration.inviteRequired} registrationEnabled={registration.enabled} />
     </Suspense>
   );
 }

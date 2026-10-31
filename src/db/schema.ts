@@ -267,23 +267,45 @@ export const users = sqliteTable(
 export const sessions = sqliteTable(
   'sessions',
   {
+    // SHA-256 digest only; raw bearer tokens never enter the database.
     token: text('token').primaryKey(),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     createdAt: integer('created_at').notNull(),
+    lastSeenAt: integer('last_seen_at').notNull(),
   },
-  (table) => [index('sessions_user_id_idx').on(table.userId)]
+  (table) => [index('sessions_user_id_idx').on(table.userId), index('sessions_last_seen_idx').on(table.lastSeenAt)]
 );
 
-// ---------------------------------------------------------------------------
-// loginFailures — persistent brute-force counters (survive restarts)
-// ---------------------------------------------------------------------------
+// Retained for migration compatibility; new counters use rateLimits.
 export const loginFailures = sqliteTable('login_failures', {
-  key: text('key').primaryKey(), // "device:<uuid>" or "ip:<addr>"
+  key: text('key').primaryKey(),
   count: integer('count').notNull(),
   lastAt: integer('last_at').notNull(),
 });
+
+// Persistent windows and expiring leases coordinate all workers using this database.
+export const rateLimits = sqliteTable('rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+}, (table) => [index('rate_limits_expiry_idx').on(table.expiresAt)]);
+
+export const resourceLeases = sqliteTable('resource_leases', {
+  id: text('id').primaryKey(),
+  resource: text('resource').notNull(),
+  owner: text('owner').notNull(),
+  weight: integer('weight').notNull().default(0),
+  expiresAt: integer('expires_at').notNull(),
+}, (table) => [index('resource_leases_resource_idx').on(table.resource), index('resource_leases_expiry_idx').on(table.expiresAt)]);
+
+export const storedFiles = sqliteTable('stored_files', {
+  name: text('name').primaryKey(),
+  owner: text('owner').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [index('stored_files_owner_idx').on(table.owner)]);
 
 // ---------------------------------------------------------------------------
 // Relations

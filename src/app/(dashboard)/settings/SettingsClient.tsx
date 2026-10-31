@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { saveUserSettings } from "@/app/actions/user";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  logout,
+  logout, logoutOtherSessions,
   changeUsername,
   changePassword,
   deleteAccount,
@@ -251,7 +251,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min. 8 chars)..."
+                  placeholder="New password (min. 12 chars)..."
                   aria-label="New password"
                   disabled={savingPassword}
                   autoComplete="new-password"
@@ -259,7 +259,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 />
                 <Button
                   type="submit"
-                  disabled={savingPassword || !currentPassword || newPassword.length < 8}
+                  disabled={savingPassword || !currentPassword || newPassword.length < 12}
                   className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0 disabled:opacity-50"
                 >
                   Save
@@ -275,18 +275,31 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Ends your session on this device. Your progress stays saved.
               </p>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await logout();
-                  // Clear all in-memory user state before another login.
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-                  window.location.href = "/login";
-                }}
-                className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
-              >
-                Log Out
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    await logout();
+                    // Clear all in-memory user state before another login.
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                    window.location.href = "/login";
+                  }}
+                  className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
+                >
+                  Log Out
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const result = await logoutOtherSessions();
+                    if (result.success) toast.success("Other devices have been signed out.");
+                    else toast.error(result.error);
+                  }}
+                  className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"
+                >
+                  Log Out Other Devices
+                </Button>
+              </div>
             </div>
 
             {/* Danger Zone */}

@@ -6,7 +6,7 @@ import {
   MAX_MARKERS,
   PROGRESS_STATUSES,
   VOTE_SELECTION_MIN,
-  INSTRUMENT_ROLES,
+  INSTRUMENT_ROLES, INPUT_LIMITS,
 } from './constants';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +51,7 @@ export function validateUserSettings(s: Record<string, unknown>): string | null 
 }
 
 export function validateSongProgress(p: Record<string, unknown>): string | null {
+  if (!boundedText(p.notes, INPUT_LIMITS.notes, true)) return 'Notes are too long';
   if (p.status !== undefined) {
     const valid = PROGRESS_STATUSES.map((s) => s.id);
     if (!(valid as string[]).includes(p.status as string)) return `status must be one of: ${valid.join(', ')}`;
@@ -85,23 +86,24 @@ export function validateRehearsal(
   opts?: { /** Exemption for editing a row whose stored end is already past. */
     allowPastVotingEnd?: boolean }
 ): string | null {
+  if (!boundedText(r.title, INPUT_LIMITS.title, true) || !boundedText(r.notes, INPUT_LIMITS.notes, true)) return 'Title or notes are too long';
   if (r.type !== undefined && r.type !== 'manual' && r.type !== 'vote') {
     return 'Invalid rehearsal type';
   }
   if (r.title !== undefined && (typeof r.title !== 'string' || !r.title.trim())) {
     return 'title is required';
   }
-  if (r.date !== undefined && (typeof r.date !== 'number' || !Number.isInteger(r.date))) {
+  if (r.date !== undefined && (typeof r.date !== 'number' || !Number.isSafeInteger(r.date) || Math.abs(r.date) > 8.64e15)) {
     return 'date must be an integer (Unix ms)';
   }
   if (r.type === 'vote') {
-    if (typeof r.votingEndsAt !== 'number' || !Number.isInteger(r.votingEndsAt)) {
+    if (typeof r.votingEndsAt !== 'number' || !Number.isSafeInteger(r.votingEndsAt)) {
       return 'votingEndsAt must be an integer (Unix ms)';
     }
     if (
       typeof r.songSelectionCount !== 'number' ||
       !Number.isInteger(r.songSelectionCount) ||
-      r.songSelectionCount < VOTE_SELECTION_MIN
+      (r.songSelectionCount < VOTE_SELECTION_MIN || r.songSelectionCount > INPUT_LIMITS.librarySongs)
     ) {
       return `songSelectionCount must be an integer of at least ${VOTE_SELECTION_MIN}`;
     }
@@ -123,4 +125,21 @@ export function validateRehearsal(
     return 'Voting end must be in the future';
   }
   return null;
+}
+
+export function boundedText(value: unknown, max: number, optional = false): boolean {
+  return optional && (value === null || value === undefined) || typeof value === 'string' && value.length <= max;
+}
+export function validMapKey(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= INPUT_LIMITS.mapKey &&
+    !['__proto__', 'prototype', 'constructor'].includes(value);
+}
+export function boundedMap(map: object, key: string): boolean {
+  return Object.hasOwn(map, key) || Object.keys(map).length < INPUT_LIMITS.mapKeys;
+}
+export function validTunings(value: unknown): boolean {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).length <= INPUT_LIMITS.mapKeys && Object.entries(value).every(([k, v]) =>
+    validMapKey(k) && boundedText(v, INPUT_LIMITS.tuning));
 }

@@ -5,20 +5,31 @@ services:
     container_name: bandboard
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:${PORT:-3000}"
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: ${PORT:-3000}
       DATABASE_PATH: /app/data/sqlite.db
       UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
       MIGRATE_ON_BOOT: "1"
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
+      APP_ORIGIN: ${APP_ORIGIN:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
       BAND_SECRET: ${BAND_SECRET:-}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       BACKUP_KEEP: ${BACKUP_KEEP:-10}
     volumes:
       - bandboard_db:/app/data
       - bandboard_uploads:/app/uploads
+      - bandboard_backups:/app/backups
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:'+process.env.PORT+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -29,3 +40,4 @@ services:
 volumes:
   bandboard_db:
   bandboard_uploads:
+  bandboard_backups:

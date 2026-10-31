@@ -1,11 +1,14 @@
-import fs from 'fs';
+import { mkdir, unlink } from 'node:fs/promises';
+import { db } from '@/db';
+import { storedFiles, songs, customTracks } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import path from 'path';
 import { ALLOWED_UPLOAD_MIMES } from './constants';
 
 export const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads');
 
-export function ensureUploadDir(): void {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+export async function ensureUploadDir(): Promise<void> {
+  await mkdir(UPLOAD_DIR, { recursive: true, mode: 0o700 });
 }
 
 export function allowedMime(mime: string): boolean {
@@ -80,128 +83,72 @@ export function storedPath(storedName: string): string {
   if (!safe || safe === '.' || safe === '..' || safe !== storedName || storedName.includes('\\')) {
     throw new Error('Invalid stored name');
   }
-  return path.join(UPLOAD_DIR, safe);
+  return path.join(/* turbopackIgnore: true */ UPLOAD_DIR, safe);
 }
 
-export function deleteStoredFile(storedName: string): void {
-  try {
-    fs.unlinkSync(storedPath(storedName));
-  } catch {
-    // ignore missing files
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Magic-byte validation
-// ---------------------------------------------------------------------------
-/** Leading-byte signatures for allowed types. Only the first few are checked
- *  to keep validation cheap (false positives are unlikely for media files). */
-const MAGIC_SIGNATURES: Record<string, number[][]> = {
-  'audio/mpeg': [
-    [0xFF, 0xE0], // MPEG-1
-    [0xFF, 0xF0], // MPEG-2
-    [0x49, 0x44, 0x33], // ID3 tag
-  ],
-  'audio/mp3': [
-    [0xFF, 0xE0],
-    [0xFF, 0xF0],
-    [0x49, 0x44, 0x33],
-  ],
-  'audio/wav': [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
-  'audio/x-wav': [[0x52, 0x49, 0x46, 0x46]],
-  'audio/wave': [[0x52, 0x49, 0x46, 0x46]],
-  'audio/vnd.wave': [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
-  'audio/ogg': [[0x4F, 0x67, 0x67, 0x53]], // "OggS"
-  'audio/flac': [[0x66, 0x4C, 0x61, 0x43]], // "fLaC"
-  'audio/x-flac': [[0x66, 0x4C, 0x61, 0x43]],
-  'audio/aiff': [[0x46, 0x4F, 0x52, 0x4D]], // "FORM"
-  'audio/x-aiff': [[0x46, 0x4F, 0x52, 0x4D]],
-  'audio/opus': [[0x4F, 0x67, 0x67, 0x53]], // OggS container,
-  'audio/mp4': [
-    [0x00, 0x00, 0x00],
-    [0x66, 0x74, 0x79, 0x70], // "ftyp" (offset 4)
-  ],
-  'audio/m4a': [
-    [0x00, 0x00, 0x00],
-    [0x66, 0x74, 0x79, 0x70],
-  ],
-  'audio/x-m4a': [
-    [0x00, 0x00, 0x00],
-    [0x66, 0x74, 0x79, 0x70],
-  ],
-  'audio/aac': [[0xFF, 0xF1], [0xFF, 0xF9]],
-  'video/mp4': [
-    [0x00, 0x00, 0x00],
-    [0x66, 0x74, 0x79, 0x70],
-  ],
-  'video/webm': [[0x1A, 0x45, 0xDF, 0xA3]], // WebM/Matroska
-  'video/quicktime': [
-    [0x00, 0x00, 0x00],
-    [0x66, 0x74, 0x79, 0x70],
-    [0x6D, 0x6F, 0x6F, 0x76], // "moov" at offset 4
-  ],
-  'video/x-matroska': [[0x1A, 0x45, 0xDF, 0xA3]],
-};
-
-const IMAGE_MAGIC_SIGNATURES: Record<string, number[][]> = {
-  'image/jpeg': [[0xFF, 0xD8, 0xFF]],
-  'image/png': [[0x89, 0x50, 0x4E, 0x47]],
-  'image/webp': [[0x52, 0x49, 0x46, 0x46]], // "RIFF"
-  'image/gif': [[0x47, 0x49, 0x46, 0x38]], // "GIF8"
-};
-
-/**
- * Validate that the first bytes of a buffer match the declared MIME type.
- *
- * This is a lightweight content-sniff; it catches accidental misclassification
- * and naive spoofing but is not a cryptographically strong content validator.
- *
- * For MP4/M4A/MOV the `ftyp` box is at offset 4, so a 4-byte prefix check
- * only catches "ftyp" — we also accept the first 3 bytes being zeros (typical
- * for these containers). WAV and WebP also check their RIFF subtype at byte 8.
- */
-export function validateMagicBytes(
-  buf: Buffer,
-  claimedType: string,
-  kind: 'stem' | 'image' = 'stem',
-): boolean {
-  if (claimedType === 'audio/mpeg' || claimedType === 'audio/mp3') {
-    if (buf.subarray(0, 3).equals(Buffer.from('ID3'))) return true;
-    // Frame sync is eleven bits, not an exact FF E0/FF F0 prefix. Common
-    // untagged MP3s start FF FB (MPEG-1 Layer III) and were rejected before.
-    return buf.length >= 4 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0 &&
-      (buf[1] & 0x18) !== 0x08 && (buf[1] & 0x06) !== 0;
-  }
-  if (['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave', 'image/webp'].includes(claimedType)) {
-    return buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' &&
-      buf.toString('ascii', 8, 12) === (claimedType === 'image/webp' ? 'WEBP' : 'WAVE');
-  }
-  const sigs =
-    kind === 'image'
-      ? IMAGE_MAGIC_SIGNATURES[claimedType]
-      : MAGIC_SIGNATURES[claimedType];
-  if (!sigs) return true; // unknown type → skip validation
-
-  // Ponytail: checks first 8 bytes max. A dedicated mime-validator lib would
-  // be more thorough; add if spoofing becomes a real problem.
-  for (const sig of sigs) {
-    const prefix = buf.subarray(0, sig.length);
-    if (prefix.equals(Buffer.from(sig))) return true;
-  }
-
-  // Special case: MP4/M4A/MOV often start with a 4-byte size before "ftyp"
-  if (
-    claimedType === 'video/mp4' ||
-    claimedType === 'audio/mp4' ||
-    claimedType === 'audio/m4a' ||
-    claimedType === 'audio/x-m4a' ||
-    claimedType === 'video/quicktime'
-  ) {
-    // Check offset 4 for "ftyp"
-    if (buf.length >= 8 && Buffer.from(buf.subarray(4, 8)).equals(Buffer.from([0x66, 0x74, 0x79, 0x70]))) {
-      return true;
+export async function deleteStoredFile(storedName: string): Promise<void> {
+  // Legacy references may share a file. Unlink only after every reference is gone.
+  if (db.select({ id: songs.id }).from(songs).where(eq(songs.coverArtStoredName, storedName)).get() ||
+    db.select({ id: customTracks.id }).from(customTracks).where(eq(customTracks.storedName, storedName)).get()) return;
+  try { await unlink(storedPath(storedName)); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error('Could not remove stored file:', error);
+      return; // Keep charging quota until the file is actually gone.
     }
   }
+  db.delete(storedFiles).where(eq(storedFiles.name, storedName)).run();
+}
 
+/** Validate bounded header bytes AND the actual streamed length. These checks
+ * reject malformed container headers; they do not assert that media is benign.
+ */
+export function validateMagicBytes(buf: Buffer, type: string, kind: 'stem' | 'image' = 'stem', size = buf.length): boolean {
+  if (size < buf.length || buf.length < 4) return false;
+  const ascii = (start: number, end: number) => buf.toString('ascii', start, end);
+  if (kind === 'image') {
+    if (type === 'image/png') return buf.length >= 33 &&
+      buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) &&
+      buf.readUInt32BE(8) === 13 && ascii(12, 16) === 'IHDR' &&
+      buf.readUInt32BE(16) > 0 && buf.readUInt32BE(20) > 0 &&
+      buf.readUInt32BE(16) * buf.readUInt32BE(20) <= 16_000_000;
+    if (type === 'image/jpeg') return size >= 4 && buf[0] === 255 && buf[1] === 216 && buf[2] === 255;
+    if (type === 'image/gif') return buf.length >= 13 && ['GIF87a', 'GIF89a'].includes(ascii(0, 6)) &&
+      buf.readUInt16LE(6) > 0 && buf.readUInt16LE(8) > 0 && buf.readUInt16LE(6) * buf.readUInt16LE(8) <= 16_000_000;
+    if (type === 'image/webp') return buf.length >= 30 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP' &&
+      ['VP8 ', 'VP8L', 'VP8X'].includes(ascii(12, 16)) && buf.readUInt32LE(4) + 8 <= size;
+    return false;
+  }
+  if (!allowedMime(type)) return false;
+  if (type === 'audio/mpeg' || type === 'audio/mp3') {
+    if (ascii(0, 3) === 'ID3') return size >= 10 && buf.length >= 10 && buf[3] >= 2 && buf[3] <= 4 &&
+      [...buf.subarray(6, 10)].every(b => b < 128);
+    return buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0 && (buf[1] & 0x18) !== 0x08 &&
+      (buf[1] & 0x06) !== 0 && (buf[2] & 0xf0) !== 0xf0 && (buf[2] & 0x0c) !== 0x0c;
+  }
+  if (['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'].includes(type)) {
+    return buf.length >= 36 && size >= 44 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE' &&
+      buf.readUInt32LE(4) >= 36 && buf.readUInt32LE(4) + 8 <= size;
+  }
+  if (['audio/aiff', 'audio/x-aiff'].includes(type)) return buf.length >= 12 && ascii(0, 4) === 'FORM' &&
+    ['AIFF', 'AIFC'].includes(ascii(8, 12)) && buf.readUInt32BE(4) >= 4 && buf.readUInt32BE(4) + 8 <= size;
+  if (['audio/ogg', 'audio/opus'].includes(type)) return buf.length >= 28 && ascii(0, 4) === 'OggS' && buf[4] === 0;
+  if (['audio/flac', 'audio/x-flac'].includes(type)) return buf.length >= 42 && ascii(0, 4) === 'fLaC' && (buf[4] & 0x7f) === 0;
+  if (type === 'audio/aac') return size >= 7 && buf[0] === 255 && (buf[1] & 0xf6) === 0xf0;
+  if (['video/mp4', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'video/quicktime'].includes(type)) {
+    // Parse bounded top-level ISO BMFF boxes. A zero prefix is never a signature.
+    for (let offset = 0; offset + 16 <= buf.length;) {
+      const boxSize = buf.readUInt32BE(offset);
+      if (boxSize < 8 || offset + boxSize > size) return false;
+      const box = ascii(offset + 4, offset + 8);
+      if (box === 'ftyp') return boxSize >= 16 && /^[A-Za-z0-9 ]{4}$/.test(ascii(offset + 8, offset + 12));
+      if (!['free', 'skip', 'wide'].includes(box)) return false;
+      offset += boxSize;
+    }
+    return false;
+  }
+  if (['video/webm', 'video/x-matroska'].includes(type)) return buf.length >= 16 &&
+    buf.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) &&
+    (buf.includes(Buffer.from('webm')) || buf.includes(Buffer.from('matroska')));
   return false;
 }

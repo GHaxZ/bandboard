@@ -16,10 +16,12 @@ import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
-import { requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
-import { RATE_LIMITS } from "@/lib/constants";
+import { INPUT_LIMITS, RATE_LIMITS } from "@/lib/constants";
 import type { Song } from "@/types/models";
+import { boundedText, validTunings } from "@/lib/validation";
+import { assertCapacity } from "@/lib/capacity";
 import { mapSong } from "@/lib/serialize";
 
 // ---------------------------------------------------------------------------
@@ -57,10 +59,11 @@ export async function ingestSongData(
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     if (!scrapeAllowed(user.id)) {
       return { success: false, error: "Too many requests. Try again in a minute." };
     }
+    if (!boundedText(title, INPUT_LIMITS.title) || !boundedText(artist, INPUT_LIMITS.artist)) return { success: false, error: "Title or artist is too long" };
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
     if (!formattedTitle || !formattedArtist) {
@@ -86,6 +89,7 @@ export async function ingestSongData(
 
     // Insert song + role groups + tracks in one transaction (better-sqlite3 sync)
     db.transaction((tx) => {
+      assertCapacity(tx, songs, INPUT_LIMITS.librarySongs);
       tx.insert(songs)
         .values({
           id: songId,
@@ -153,7 +157,7 @@ export async function ingestSongData(
 
     return { success: true, songId };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     // The unique index is the race-proof backstop behind findDuplicate().
     if (error instanceof Error && error.message.includes("UNIQUE")) {
       return { success: false, error: "This cover song is already in your library." };
@@ -168,10 +172,11 @@ export async function createOriginalSong(
   artist: string
 ): Promise<{ success: boolean; error?: string; songId?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     if (!scrapeAllowed(user.id)) {
       return { success: false, error: "Too many requests. Try again in a minute." };
     }
+    if (!boundedText(title, INPUT_LIMITS.title) || !boundedText(artist, INPUT_LIMITS.artist)) return { success: false, error: "Title or artist is too long" };
     const formattedTitle = title.trim();
     const formattedArtist = artist.trim();
     if (!formattedTitle || !formattedArtist) {
@@ -183,7 +188,9 @@ export async function createOriginalSong(
     }
 
     const songId = crypto.randomUUID();
-    db.insert(songs)
+    db.transaction(tx => {
+      assertCapacity(tx, songs, INPUT_LIMITS.librarySongs);
+      tx.insert(songs)
       .values({
         id: songId,
         title: formattedTitle,
@@ -197,10 +204,11 @@ export async function createOriginalSong(
         createdAt: Date.now(),
       })
       .run();
+    }, { behavior: 'immediate' });
 
     return { success: true, songId };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     if (error instanceof Error && error.message.includes("UNIQUE")) {
       return { success: false, error: "An original song with this title and artist already exists." };
     }
@@ -219,10 +227,12 @@ export async function updateOriginalMetadata(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const current = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!current) return { success: false, error: "Song not found." };
-    let staleCoverName: string | null = null;
+    if (current.songType !== 'original') return { success: false, error: "Not an original song" };
+    if (!boundedText(patch.title, INPUT_LIMITS.title, true) || !boundedText(patch.artist, INPUT_LIMITS.artist, true) ||
+      (patch.tunings !== undefined && !validTunings(patch.tunings))) return { success: false, error: "Invalid metadata or text length" };
 
     // When renaming, ensure no duplicate original song with the new name+artist exists.
     if (patch.title !== undefined || patch.artist !== undefined) {
@@ -249,27 +259,22 @@ export async function updateOriginalMetadata(
     }
     if (patch.coverArtStoredName !== undefined) {
       const name = patch.coverArtStoredName;
-      // Only accept server-generated cover names. Without this check a caller
-      // could point the column at an arbitrary path and exfiltrate/delete any
-      // file via the cover-art GET route / deleteSong cleanup.
-      if (name !== null && !/^cover-[0-9a-f-]{36}\.(png|jpe?g|webp|gif)$/i.test(name)) {
-        return { success: false, error: "Invalid cover art reference." };
-      }
-      // Unlink the old file when the reference changes (removal → null or
-      // replacement), so uploads/ doesn't accumulate orphaned images.
-      const oldName = current.coverArtStoredName;
-      if (oldName && oldName !== name) staleCoverName = oldName;
+      if (name !== null) return { success: false, error: "Use the cover-art upload endpoint to replace an image." };
       set.coverArtStoredName = name;
     }
     if (Object.keys(set).length === 0) return { success: true };
 
-    db.update(songs).set(set).where(eq(songs.id, songId)).run();
+    const staleCoverName = db.transaction(tx => {
+      const latest = tx.select({ cover: songs.coverArtStoredName }).from(songs).where(eq(songs.id, songId)).get();
+      tx.update(songs).set(set).where(eq(songs.id, songId)).run();
+      return set.coverArtStoredName === null ? latest?.cover : null;
+    }, { behavior: 'immediate' });
     // Unlink only AFTER the row committed — deleting first would leave the DB
     // pointing at a missing file if the UPDATE threw.
-    if (staleCoverName) deleteStoredFile(staleCoverName);
+    if (staleCoverName) await deleteStoredFile(staleCoverName);
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     if (error instanceof Error && error.message.includes("UNIQUE")) {
       return { success: false, error: "An original song with this title and artist already exists." };
     }
@@ -284,7 +289,7 @@ export async function updateRoleGroupCustomArtifact(
   customTrackId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     if (type !== "backing" && type !== "tab") return { success: false, error: "Invalid media slot." };
     const result = db.transaction((tx) => {
       const rg = tx.select().from(roleGroups).where(eq(roleGroups.id, roleGroupId)).get();
@@ -313,10 +318,10 @@ export async function updateRoleGroupCustomArtifact(
       return {};
     });
     if (result.error) return { success: false, error: result.error };
-    if (result.storedName) deleteStoredFile(result.storedName);
+    if (result.storedName) await deleteStoredFile(result.storedName);
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to update role group custom artifact:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -367,7 +372,7 @@ export async function deleteSong(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
 
     // Collect file references before deleting the row
     const customRows = await db
@@ -386,15 +391,15 @@ export async function deleteSong(
 
     // Then clean up files
     for (const row of customRows) {
-      deleteStoredFile(row.storedName);
+      await deleteStoredFile(row.storedName);
     }
 
     const coverArt = coverRow[0]?.coverArt;
-    if (coverArt) deleteStoredFile(coverArt);
+    if (coverArt) await deleteStoredFile(coverArt);
 
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to delete song:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -409,7 +414,7 @@ export async function updateRoleGroupVideo(
   videoUrl: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     if (
       videoUrl !== null &&
       videoUrl !== NO_VIDEO_SENTINEL &&
@@ -430,7 +435,7 @@ export async function updateRoleGroupVideo(
     }
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to update video link:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -443,7 +448,7 @@ export async function lazyLoadTrackMedia(
   roleGroupId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     if (!scrapeAllowed(user.id)) {
       return { success: false, error: "Too many requests. Try again in a minute." };
     }
@@ -498,7 +503,7 @@ export async function lazyLoadTrackMedia(
 
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to lazy load track media:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -513,6 +518,7 @@ export async function searchYouTubeVideosAction(
   query: string
 ): Promise<YouTubeVideo[] | null> {
   try {
+    if (!boundedText(query, 300)) return null;
     const user = await requireAuth();
     if (!scrapeAllowed(user.id)) return null;
     const results = await searchYouTube(query);
@@ -531,7 +537,7 @@ export async function refreshSongMetadata(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     if (!scrapeAllowed(user.id)) {
       return { success: false, error: "Too many requests. Try again in a minute." };
     }
@@ -548,7 +554,7 @@ export async function refreshSongMetadata(
 
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to refresh song metadata:", error);
     return { success: false, error: "Something went wrong" };
   }

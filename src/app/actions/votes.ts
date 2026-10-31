@@ -10,11 +10,13 @@ import {
   users,
 } from "@/db/schema";
 import { eq, and, asc, sql, inArray, notInArray } from "drizzle-orm";
-import { requireAuth, AuthError, getUserUuid } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError, getUserUuid } from "@/lib/auth";
 import { validateRehearsal } from "@/lib/validation";
+import { assertCapacity } from "@/lib/capacity";
+import { rateLimit } from "@/lib/rate-limit";
 import { mapSong } from "@/lib/serialize";
 import {
-  MAX_COMMENT_LENGTH,
+  MAX_COMMENT_LENGTH, INPUT_LIMITS, RATE_LIMITS,
 } from "@/lib/constants";
 import type { Song, SongComment, VotingCandidate, VotingState } from "@/types/models";
 
@@ -51,7 +53,7 @@ function voteIsOpen(r: {
 }
 
 function authError(error: unknown): { success: boolean; error: string } {
-  if (error instanceof AuthError) return { success: false, error: 'Unauthorized' };
+  if (error instanceof AuthError) return { success: false, error: error.message };
   console.error('Vote action failed:', error);
   return { success: false, error: 'Something went wrong' };
 }
@@ -184,7 +186,7 @@ export async function nominateSong(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (!voteIsOpen(r)) return { success: false, error: 'Voting has ended' };
@@ -225,7 +227,7 @@ export async function removeNomination(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (!voteIsOpen(r)) return { success: false, error: 'Voting has ended' };
@@ -260,7 +262,7 @@ export async function toggleVote(
   songId: string
 ): Promise<{ success: boolean; error?: string; voted?: boolean }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (!voteIsOpen(r)) return { success: false, error: 'Voting has ended' };
@@ -307,7 +309,7 @@ export async function endVotingNow(
   rehearsalId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote') return { success: false, error: 'Not a voting rehearsal' };
     if (r.finalizedAt || !voteIsOpen(r)) return { success: true }; // already closed
@@ -334,7 +336,7 @@ export async function convertRehearsalToVote(
   songSelectionCount: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const r = await getRehearsalRow(rehearsalId);
     if (!r) return { success: false, error: 'Rehearsal not found' };
     if (voteIsOpen(r)) return { success: false, error: 'This voting is still active' };
@@ -367,7 +369,9 @@ export async function addComment(
   body: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = await requireAuth();
+    const user = await requireMutation();
+    if (!rateLimit(`comments:${user.id}`, RATE_LIMITS.comments.max, RATE_LIMITS.comments.windowMs)) return { success: false, error: 'Too many comments. Try again shortly.' };
+    if (typeof body !== 'string') return { success: false, error: 'Invalid comment' };
     const trimmed = body.trim();
     if (!trimmed) return { success: false, error: 'Comment cannot be empty' };
     if (trimmed.length > MAX_COMMENT_LENGTH) {
@@ -384,14 +388,19 @@ export async function addComment(
       .get();
     if (!nominated) return { success: false, error: 'Song is not nominated' };
 
-    await db.insert(rehearsalSongComments).values({
+    db.transaction(tx => {
+      assertCapacity(tx, rehearsalSongComments, 100_000);
+      assertCapacity(tx, rehearsalSongComments, INPUT_LIMITS.commentsPerSong,
+        and(eq(rehearsalSongComments.rehearsalId, rehearsalId), eq(rehearsalSongComments.songId, songId)));
+      tx.insert(rehearsalSongComments).values({
       id: crypto.randomUUID(),
       rehearsalId,
       songId,
       userUuid: user.id,
       body: trimmed,
       createdAt: Date.now(),
-    });
+    }).run();
+    }, { behavior: 'immediate' });
     return { success: true };
   } catch (error) {
     return authError(error);
@@ -448,6 +457,7 @@ export async function markCommentsRead(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireMutation();
     const myUuid = await getUserUuid();
     await db
       .insert(commentReads)

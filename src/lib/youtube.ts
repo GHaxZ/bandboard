@@ -1,3 +1,4 @@
+import { limitedText } from "./http-response";
 export interface YouTubeVideo {
   videoId: string;
   title: string;
@@ -52,7 +53,7 @@ async function scrapeYouTube(query: string): Promise<YouTubeVideo[]> {
 
     if (!response.ok) throw new Error(`YouTube scrape failed with status ${response.status}`);
 
-    const html = await response.text();
+    const html = await limitedText(response, 5 * 1024 * 1024);
     const startPattern = 'var ytInitialData = ';
     let startIndex = html.indexOf(startPattern);
     let patternLen = startPattern.length;
@@ -121,7 +122,7 @@ function parseYtInitialData(html: string, startIndex: number): YouTubeVideo[] {
         const viewsText = vr.viewCountText?.simpleText || vr.shortViewCountText?.simpleText || '';
         const thumbnail = vr.thumbnail?.thumbnails?.[0]?.url || '';
 
-        if (videoId && title) {
+        if (typeof videoId === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(videoId) && typeof title === 'string') {
           videos.push({
             videoId,
             title,
@@ -151,7 +152,7 @@ async function apiYouTube(query: string, apiKey: string): Promise<YouTubeVideo[]
     )}&type=video&key=${apiKey}&maxResults=10`;
     const res = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`YouTube API returned status ${res.status}`);
-    const data = await res.json();
+    const data = JSON.parse(await limitedText(res, 1024 * 1024));
     const items = data.items || [];
     const videoIds = items.map((item: any) => item.id.videoId).filter(Boolean);
     if (videoIds.length === 0) return [];
@@ -160,7 +161,7 @@ async function apiYouTube(query: string, apiKey: string): Promise<YouTubeVideo[]
       ','
     )}&key=${apiKey}`;
     const statsRes = await fetch(statsUrl, { signal: AbortSignal.timeout(5000) });
-    const statsData = statsRes.ok ? await statsRes.json() : { items: [] };
+    const statsData = statsRes.ok ? JSON.parse(await limitedText(statsRes, 1024 * 1024)) : { items: [] };
     const viewMap = new Map<string, number>();
     const viewTextMap = new Map<string, string>();
     for (const item of statsData.items || []) {
@@ -182,8 +183,8 @@ async function apiYouTube(query: string, apiKey: string): Promise<YouTubeVideo[]
         url: `https://youtube.com/watch?v=${vId}`,
       };
     });
-  } catch (error) {
-    console.error('YouTube API error, falling back to scrape:', error);
+  } catch {
+    console.error('YouTube API failed; falling back to search.');
     return scrapeYouTube(query);
   }
 }

@@ -1,3 +1,4 @@
+import { limitedText } from "./http-response";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -148,14 +149,14 @@ export async function fetchSongsterr(
     );
 
     if (response.ok) {
-      const data = await response.json();
+      const data = JSON.parse(await limitedText(response, 1024 * 1024));
       if (Array.isArray(data) && data.length > 0) {
         const bestMatch = data[0];
         return {
-          songsterrId: bestMatch.songId ?? null,
-          verifiedTitle: bestMatch.title || formattedTitle,
-          verifiedArtist: bestMatch.artist || formattedArtist,
-          rawTracks: bestMatch.tracks || [],
+          songsterrId: Number.isSafeInteger(bestMatch.songId) && bestMatch.songId > 0 ? bestMatch.songId : null,
+          verifiedTitle: typeof bestMatch.title === 'string' ? bestMatch.title.slice(0, 200) : formattedTitle,
+          verifiedArtist: typeof bestMatch.artist === 'string' ? bestMatch.artist.slice(0, 200) : formattedArtist,
+          rawTracks: Array.isArray(bestMatch.tracks) ? bestMatch.tracks.slice(0, 64).filter((track: unknown) => !!track && typeof track === 'object') : [],
         };
       }
     }

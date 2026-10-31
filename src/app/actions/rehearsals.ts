@@ -3,7 +3,9 @@
 import { db } from "@/db";
 import { rehearsals, rehearsalSongs, rehearsalVotes } from "@/db/schema";
 import { eq, asc, and, gt, sql, inArray } from "drizzle-orm";
-import { requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
+import { INPUT_LIMITS } from "@/lib/constants";
+import { assertCapacity } from "@/lib/capacity";
 import { validateRehearsal } from "@/lib/validation";
 import type { Rehearsal, RehearsalDetails } from "@/types/models";
 import { mapSong } from "@/lib/serialize";
@@ -46,11 +48,12 @@ export async function createRehearsal(
   opts?: RehearsalVoteOptions & { type?: "manual" | "vote" }
 ): Promise<{ success: boolean; error?: string; rehearsalId?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const type = opts?.type ?? "manual";
     const err = validateRehearsal({
       title,
       date,
+      notes,
       type,
       ...(type === "vote"
         ? {
@@ -62,7 +65,9 @@ export async function createRehearsal(
     });
     if (err) return { success: false, error: err };
     const id = crypto.randomUUID();
-    await db.insert(rehearsals).values({
+    db.transaction(tx => {
+      assertCapacity(tx, rehearsals, INPUT_LIMITS.rehearsals);
+      tx.insert(rehearsals).values({
       id,
       title: title.trim(),
       date,
@@ -71,10 +76,11 @@ export async function createRehearsal(
       votingEndsAt: type === "vote" ? opts!.votingEndsAt! : null,
       songSelectionCount:
         type === "vote" ? opts!.songSelectionCount! : null,
-    });
+    }).run();
+    }, { behavior: 'immediate' });
     return { success: true, rehearsalId: id };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to create rehearsal:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -88,7 +94,7 @@ export async function updateRehearsal(
   opts?: RehearsalVoteOptions
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const row = await db
       .select({ type: rehearsals.type, finalizedAt: rehearsals.finalizedAt, votingEndsAt: rehearsals.votingEndsAt })
       .from(rehearsals)
@@ -108,6 +114,7 @@ export async function updateRehearsal(
       {
         title,
         date,
+        notes,
         ...(voteEditable
           ? {
               type: "vote" as const,
@@ -136,7 +143,7 @@ export async function updateRehearsal(
       .where(eq(rehearsals.id, rehearsalId));
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to update rehearsal:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -146,11 +153,11 @@ export async function deleteRehearsal(
   rehearsalId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     await db.delete(rehearsals).where(eq(rehearsals.id, rehearsalId));
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to delete rehearsal:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -290,7 +297,7 @@ export async function addSongToRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
@@ -315,7 +322,7 @@ export async function addSongToRehearsalSetlist(
     });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to add song to rehearsal setlist:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -326,7 +333,7 @@ export async function removeSongFromRehearsalSetlist(
   songId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
@@ -361,7 +368,7 @@ export async function removeSongFromRehearsalSetlist(
     });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to remove song from rehearsal setlist:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -372,7 +379,7 @@ export async function reorderRehearsalSongs(
   songIdsInOrder: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
@@ -408,7 +415,7 @@ export async function reorderRehearsalSongs(
     });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to reorder rehearsal songs:", error);
     return { success: false, error: "Something went wrong" };
   }

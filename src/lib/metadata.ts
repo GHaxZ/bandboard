@@ -1,3 +1,4 @@
+import { limitedText } from "./http-response";
 // ---------------------------------------------------------------------------
 // iTunes album art (PLAN §14 step 3)
 // ---------------------------------------------------------------------------
@@ -13,10 +14,10 @@ export async function fetchAlbumArt(
       { signal: AbortSignal.timeout(3000) }
     );
     if (!res.ok) return null;
-    const data = await res.json().catch(() => null);
+    const data = JSON.parse(await limitedText(res, 256 * 1024));
     if (data && Array.isArray(data.results) && data.results.length > 0) {
       const url = data.results[0].artworkUrl100;
-      if (typeof url === 'string') {
+      if (typeof url === 'string' && /^https:\/\/[a-z0-9.-]+\.mzstatic\.com\//i.test(url)) {
         return url.replace('100x100bb.jpg', '300x300bb.jpg');
       }
     }
@@ -46,7 +47,7 @@ export async function fetchGeniusLyricsUrl(
       }
     );
     if (!res.ok) return null;
-    const data = await res.json().catch(() => null);
+    const data = JSON.parse(await limitedText(res, 256 * 1024));
     const songSection = data?.response?.sections?.find(
       (s: { type: string }) => s.type === 'song'
     );
