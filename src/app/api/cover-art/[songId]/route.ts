@@ -16,7 +16,7 @@ export async function GET(
 ) {
   const { songId } = await params;
   try {
-    await requireAuth(); // Defense-in-depth behind the proxy gate (no-op when BAND_SECRET is unset)
+    await requireAuth(); // Validate the session behind the optimistic proxy gate.
     const song = await db.query.songs.findFirst({ where: eq(songs.id, songId) });
     if (!song || !song.coverArtStoredName) {
       return NextResponse.json({ error: 'Not Found' }, { status: 404 });

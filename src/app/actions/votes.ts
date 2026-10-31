@@ -66,10 +66,10 @@ function authError(error: unknown): { success: boolean; error: string } {
 // nomination order.
 // ---------------------------------------------------------------------------
 
-/** Tally votes and write the winning setlist. No due-check inside — callers
- *  guard. Never touches votingEndsAt, so an early close preserves the
- *  originally configured end time for later re-votes. */
-async function finalizeRehearsal(rehearsalId: string): Promise<void> {
+/** Tally votes and write the winning setlist. Automatic finalization rechecks
+ *  the deadline inside the transaction; an explicit early close skips it.
+ *  Never changes votingEndsAt, preserving it for later re-votes. */
+async function finalizeRehearsal(rehearsalId: string, onlyIfDue = false): Promise<void> {
   db.transaction((tx) => {
     const r = tx
       .select({
@@ -77,11 +77,13 @@ async function finalizeRehearsal(rehearsalId: string): Promise<void> {
         type: rehearsals.type,
         songSelectionCount: rehearsals.songSelectionCount,
         finalizedAt: rehearsals.finalizedAt,
+        votingEndsAt: rehearsals.votingEndsAt,
       })
       .from(rehearsals)
       .where(eq(rehearsals.id, rehearsalId))
       .get();
     if (!r || r.type !== 'vote' || r.finalizedAt) return;
+    if (onlyIfDue && (!r.votingEndsAt || r.votingEndsAt > Date.now())) return;
 
     const tallies = tx
       .select({
@@ -163,10 +165,11 @@ async function finalizeRehearsal(rehearsalId: string): Promise<void> {
 
 export async function finalizeIfDue(rehearsalId: string): Promise<void> {
   try {
+    await requireAuth();
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote' || r.finalizedAt) return;
     if (!r.votingEndsAt || r.votingEndsAt > Date.now()) return;
-    await finalizeRehearsal(rehearsalId);
+    await finalizeRehearsal(rehearsalId, true);
   } catch (error) {
     console.error('Failed to finalize voting:', error);
   }
@@ -467,10 +470,13 @@ export async function getVotingState(
   rehearsalId: string
 ): Promise<VotingState | null> {
   try {
+    const myUuid = await getUserUuid();
+    // SSE and direct practice links must also see a finalized setlist once
+    // the deadline passes; no other page visit should be required.
+    await finalizeIfDue(rehearsalId);
     const r = await getRehearsalRow(rehearsalId);
     if (!r || r.type !== 'vote' || r.votingEndsAt === null) return null;
 
-    const myUuid = await getUserUuid();
     const nominations = await db.query.rehearsalSongs.findMany({
       where: eq(rehearsalSongs.rehearsalId, rehearsalId),
       orderBy: [asc(rehearsalSongs.sortOrder)],

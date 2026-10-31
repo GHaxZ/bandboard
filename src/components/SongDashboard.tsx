@@ -244,7 +244,10 @@ export function SongDashboard({
         if (draft.kind === "youtube") {
           const res = await updateRoleGroupVideo(trackId, type, draft.url.trim() || null);
           if (!res.success) throw new Error(res.error || "Failed to save video link");
-          if (boundId) await removeRoleGroupCustomArtifact(trackId, type);
+          if (boundId) {
+            const removed = await removeRoleGroupCustomArtifact(trackId, type);
+            if (!removed.success) throw new Error(removed.error || "Failed to remove previous file");
+          }
         } else if (draft.kind === "custom") {
           const form = new FormData();
           form.append("songId", song.id);

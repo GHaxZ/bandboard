@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { AudioLines } from "lucide-react";
 import { NavTabs, MobileTabBar } from "@/components/NavLinks";
+import { getSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (!(await getSessionUser())) redirect("/login");
   return (
     <div className="flex-1 min-h-dvh flex flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border px-6 py-4 flex items-center justify-between">

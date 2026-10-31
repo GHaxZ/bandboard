@@ -17,6 +17,7 @@ export interface RehearsalVoteOptions {
 
 /** True while a vote rehearsal is still collecting nominations/votes. */
 export async function isOpenVote(rehearsalId: string): Promise<boolean> {
+  await requireAuth();
   const r = await db
     .select({
       type: rehearsals.type,
@@ -50,6 +51,7 @@ export async function createRehearsal(
     const err = validateRehearsal({
       title,
       date,
+      type,
       ...(type === "vote"
         ? {
             type,
@@ -159,6 +161,7 @@ export async function deleteRehearsal(
 // ---------------------------------------------------------------------------
 export async function getRehearsals(): Promise<Rehearsal[]> {
   try {
+    await requireAuth();
     // Lazy finalization: any vote past its end time converts before we read.
     const dueVotes = await db
       .select({ id: rehearsals.id })
@@ -210,6 +213,8 @@ export async function getRehearsalDetails(
   rehearsalId: string
 ): Promise<RehearsalDetails | null> {
   try {
+    await requireAuth();
+    await finalizeIfDue(rehearsalId);
     const detail = await db.query.rehearsals.findFirst({
       where: eq(rehearsals.id, rehearsalId),
       with: {
@@ -242,6 +247,7 @@ export async function getRehearsalWithVoteView(
   rehearsalId: string
 ): Promise<{ details: RehearsalDetails | null; votingState: VotingState | null }> {
   try {
+    await requireAuth();
     const row = await db
       .select({
         type: rehearsals.type,
@@ -285,6 +291,7 @@ export async function addSongToRehearsalSetlist(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
     }
@@ -320,6 +327,7 @@ export async function removeSongFromRehearsalSetlist(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
     }
@@ -365,6 +373,7 @@ export async function reorderRehearsalSongs(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
+    await finalizeIfDue(rehearsalId);
     if (await isOpenVote(rehearsalId)) {
       return { success: false, error: "This setlist is managed by the open vote" };
     }
@@ -379,6 +388,7 @@ export async function reorderRehearsalSongs(
       const inputIds = new Set(songIdsInOrder);
       if (
         memberIds.size !== inputIds.size ||
+        songIdsInOrder.length !== inputIds.size ||
         ![...memberIds].every((id) => inputIds.has(id))
       ) {
         throw new Error("Song list does not match rehearsal setlist");

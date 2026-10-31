@@ -13,6 +13,7 @@ import {
   extForMime,
 } from '@/lib/uploads';
 import fs from 'fs';
+import { readUploadForm, UploadTooLargeError } from '@/lib/form-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
     }
 
-    const formData = await req.formData();
+    const formData = await readUploadForm(req, UPLOAD_LIMITS.coverArt);
     const songId = formData.get('songId');
     const file = formData.get('file');
 
@@ -93,6 +94,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ storedName });
   } catch (error) {
+    if (error instanceof UploadTooLargeError) {
+      return NextResponse.json({ error: 'Upload too large' }, { status: 413 });
+    }
     if (error instanceof AuthError) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

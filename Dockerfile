@@ -10,7 +10,9 @@ RUN npm ci
 # ---- builder: compile the Next.js standalone bundle ----
 FROM node:22-slim AS builder
 WORKDIR /app
-ENV DATABASE_PATH=/tmp/sqlite.db \
+# Each build worker gets an isolated connection; no runtime data is read at
+# build time, and sharing a fresh SQLite file can race on WAL initialization.
+ENV DATABASE_PATH=:memory: \
     MIGRATE_ON_BOOT=0
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

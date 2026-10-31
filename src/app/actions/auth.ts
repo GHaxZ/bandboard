@@ -12,16 +12,16 @@ import {
   rehearsalVotes,
   commentReads,
 } from '@/db/schema';
+import { authCookieOptions } from '@/lib/auth-cookies';
 import { safeEqual } from '@/lib/utils';
 import { getSessionUser, hashPassword, verifyPassword } from '@/lib/auth';
 import {
-  rateLimit,
   getClientKey,
-  isLoginBlocked,
-  recordLoginFailure,
-  clearLoginFailures,
+  reserveLoginAttempt,
+  clearLoginAttempts,
+  reserveRegistrationAttempt,
 } from '@/lib/rate-limit';
-import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE, RATE_LIMITS } from '@/lib/constants';
+import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE } from '@/lib/constants';
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
 
@@ -38,9 +38,7 @@ async function startSession(userId: string): Promise<void> {
   await db.insert(sessions).values({ token, userId, createdAt: Date.now() });
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
+    ...authCookieOptions(),
     maxAge: TEN_YEARS,
   });
   // The anonymous identity is now owned by an account — drop it so a future
@@ -75,7 +73,7 @@ export async function register(
     }
 
     const { device } = await getClientKey();
-    if (!rateLimit(`register:${device}`, RATE_LIMITS.register.max, RATE_LIMITS.register.windowMs)) {
+    if (!reserveRegistrationAttempt(device)) {
       return { success: false, error: 'Too many attempts. Try again later.' };
     }
 
@@ -124,16 +122,15 @@ export async function login(
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Fixed delay on every attempt so online brute force can't run faster
-    // than ~3 guesses/second per device.
+    // Delay plus atomic attempt reservations limit repeated and concurrent guesses.
     await sleep(BASE_DELAY_MS);
 
-    const { ip, device } = await getClientKey();
-    if (await isLoginBlocked(ip, device)) {
+    const { device } = await getClientKey();
+    const name = username.trim().toLowerCase();
+    if (!reserveLoginAttempt(device, name)) {
       return { success: false, error: 'Too many attempts. Try again in a few minutes.' };
     }
 
-    const name = username.trim().toLowerCase();
     const rows = await db
       .select({ id: users.id, passwordHash: users.passwordHash })
       .from(users)
@@ -142,13 +139,10 @@ export async function login(
 
     const ok = rows[0] ? verifyPassword(password, rows[0].passwordHash) : false;
     if (!ok || !rows[0]) {
-      // Counters live in the login_failures table — they survive restarts and
-      // are tracked per device AND per IP (higher IP threshold).
-      await recordLoginFailure(ip, device);
       return { success: false, error: 'Incorrect username or password.' };
     }
 
-    await clearLoginFailures(ip, device);
+    clearLoginAttempts(device, name);
     await startSession(rows[0].id);
     return { success: true };
   } catch (error) {

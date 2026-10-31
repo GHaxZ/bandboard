@@ -196,7 +196,8 @@ export const UPLOAD_ACCEPT = [
 export const UPLOAD_LIMITS = {
   stem: MAX_UPLOAD_BYTES,
   coverArt: 5 * 1024 * 1024,
-  proxyCap: '250mb',
+  // Includes multipart overhead for a file at the advertised 250 MiB limit.
+  proxyCap: '251mb',
 } as const;
 
 export const MULTITRACK_DRIFT_MS = 200;
@@ -237,7 +238,7 @@ export const RATE_LIMITS = {
 } as const;
 
 export const MAX_LOGIN_FAILURES = 5; // per device (unchanged behavior)
-export const MAX_IP_LOGIN_FAILURES = 30; // per IP, catches cookie rotation
+export const MAX_ACCOUNT_LOGIN_ATTEMPTS = 30; // per account, catches cookie rotation
 
 // ---------------------------------------------------------------------------
 // Browser playback probe — non-blocking warning at file pick time.

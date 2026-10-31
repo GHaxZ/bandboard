@@ -203,6 +203,8 @@ export function OriginalEditor({
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
   const blobUrlsRef = useRef<Map<string, string>>(new Map());
   const [pendingStemIds, setPendingStemIds] = useState<Set<string>>(new Set());
+  // Keep committed uploads visible until refreshed server props include them.
+  const uploadedStemIdsRef = useRef(new Set<string>());
 
   // --- Timeline state ---
   const [mutedTrackIds, setMutedTrackIds] = useState<Set<string>>(new Set());
@@ -248,11 +250,13 @@ export function OriginalEditor({
   // Keep drafts in sync when server data refreshes (e.g. after upload).
   useEffect(() => {
     const serverIds = new Set(tracks.map((t) => t.id));
+    for (const id of serverIds) uploadedStemIdsRef.current.delete(id);
+    const uploadedIds = new Set(uploadedStemIdsRef.current);
     setStemDrafts((prev) => {
       // Preserve draft edits (role, label, startOffset) for stems that still exist,
       // but update duration from server (probed value).
       const preserved = prev
-        .filter((t) => serverIds.has(t.id) || pendingStemIds.has(t.id))
+        .filter((t) => serverIds.has(t.id) || pendingStemIds.has(t.id) || uploadedIds.has(t.id))
         .map((t) => {
           const server = tracks.find((tt) => tt.id === t.id);
           return server ? { ...t, duration: server.duration } : t;
@@ -566,6 +570,8 @@ export function OriginalEditor({
         form.append("label", draft.label);
         form.append("file", file);
         form.append("kind", "stem");
+        form.append("startOffset", String(draft.startOffset));
+        if (draft.duration !== null) form.append("duration", String(draft.duration));
         const res = await fetch("/api/uploads", { method: "POST", body: form });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -573,6 +579,7 @@ export function OriginalEditor({
         }
         const data = await res.json();
         const realTrack = data.track as CustomTrack;
+        uploadedStemIdsRef.current.add(realTrack.id);
         // Replace pending ID with real track ID in drafts
         setStemDrafts((prev) =>
           prev.map((t) =>
@@ -582,6 +589,11 @@ export function OriginalEditor({
           )
         );
         pendingFilesRef.current.delete(draft.id);
+        setPendingStemIds((prev) => {
+          const next = new Set(prev);
+          next.delete(draft.id);
+          return next;
+        });
         const blobUrl = blobUrlsRef.current.get(draft.id);
         if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrlsRef.current.delete(draft.id); }
       }
@@ -595,16 +607,18 @@ export function OriginalEditor({
 
       // 5. Scratchpad notes
       if (notesDraft !== initialScratchpadNotes) {
-        await saveScratchpadNotes(song.id, notesDraft);
+        const res = await saveScratchpadNotes(song.id, notesDraft);
+        if (!res.success) throw new Error(res.error || "Failed to save notes");
       }
 
       toast.success("All changes saved!");
-      onRefresh();
     } catch (err) {
       console.error(err);
       toast.error("Save failed: " + String(err));
     } finally {
       setIsSaving(false);
+      // Earlier steps may have committed even if a later upload/save failed.
+      onRefresh();
     }
   }
 

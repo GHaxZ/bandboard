@@ -1,3 +1,4 @@
+import { authCookieOptions } from '@/lib/auth-cookies';
 import { NextRequest, NextResponse } from 'next/server';
 import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE } from '@/lib/constants';
 
@@ -9,11 +10,6 @@ function isStaticAsset(pathname: string): boolean {
     // auth gate for any dotted path (e.g. a future slug containing a dot).
     // The config.matcher below already excludes real static dirs.
   );
-}
-
-/** Only allow internal redirect targets (prevents open redirect via `next`). */
-function safeNext(raw: string | null): string {
-  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
 }
 
 function isValidUuid(v: string | undefined | null): v is string {
@@ -39,17 +35,22 @@ export async function proxy(req: NextRequest) {
   if (!isValidUuid(uid)) {
     uid = crypto.randomUUID();
     res.cookies.set(UID_COOKIE, uid, {
-      path: '/',
+      ...authCookieOptions(),
       maxAge: TEN_YEARS,
-      sameSite: 'lax',
-      httpOnly: true,
     });
   }
 
-  // --- 2. Account gate: PRESENCE-CHECK ONLY (Edge middleware cannot touch
-  //        SQLite). Real token validation happens server-side in
-  //        getSessionUser(); stale tokens degrade to anonymous reads. ---
+  // --- 2. Optimistic gate only. Protected data access validates the token
+  //        against SQLite; a UUID-shaped cookie is not authentication. ---
   const hasSession = isValidUuid(req.cookies.get(SESSION_COOKIE)?.value);
+  if (hasSession && process.env.NODE_ENV === 'production') {
+    // Upgrade existing browser sessions issued before Secure was enabled.
+    // Server-side createdAt validation still enforces the original expiry.
+    res.cookies.set(SESSION_COOKIE, req.cookies.get(SESSION_COOKIE)!.value, {
+      ...authCookieOptions(),
+      maxAge: TEN_YEARS,
+    });
+  }
   const onLogin = pathname === '/login';
 
   if (!hasSession && !onLogin) {
@@ -62,10 +63,8 @@ export async function proxy(req: NextRequest) {
     loginUrl.searchParams.set('next', pathname + search);
     return NextResponse.redirect(loginUrl);
   }
-  if (hasSession && onLogin) {
-    // Already authenticated + hitting /login: bounce to next or root.
-    return NextResponse.redirect(new URL(safeNext(req.nextUrl.searchParams.get('next')), req.url));
-  }
+  // The login page redirects only after validating the session. A stale
+  // cookie must still allow the login form and its server actions to run.
 
   return res;
 }

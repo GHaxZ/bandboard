@@ -30,8 +30,8 @@ import {
 // Settings
 // ---------------------------------------------------------------------------
 export async function getUserSettings(): Promise<UserSettings> {
-  const uuid = await getUserUuid();
   try {
+    const uuid = await getUserUuid();
     const result = await db
       .select()
       .from(userSettings)
@@ -65,11 +65,7 @@ export async function saveUserSettings(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
-    const err = validateUserSettings({
-      volume: partial.volume,
-      playbackSpeed: partial.playbackSpeed,
-      autoplayTimeout: partial.autoplayTimeout,
-    });
+    const err = validateUserSettings(partial);
     if (err) return { success: false, error: err };
 
     const uuid = await getUserUuid();
@@ -162,8 +158,8 @@ function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
 }
 
 export async function getProgressMap(): Promise<ProgressMap> {
-  const uuid = await getUserUuid();
   try {
+    const uuid = await getUserUuid();
     const rows = await db
       .select({
         songId: songs.id,
@@ -189,8 +185,8 @@ export async function getProgressMap(): Promise<ProgressMap> {
 export async function getSongProgress(
   songId: string
 ): Promise<UserProgress | null> {
-  const uuid = await getUserUuid();
   try {
+    const uuid = await getUserUuid();
     const result = await db
       .select()
       .from(userSongProgress)

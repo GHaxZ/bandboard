@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { parseRange } from "./http-range";
 
 describe("parseRange", () => {
+  it.each(['bytes=0oops-5', 'bytes=0-5oops', 'bytes=0-5-10', 'bytes=-10junk', 'bytes=0-1.5', 'bytes=0-9007199254740993'])('rejects malformed range %j', (range) => {
+    expect(parseRange(range, 100)).toBeNull();
+  });
+
+  it('rejects ranges on empty files', () => {
+    expect(parseRange('bytes=-10', 0)).toBeNull();
+  });
   it("returns null for missing or non-bytes header", () => {
     expect(parseRange(null, 100)).toBeNull();
     expect(parseRange("items=0-1", 100)).toBeNull();

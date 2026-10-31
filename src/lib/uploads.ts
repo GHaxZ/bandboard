@@ -77,7 +77,7 @@ export function storedPath(storedName: string): string {
   // names are server-generated (UUID + extension), so a name containing
   // separators or ".." is by definition invalid input.
   const safe = path.basename(storedName);
-  if (safe !== storedName) {
+  if (!safe || safe === '.' || safe === '..' || safe !== storedName || storedName.includes('\\')) {
     throw new Error('Invalid stored name');
   }
   return path.join(UPLOAD_DIR, safe);
@@ -158,14 +158,24 @@ const IMAGE_MAGIC_SIGNATURES: Record<string, number[][]> = {
  *
  * For MP4/M4A/MOV the `ftyp` box is at offset 4, so a 4-byte prefix check
  * only catches "ftyp" — we also accept the first 3 bytes being zeros (typical
- * for these containers). For WebP the RIFF header alone is weak (shared with
- * AVI/WAV), which is acceptable for an image-only route.
+ * for these containers). WAV and WebP also check their RIFF subtype at byte 8.
  */
 export function validateMagicBytes(
   buf: Buffer,
   claimedType: string,
   kind: 'stem' | 'image' = 'stem',
 ): boolean {
+  if (claimedType === 'audio/mpeg' || claimedType === 'audio/mp3') {
+    if (buf.subarray(0, 3).equals(Buffer.from('ID3'))) return true;
+    // Frame sync is eleven bits, not an exact FF E0/FF F0 prefix. Common
+    // untagged MP3s start FF FB (MPEG-1 Layer III) and were rejected before.
+    return buf.length >= 4 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0 &&
+      (buf[1] & 0x18) !== 0x08 && (buf[1] & 0x06) !== 0;
+  }
+  if (['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave', 'image/webp'].includes(claimedType)) {
+    return buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' &&
+      buf.toString('ascii', 8, 12) === (claimedType === 'image/webp' ? 'WEBP' : 'WAVE');
+  }
   const sigs =
     kind === 'image'
       ? IMAGE_MAGIC_SIGNATURES[claimedType]

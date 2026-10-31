@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { login, register } from "@/app/actions/auth";
+import { safeNext } from "@/lib/navigation";
 
 interface LoginFormProps {
   inviteRequired: boolean;
@@ -16,9 +17,7 @@ interface LoginFormProps {
 export function LoginForm({ inviteRequired }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawNext = searchParams.get("next");
-  // Only allow internal redirect targets (prevents open redirect).
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+  const next = safeNext(searchParams.get("next"));
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");

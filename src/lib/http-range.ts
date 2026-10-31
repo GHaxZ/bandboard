@@ -10,31 +10,29 @@ export function parseRange(
 ): { start: number; end: number } | null {
   if (!rangeHeader || !rangeHeader.startsWith('bytes=')) return null;
 
-  const spec = rangeHeader.slice(6);
-  // Reject multi-range requests (bytes=0-1,5-6): we serve single ranges only.
-  // Previously the comma leaked into parseInt and silently served the first
-  // range, which is RFC-noncompliant.
-  if (spec.includes(',')) return null;
-  const parts = spec.split('-');
-  const startRaw = parts[0];
-  const endRaw = parts[1];
+  if (!Number.isSafeInteger(totalSize) || totalSize <= 0) return null;
+  // Match the entire single range: parseInt alone accepts junk such as
+  // "0oops-5" or ignores a third component in "0-5-10".
+  const match = /^(\d*)-(\d*)$/.exec(rangeHeader.slice(6));
+  if (!match) return null;
+  const [, startRaw, endRaw] = match;
   let start: number;
   let end: number;
 
   if (startRaw === '') {
     // suffix-range: bytes=-500 → last 500 bytes
     const suffix = parseInt(endRaw, 10);
-    if (Number.isNaN(suffix) || suffix <= 0) return null;
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return null;
     start = Math.max(0, totalSize - suffix);
     end = totalSize - 1;
   } else {
     start = parseInt(startRaw, 10);
-    if (Number.isNaN(start) || start < 0 || start >= totalSize) return null;
+    if (!Number.isSafeInteger(start) || start < 0 || start >= totalSize) return null;
     if (endRaw === '') {
       end = totalSize - 1;
     } else {
       end = parseInt(endRaw, 10);
-      if (Number.isNaN(end)) return null;
+      if (!Number.isSafeInteger(end)) return null;
     }
   }
 

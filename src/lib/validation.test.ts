@@ -6,6 +6,7 @@ import {
   validateRehearsal,
   validateSongProgress,
   validatePracticeMarkers,
+  validateUserSettings,
 } from "./validation";
 
 describe("clamp", () => {
@@ -118,12 +119,29 @@ describe("validateRehearsal", () => {
 });
 
 describe("validateSongProgress", () => {
+  it('rejects NaN speed rather than letting it become a database NULL', () => {
+    expect(validateSongProgress({ speed: NaN })).not.toBeNull();
+  });
   it("rejects unknown status", () => {
     expect(validateSongProgress({ status: "bogus" })).toMatch(/status must be one of/);
   });
 
   it("rejects out-of-range speed", () => {
     expect(validateSongProgress({ speed: 999 })).toMatch(/speed must be between/);
+  });
+});
+
+describe('validateUserSettings', () => {
+  it('rejects unknown instruments, non-boolean autoplay and non-finite numbers', () => {
+    expect(validateUserSettings({ preferredInstrument: 'invalid' })).not.toBeNull();
+    expect(validateUserSettings({ autoplayEnabled: 'false' })).not.toBeNull();
+    expect(validateUserSettings({ volume: Infinity })).not.toBeNull();
+    expect(validateUserSettings({ playbackSpeed: NaN })).not.toBeNull();
+    expect(validateUserSettings({ autoplayTimeout: -Infinity })).not.toBeNull();
+  });
+
+  it('accepts supported settings', () => {
+    expect(validateUserSettings({ preferredInstrument: 'Bass', autoplayEnabled: false, volume: 50, playbackSpeed: 0.75 })).toBeNull();
   });
 });
 

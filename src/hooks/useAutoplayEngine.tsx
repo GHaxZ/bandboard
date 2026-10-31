@@ -77,12 +77,13 @@ export function useAutoplayEngine({
   // the sidebar sliders did nothing for uploaded files in rehearsal autoplay).
   useMediaStoreSync(() => [customEl], [customEl]);
 
+  const mediaCustomTrackId = media.kind === "custom-file" ? media.customTrackId : null;
   // Auto-play custom-file when session starts
   useEffect(() => {
     if (media.kind !== "custom-file" || !sessionStarted) return;
     const el = customMediaRef.current;
     if (el && el.paused) el.play().catch(() => {});
-  }, [media.kind, sessionStarted]);
+  }, [media.kind, mediaCustomTrackId, customEl, sessionStarted]);
 
   // Multistem end detection. Polls `mt.isEnded()` (set by the player's tick
   // when its stop condition fires) instead of subscribing to `mt.currentT`:
@@ -96,7 +97,6 @@ export function useAutoplayEngine({
   // `tracks` reference) and previously reset the latch, letting the poll see
   // isEnded() === true again and fire onEnded a second time.
   const mediaTracks = media.kind === "multistem" ? media.tracks : null;
-  const mediaCustomTrackId = media.kind === "custom-file" ? media.customTrackId : null;
   useEffect(() => {
     multistemEndedRef.current = false;
   }, [mediaTracks]);

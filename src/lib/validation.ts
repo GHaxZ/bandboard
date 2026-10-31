@@ -6,6 +6,7 @@ import {
   MAX_MARKERS,
   PROGRESS_STATUSES,
   VOTE_SELECTION_MIN,
+  INSTRUMENT_ROLES,
 } from './constants';
 
 // ---------------------------------------------------------------------------
@@ -31,13 +32,19 @@ export function clampAutoplayTimeout(v: number): number {
 // Validators — return null on success, error string on failure
 // ---------------------------------------------------------------------------
 export function validateUserSettings(s: Record<string, unknown>): string | null {
-  if (s.volume !== undefined && (typeof s.volume !== 'number' || Number.isNaN(s.volume))) {
+  if (s.preferredInstrument !== undefined && !(INSTRUMENT_ROLES as readonly unknown[]).includes(s.preferredInstrument)) {
+    return 'Invalid preferred instrument';
+  }
+  if (s.autoplayEnabled !== undefined && typeof s.autoplayEnabled !== 'boolean') {
+    return 'autoplayEnabled must be a boolean';
+  }
+  if (s.volume !== undefined && (typeof s.volume !== 'number' || !Number.isFinite(s.volume))) {
     return 'volume must be a number';
   }
-  if (s.playbackSpeed !== undefined && (typeof s.playbackSpeed !== 'number' || Number.isNaN(s.playbackSpeed))) {
+  if (s.playbackSpeed !== undefined && (typeof s.playbackSpeed !== 'number' || !Number.isFinite(s.playbackSpeed))) {
     return 'playbackSpeed must be a number';
   }
-  if (s.autoplayTimeout !== undefined && (typeof s.autoplayTimeout !== 'number' || Number.isNaN(s.autoplayTimeout))) {
+  if (s.autoplayTimeout !== undefined && (typeof s.autoplayTimeout !== 'number' || !Number.isFinite(s.autoplayTimeout))) {
     return 'autoplayTimeout must be a number';
   }
   return null;
@@ -48,7 +55,7 @@ export function validateSongProgress(p: Record<string, unknown>): string | null 
     const valid = PROGRESS_STATUSES.map((s) => s.id);
     if (!(valid as string[]).includes(p.status as string)) return `status must be one of: ${valid.join(', ')}`;
   }
-  if (p.speed !== undefined && (typeof p.speed !== 'number' || p.speed < SPEED_MIN || p.speed > SPEED_MAX)) {
+  if (p.speed !== undefined && (typeof p.speed !== 'number' || !Number.isFinite(p.speed) || p.speed < SPEED_MIN || p.speed > SPEED_MAX)) {
     return `speed must be between ${SPEED_MIN} and ${SPEED_MAX}`;
   }
   return null;
@@ -78,6 +85,9 @@ export function validateRehearsal(
   opts?: { /** Exemption for editing a row whose stored end is already past. */
     allowPastVotingEnd?: boolean }
 ): string | null {
+  if (r.type !== undefined && r.type !== 'manual' && r.type !== 'vote') {
+    return 'Invalid rehearsal type';
+  }
   if (r.title !== undefined && (typeof r.title !== 'string' || !r.title.trim())) {
     return 'title is required';
   }

@@ -65,14 +65,28 @@ async function scrapeYouTube(query: string): Promise<YouTubeVideo[]> {
     return parseYtInitialData(html, startIndex + patternLen);
   } catch (error) {
     console.error('YouTube scraping error:', error);
-    return [];
+    // Callers distinguish an empty search from a failed request. A failure
+    // must not be persisted as the permanent "no video" sentinel.
+    throw error;
   }
 }
 
 function parseYtInitialData(html: string, startIndex: number): YouTubeVideo[] {
   let depth = 0;
   let endIndex = -1;
+  let inString = false;
+  let escaped = false;
   for (let i = startIndex; i < html.length; i++) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (html[i] === '\\') escaped = true;
+      else if (html[i] === '"') inString = false;
+      continue;
+    }
+    if (html[i] === '"') {
+      inString = true;
+      continue;
+    }
     if (html[i] === '{') depth++;
     else if (html[i] === '}') {
       depth--;

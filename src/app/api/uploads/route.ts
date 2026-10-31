@@ -10,6 +10,7 @@ import { requireAuth, AuthError } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import type { CustomTrack } from '@/types/models';
+import { readUploadForm, UploadTooLargeError } from '@/lib/form-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,25 +23,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
     }
 
-    // Reject oversized uploads before buffering the body into memory. The
-    // proxy cap is '100mb'; formData() would otherwise buffer it fully.
-    const contentLength = Number(request.headers.get('content-length') ?? 0);
-    if (
-      Number.isFinite(contentLength) &&
-      contentLength > UPLOAD_LIMITS.stem
-    ) {
-      return NextResponse.json(
-        { error: `File too large (max ${UPLOAD_LIMITS.stem / 1024 / 1024}MB)` },
-        { status: 400 }
-      );
-    }
-
-    const form = await request.formData();
+    const form = await readUploadForm(request, UPLOAD_LIMITS.stem);
     const songId = form.get('songId');
     const role = form.get('role');
     const label = form.get('label');
     const file = form.get('file');
     const kind = form.get('kind');
+    const startOffsetField = form.get('startOffset');
+    const durationField = form.get('duration');
+    const startOffset = startOffsetField === null ? 0 : Number(startOffsetField);
+    const duration = durationField === null ? null : Number(durationField);
+    if (
+      (startOffsetField !== null && (typeof startOffsetField !== 'string' || !startOffsetField.trim())) ||
+      (durationField !== null && (typeof durationField !== 'string' || !durationField.trim())) ||
+      !Number.isFinite(startOffset) ||
+      (duration !== null && (!Number.isFinite(duration) || duration < 0))
+    ) {
+      return NextResponse.json({ error: 'Invalid track timing' }, { status: 400 });
+    }
 
     if (typeof songId !== 'string' || !songId) {
       return NextResponse.json({ error: 'Missing songId' }, { status: 400 });
@@ -105,8 +105,8 @@ export async function POST(request: Request) {
         storedName,
         mimeType: file.type,
         sizeBytes: file.size,
-        duration: null,
-        startOffset: 0,
+        duration,
+        startOffset,
         isVideo: file.type.startsWith('video/'),
         createdAt: now,
       });
@@ -124,14 +124,17 @@ export async function POST(request: Request) {
       storedName,
       mimeType: file.type,
       sizeBytes: file.size,
-      duration: null,
-      startOffset: 0,
+      duration,
+      startOffset,
       isVideo: file.type.startsWith('video/'),
       createdAt: now,
     };
 
     return NextResponse.json({ track }, { status: 200 });
   } catch (error) {
+    if (error instanceof UploadTooLargeError) {
+      return NextResponse.json({ error: 'Upload too large' }, { status: 413 });
+    }
     if (error instanceof AuthError) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

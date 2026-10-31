@@ -110,6 +110,8 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
       const res = await deleteAccount(deletePassword);
       if (!res.success) throw new Error(res.error);
       toast.success("Account deleted.");
+      // Clear all in-memory user state when ending an account session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "Failed to delete account.");
@@ -277,6 +279,8 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 variant="outline"
                 onClick={async () => {
                   await logout();
+                  // Clear all in-memory user state before another login.
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
                   window.location.href = "/login";
                 }}
                 className="border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground rounded-xl text-xs font-bold h-10 w-full sm:w-auto"

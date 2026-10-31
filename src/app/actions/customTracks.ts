@@ -13,6 +13,7 @@ import { INSTRUMENT_ROLES, type Role } from "@/lib/constants";
 // ---------------------------------------------------------------------------
 export async function getCustomTracks(songId: string): Promise<CustomTrack[]> {
   try {
+    await requireAuth();
     return await db.query.customTracks.findMany({
       where: eq(customTracks.songId, songId),
       orderBy: [asc(customTracks.createdAt)],

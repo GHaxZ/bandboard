@@ -142,10 +142,10 @@ export function useCoverPracticeEngine({
 
   // Default active video on track change
   useEffect(() => {
-    if (backingVideoId) setActiveVideo("backing");
-    else if (tabVideoId) setActiveVideo("tab");
+    if (backingReady) setActiveVideo("backing");
+    else if (tabReady) setActiveVideo("tab");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backingVideoId, tabVideoId]);
+  }, [activeTrackId, backingReady, tabReady]);
 
   // Load offsets from progress. Deliberately NOT keyed on progressMap: any
   // onRefresh() (e.g. saving a marker or practice log) replaces progressMap and

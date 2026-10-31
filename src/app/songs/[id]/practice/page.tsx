@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { VOLUME_COOKIE, SPEED_COOKIE, parseDeviceVolume, parseDeviceSpeed } from "@/lib/device-media";
 import { PracticeModeClient } from "./PracticeModeClient";
+import { getSessionUser } from "@/lib/auth";
 
 interface PracticeModePageProps {
   params: Promise<{ id: string }>;
@@ -13,6 +14,7 @@ interface PracticeModePageProps {
 export const dynamic = "force-dynamic";
 
 export default async function PracticeModePage({ params }: PracticeModePageProps) {
+  if (!(await getSessionUser())) redirect("/login");
   const resolvedParams = await params;
   const cookieStore = await cookies();
   const [song, tracks, settings, initialProgressMap] = await Promise.all([

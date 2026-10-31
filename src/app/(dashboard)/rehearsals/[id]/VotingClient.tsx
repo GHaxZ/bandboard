@@ -125,7 +125,7 @@ export function VotingClient({
       refreshedRef.current = true;
       router.refresh();
     }
-  }, [state.votingEndsAt, router]);
+  }, [state.votingEndsAt, now, router]);
 
   const activeSongId = searchParams.get("song") || state.candidates[0]?.song.id || null;
 

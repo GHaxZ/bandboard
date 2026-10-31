@@ -2,6 +2,7 @@ import { getRehearsalDetails } from "@/app/actions/rehearsals";
 import { getUserSettings, getProgressMap } from "@/app/actions/user";
 import { redirect } from "next/navigation";
 import { RehearsalAutoplayClient } from "./RehearsalAutoplayClient";
+import { getSessionUser } from "@/lib/auth";
 
 interface RehearsalPracticePageProps {
   params: Promise<{ id: string }>;
@@ -10,6 +11,7 @@ interface RehearsalPracticePageProps {
 export const dynamic = "force-dynamic";
 
 export default async function RehearsalPracticePage({ params }: RehearsalPracticePageProps) {
+  if (!(await getSessionUser())) redirect("/login");
   const resolvedParams = await params;
   const [rehearsalDetails, settings, initialProgressMap] = await Promise.all([
     getRehearsalDetails(resolvedParams.id),

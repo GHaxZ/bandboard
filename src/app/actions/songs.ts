@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { songs, tracks, roleGroups, customTracks } from "@/db/schema";
-import { eq, asc, and, not, sql } from "drizzle-orm";
+import { eq, asc, and, not, sql, isNull, or } from "drizzle-orm";
 import { searchYouTube } from "@/lib/youtube";
 import type { YouTubeVideo } from "@/lib/youtube";
 import { getYouTubeQuery } from "@/lib/youtube-query";
@@ -16,7 +16,6 @@ import { slugify } from "@/lib/utils";
 import { fetchAlbumArt, fetchGeniusLyricsUrl } from "@/lib/metadata";
 import { NO_VIDEO_SENTINEL } from "@/lib/constants";
 import { deleteStoredFile } from "@/lib/uploads";
-import { deleteCustomTrack } from "@/app/actions/customTracks";
 import { requireAuth, AuthError } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { RATE_LIMITS } from "@/lib/constants";
@@ -286,22 +285,35 @@ export async function updateRoleGroupCustomArtifact(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAuth();
-    const rg = await db.query.roleGroups.findFirst({ where: eq(roleGroups.id, roleGroupId) });
-    if (!rg) return { success: false, error: "Role group not found." };
-
-    const oldId = type === "backing" ? rg.backingCustomTrackId : rg.tabCustomTrackId;
-    // The slot reference is set to the new value first, then the old track's
-    // file + row are unlinked via deleteCustomTrack (which also clears any
-    // remaining slot refs before deleting — belt-and-suspenders alongside the
-    // ON DELETE SET NULL FK added by migration 0005).
-    const patch =
-      type === "backing"
+    if (type !== "backing" && type !== "tab") return { success: false, error: "Invalid media slot." };
+    const result = db.transaction((tx) => {
+      const rg = tx.select().from(roleGroups).where(eq(roleGroups.id, roleGroupId)).get();
+      if (!rg) return { error: "Role group not found." };
+      if (customTrackId !== null) {
+        const track = tx.select().from(customTracks).where(eq(customTracks.id, customTrackId)).get();
+        if (!track || track.songId !== rg.songId) return { error: "Track must belong to this song." };
+      }
+      const oldId = type === "backing" ? rg.backingCustomTrackId : rg.tabCustomTrackId;
+      const patch = type === "backing"
         ? { backingCustomTrackId: customTrackId }
         : { tabCustomTrackId: customTrackId };
-    db.update(roleGroups).set(patch).where(eq(roleGroups.id, roleGroupId)).run();
-    if (oldId && oldId !== customTrackId) {
-      await deleteCustomTrack(oldId);
-    }
+      tx.update(roleGroups).set(patch).where(eq(roleGroups.id, roleGroupId)).run();
+
+      if (oldId && oldId !== customTrackId) {
+        const stillUsed = tx.select({ id: roleGroups.id }).from(roleGroups)
+          .where(or(eq(roleGroups.backingCustomTrackId, oldId), eq(roleGroups.tabCustomTrackId, oldId))).get();
+        if (!stillUsed) {
+          const old = tx.select().from(customTracks).where(eq(customTracks.id, oldId)).get();
+          if (old && old.songId === rg.songId) {
+            tx.delete(customTracks).where(eq(customTracks.id, oldId)).run();
+            return { storedName: old.storedName };
+          }
+        }
+      }
+      return {};
+    });
+    if (result.error) return { success: false, error: result.error };
+    if (result.storedName) deleteStoredFile(result.storedName);
     return { success: true };
   } catch (error) {
     if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
@@ -322,6 +334,7 @@ export async function removeRoleGroupCustomArtifact(
 // ---------------------------------------------------------------------------
 export async function getSongs(): Promise<Song[]> {
   try {
+    await requireAuth();
     const rows = await db.query.songs.findMany({
       orderBy: [asc(songs.title)],
       with: { roleGroups: { with: { tracks: true } }, customTracks: true },
@@ -335,6 +348,7 @@ export async function getSongs(): Promise<Song[]> {
 
 export async function getSongDetails(songId: string): Promise<Song | null> {
   try {
+    await requireAuth();
     const song = await db.query.songs.findFirst({
       where: eq(songs.id, songId),
       with: { roleGroups: { with: { tracks: true } }, customTracks: true },
@@ -469,10 +483,18 @@ export async function lazyLoadTrackMedia(
       tabVideoLink = results.length > 0 ? results[0].url : NO_VIDEO_SENTINEL;
     }
 
-    await db
-      .update(roleGroups)
-      .set({ backingTrackLink: backingLink, tabVideoLink })
-      .where(eq(roleGroups.id, roleGroupId));
+    // Searches can take seconds. Preserve any manual choice saved while the
+    // lookup was in flight, and only fill slots that are still unset.
+    db.transaction((tx) => {
+      if (roleGroup.backingTrackLink === null) {
+        tx.update(roleGroups).set({ backingTrackLink: backingLink })
+          .where(and(eq(roleGroups.id, roleGroupId), isNull(roleGroups.backingTrackLink))).run();
+      }
+      if (roleGroup.tabVideoLink === null) {
+        tx.update(roleGroups).set({ tabVideoLink })
+          .where(and(eq(roleGroups.id, roleGroupId), isNull(roleGroups.tabVideoLink))).run();
+      }
+    });
 
     return { success: true };
   } catch (error) {

@@ -66,7 +66,7 @@ export function usePracticeControls(
   useEffect(() => {
     setMarkers([...initialMarkers].sort((a, b) => a - b));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerKey]);
+  }, [songId, markerKey]);
 
   // Debounced persistence of volume / speed to device cookies. Skip the
   // first run per setting: the hydration effect above sets hydratedRef in the
@@ -131,7 +131,8 @@ export function usePracticeControls(
         (a, b) => a - b
       );
       try {
-        await savePracticeMarkers(songId, markerKey, updated);
+        const result = await savePracticeMarkers(songId, markerKey, updated);
+        if (!result.success) throw new Error(result.error || "Failed to save marker");
         // Only reflect in the store after the save succeeded — a failed save
         // must not leave a phantom marker that vanishes on next hydration.
         setMarkers(updated);
@@ -156,7 +157,8 @@ export function usePracticeControls(
     async (indexToDelete: number) => {
       const updated = markers.filter((_, idx) => idx !== indexToDelete);
       try {
-        await savePracticeMarkers(songId, markerKey, updated);
+        const result = await savePracticeMarkers(songId, markerKey, updated);
+        if (!result.success) throw new Error(result.error || "Failed to delete marker");
         // Apply only after the save succeeded — otherwise a failed delete
         // would drop the marker from the UI while the DB still has it.
         setMarkers(updated);
