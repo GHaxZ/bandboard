@@ -1,9 +1,0 @@
-{$DOMAIN} {
-	request_body {
-		max_size 251MB
-	}
-	reverse_proxy bandboard:3000 {
-		# The application trusts only this overwritten header when TRUST_PROXY=true.
-		header_up X-Real-IP {remote_host}
-	}
-}

@@ -39,17 +39,12 @@ Base Compose binds the backend to `127.0.0.1` by default. Use a trusted HTTPS
 proxy and set `APP_ORIGIN` to the exact external origin. This supplies the upload
 origin check and enables HSTS. Do not publish the HTTP backend publicly.
 
-Optional automatic HTTPS with Caddy:
-
-```sh
-# Configure DOMAIN and BAND_SECRET in your local .env first.
-docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
-```
-
-Requires Compose 2.24.4+, DNS pointing to the host and reachable ports 80/443 for
-certificate issuance. The overlay removes backend port publishing and overwrites
-X-Real-IP. For another proxy, enable `TRUST_PROXY=true` only when it overwrites
-that header and clients cannot bypass it. Otherwise forwarded IPs are ignored.
+HTTPS termination is supplied by your hosting setup, such as Cloudflare Tunnel
+or an existing reverse proxy. No HTTPS proxy is bundled with the application.
+The local connection from the tunnel or proxy to Bandboard can use HTTP.
+Enable `TRUST_PROXY=true` only when a trusted proxy overwrites X-Real-IP and
+clients cannot bypass it. Otherwise forwarded IPs are ignored. For Cloudflare
+Tunnel, leave this false unless that header is explicitly sanitized.
 Also bound connection counts, request-read time and unauthenticated rates at the
 network/ingress layer. Distributed abuse cannot be prevented by IP limits alone.
 
@@ -154,7 +149,7 @@ the then-present role restrictions, secure cookie flags, streamed uploads, WebP 
 normalization, protected downloads, malformed media and wrong-origin rejection,
 and zero CSP violations. No temporary media or resource leases remained.
 Encrypted snapshot round trips, privilege drop, backup isolation and encryption
-failure cleanup passed; Caddy and both Compose configurations validated.
+failure cleanup passed; the Compose configuration validated.
 
 The complete multi-stage Docker build exceeded this environment's disk quota
 with its VFS storage driver. Dependencies installed successfully; the runtime
