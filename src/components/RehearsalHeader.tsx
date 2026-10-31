@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsOrganizer } from "@/components/PermissionsProvider";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -39,6 +41,7 @@ export function RehearsalHeader({
   onConvertToVote,
 }: RehearsalHeaderProps) {
   const router = useRouter();
+  const isOrganizer = useIsOrganizer();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -79,7 +82,7 @@ export function RehearsalHeader({
 
         {/* flex-wrap: labeled buttons overflow narrow phones otherwise */}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {onConvertToVote && (
+          {isOrganizer && onConvertToVote && (
             <Button
               variant="secondary"
               onClick={onConvertToVote}
@@ -90,6 +93,7 @@ export function RehearsalHeader({
           )}
           <Button
             variant="secondary"
+            disabled={!isOrganizer}
             onClick={onEdit}
             className="rounded-xl text-xs font-bold px-3.5 h-9"
           >
@@ -98,7 +102,7 @@ export function RehearsalHeader({
           <Button
             variant="danger-subtle"
             size="icon"
-            disabled={isDeleting}
+            disabled={!isOrganizer || isDeleting}
             onClick={() => setConfirmDeleteOpen(true)}
             className="rounded-xl h-9 w-9 shrink-0"
             title="Delete Session"

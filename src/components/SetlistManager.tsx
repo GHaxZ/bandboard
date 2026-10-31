@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsOrganizer } from "@/components/PermissionsProvider";
+
 import { useState } from "react";
 import {
   Dialog,
@@ -51,6 +53,7 @@ export function SetlistManager({
   onStartAutoplay,
   preferredInstrument = "Guitar",
 }: SetlistManagerProps) {
+  const isOrganizer = useIsOrganizer();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Songs with an in-flight add/remove (prevents double-submit) + a reorder
@@ -134,6 +137,7 @@ export function SetlistManager({
           <Music className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
           <p className="text-xs">Your setlist is empty.</p>
           <Button
+            disabled={!isOrganizer}
             onClick={() => setIsAddOpen(true)}
             variant="link"
             className="text-primary hover:text-accent-text-strong text-xs font-bold mt-1"
@@ -201,7 +205,7 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={index === 0 || isReordering}
+                    disabled={!isOrganizer || index === 0 || isReordering}
                     onClick={() => handleMove(index, "up")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Up"
@@ -212,7 +216,7 @@ export function SetlistManager({
                   <Button
                     variant="ghost"
                     size="icon"
-                    disabled={index === rehearsalSongs.length - 1 || isReordering}
+                    disabled={!isOrganizer || index === rehearsalSongs.length - 1 || isReordering}
                     onClick={() => handleMove(index, "down")}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg disabled:opacity-30"
                     title="Move Down"
@@ -279,7 +283,7 @@ export function SetlistManager({
                   </div>
                   <Button
                     size="sm"
-                    disabled={pendingActionIds.has(song.id)}
+                    disabled={!isOrganizer || pendingActionIds.has(song.id)}
                     onClick={() => handleAddSong(song.id)}
                     className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-lg px-3 py-1 h-8 font-bold text-xs disabled:opacity-40"
                   >

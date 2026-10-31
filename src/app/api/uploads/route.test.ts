@@ -27,6 +27,10 @@ beforeAll(async () => {
 });
 afterAll(async () => { await rm(uploadLocation.directory, { recursive: true, force: true }); });
 
+function wav() {
+  const buf = Buffer.alloc(44); buf.write('RIFF'); buf.writeUInt32LE(36, 4); buf.write('WAVE', 8);
+  return buf;
+}
 function uploadRequest(startOffset: string, duration: string) {
   const form = new FormData();
   form.set('songId', 'original');
@@ -34,8 +38,8 @@ function uploadRequest(startOffset: string, duration: string) {
   form.set('kind', 'stem');
   form.set('startOffset', startOffset);
   form.set('duration', duration);
-  form.set('file', new File([Buffer.from('RIFF\0\0\0\0WAVE')], 'take.wav', { type: 'audio/wav' }));
-  return new Request('http://localhost/api/uploads', { method: 'POST', body: form });
+  form.set('file', new File([wav()], 'take.wav', { type: 'audio/wav' }));
+  return new Request('http://localhost/api/uploads', { method: 'POST', headers: { origin: 'http://localhost' }, body: form });
 }
 
 describe('stem upload', () => {
@@ -48,7 +52,7 @@ describe('stem upload', () => {
     const row = db.select().from(customTracks).get();
     expect(row?.startOffset).toBe(-1.25);
     expect(row?.duration).toBe(120.5);
-    expect(await readFile(path.join(uploadLocation.directory, track.storedName))).toEqual(Buffer.from('RIFF\0\0\0\0WAVE'));
+    expect(await readFile(path.join(uploadLocation.directory, track.storedName))).toEqual(wav());
   });
 
   it.each([['NaN', '10'], ['0', '-1'], ['Infinity', '10']])('rejects invalid timing %s / %s before saving a file', async (offset, duration) => {

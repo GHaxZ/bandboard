@@ -1,17 +1,17 @@
-import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { users, sessions, songs, rehearsals, userSongProgress, commentReads } from '@/db/schema';
-import { AuthError, getSessionUser, getUserUuid } from './auth';
-import { SESSION_COOKIE, TEN_YEARS, UID_COOKIE } from './constants';
-import { getSongs, getSongDetails } from '@/app/actions/songs';
+import { users, sessions, songs, rehearsals, userSongProgress, commentReads, rateLimits } from '@/db/schema';
+import { AuthError, getSessionUser, getUserUuid, sessionDigest, startSession } from './auth';
+import { SESSION_COOKIE, SESSION_MAX_AGE, SESSION_IDLE_MS, UID_COOKIE } from './constants';
+import { deleteSong, getSongs, getSongDetails } from '@/app/actions/songs';
 import { getCustomTracks } from '@/app/actions/customTracks';
-import { getRehearsals, getRehearsalDetails, getRehearsalWithVoteView, isOpenVote } from '@/app/actions/rehearsals';
+import { deleteRehearsal, getRehearsals, getRehearsalDetails, getRehearsalWithVoteView, isOpenVote } from '@/app/actions/rehearsals';
 import { getProgressMap, getSongProgress } from '@/app/actions/user';
-import { finalizeIfDue, getSongComments, getVotingState, markCommentsRead } from '@/app/actions/votes';
+import { endVotingNow, finalizeIfDue, getSongComments, getVotingState, markCommentsRead } from '@/app/actions/votes';
 import { proxy } from '@/proxy';
 import { NextRequest } from 'next/server';
-import { register, login, logout, changePassword } from '@/app/actions/auth';
+import { register, login, logout, changePassword, deleteAccount, setMemberRole } from '@/app/actions/auth';
 
 const requestCookies = vi.hoisted(() => new Map<string, string>());
 vi.mock('next/headers', () => ({
@@ -31,17 +31,18 @@ vi.mock('@/db', async () => {
 });
 
 const userId = '11111111-1111-4111-8111-111111111111';
-const validToken = '22222222-2222-4222-8222-222222222222';
-const fakeToken = '33333333-3333-4333-8333-333333333333';
+const validToken = '2'.repeat(64);
+const fakeToken = '3'.repeat(64);
 
 beforeEach(() => {
   requestCookies.clear();
+  db.delete(rateLimits).run();
   vi.spyOn(console, 'error').mockImplementation(() => {});
   db.delete(users).run();
   db.delete(songs).run();
   db.delete(rehearsals).run();
-  db.insert(users).values({ id: userId, username: 'member', passwordHash: 'unused', createdAt: Date.now() }).run();
-  db.insert(sessions).values({ token: validToken, userId, createdAt: Date.now() }).run();
+  db.insert(users).values({ id: userId, username: 'member', role: 'admin', passwordHash: 'unused', createdAt: Date.now() }).run();
+  db.insert(sessions).values({ token: sessionDigest(validToken), userId, createdAt: Date.now(), lastSeenAt: Date.now() }).run();
   db.insert(songs).values({ id: 'song', title: 'Song', artist: 'Band', createdAt: Date.now() }).run();
   db.insert(rehearsals).values({ id: 'vote', title: 'Vote', date: Date.now() + 10000, type: 'vote', votingEndsAt: Date.now() - 1000, songSelectionCount: 1 }).run();
   db.insert(userSongProgress).values({ id: 'progress', userUuid: userId, songId: 'song', notes: 'Private notes', updatedAt: Date.now() }).run();
@@ -56,18 +57,24 @@ afterAll(async () => {
 describe('authenticated data access', () => {
   it('preserves registration, login, logout and password-change session revocation', async () => {
     vi.stubEnv('BAND_SECRET', '');
+    vi.stubEnv('REGISTRATION_MODE', 'open');
     requestCookies.set(UID_COOKIE, fakeToken);
     expect(await register('NewMember', 'test-password-123', 'test-password-123')).toEqual({ success: true });
-    expect(await getSessionUser()).toEqual({ id: fakeToken, username: 'NewMember' });
-    expect(requestCookies.has(UID_COOKIE)).toBe(false);
+    const registered = await getSessionUser();
+    expect(registered?.username).toBe('NewMember');
+    expect(registered?.id).not.toBe(fakeToken);
+    expect(registered?.role).toBe('member');
+    const newUserId = registered!.id;
     await logout();
     expect(await getSessionUser()).toBeNull();
     expect((await login('newmember', 'wrong-password')).success).toBe(false);
     expect(await login('newmember', 'test-password-123')).toEqual({ success: true });
-    db.insert(sessions).values({ token: 'other-device', userId: fakeToken, createdAt: Date.now() }).run();
+    db.insert(sessions).values({ token: sessionDigest('other-device'), userId: newUserId, createdAt: Date.now(), lastSeenAt: Date.now() }).run();
+    const previousToken = requestCookies.get(SESSION_COOKIE);
     expect(await changePassword('test-password-123', 'new-test-password-123')).toEqual({ success: true });
-    expect(db.select().from(sessions).where(eq(sessions.userId, fakeToken)).all()).toHaveLength(1);
-    expect(await getSessionUser()).toEqual({ id: fakeToken, username: 'NewMember' });
+    expect(db.select().from(sessions).where(eq(sessions.userId, newUserId)).all()).toHaveLength(1);
+    expect(requestCookies.get(SESSION_COOKIE)).not.toBe(previousToken);
+    expect(await getSessionUser()).toEqual({ id: newUserId, username: 'NewMember', role: 'member' });
     vi.unstubAllEnvs();
   });
 
@@ -105,7 +112,7 @@ describe('authenticated data access', () => {
 
   it('enforces session expiration on the server', async () => {
     requestCookies.set(SESSION_COOKIE, validToken);
-    db.update(sessions).set({ createdAt: Date.now() - TEN_YEARS * 1000 - 1 }).where(eq(sessions.token, validToken)).run();
+    db.update(sessions).set({ createdAt: Date.now() - SESSION_MAX_AGE * 1000 - 1 }).where(eq(sessions.token, sessionDigest(validToken))).run();
     expect(await getSessionUser()).toBeNull();
   });
 
@@ -119,4 +126,82 @@ describe('authenticated data access', () => {
       expect(response.headers.get('x-middleware-next')).toBe('1');
     }
   });
+});
+
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+describe('security policy', () => {
+  it('fails closed for missing or unknown registration configuration', async () => {
+    vi.stubEnv('REGISTRATION_MODE', 'invite'); vi.stubEnv('BAND_SECRET', '');
+    expect((await register('outsider', 'test-password-123', 'test-password-123')).success).toBe(false);
+    vi.stubEnv('REGISTRATION_MODE', 'typo');
+    expect((await register('outsider', 'test-password-123', 'test-password-123')).success).toBe(false);
+  });
+  it('requires an invite and never claims browser-selected historical progress', async () => {
+    vi.stubEnv('REGISTRATION_MODE', 'invite'); vi.stubEnv('BAND_SECRET', 'invite-test-only');
+    requestCookies.set(UID_COOKIE, userId);
+    expect((await register('NewMember', 'test-password-123', 'test-password-123', 'wrong')).success).toBe(false);
+    expect((await register('NewMember', 'test-password-123', 'test-password-123', 'invite-test-only')).success).toBe(true);
+    expect((await getSessionUser())?.id).not.toBe(userId);
+    expect(await getSongProgress('song')).toBeNull();
+  });
+  it('does not accept a stored token digest as a bearer credential', async () => {
+    requestCookies.set(SESSION_COOKIE, sessionDigest(validToken));
+    expect(await getSessionUser()).toBeNull();
+  });
+  it('enforces idle expiry even within the absolute session lifetime', async () => {
+    requestCookies.set(SESSION_COOKIE, validToken);
+    db.update(sessions).set({ lastSeenAt: Date.now() - SESSION_IDLE_MS - 1 }).run();
+    expect(await getSessionUser()).toBeNull();
+  });
+  it('rejects session issuance using a password hash changed during verification', async () => {
+    await expect(startSession(userId, 'stale-hash')).rejects.toBeInstanceOf(AuthError);
+    expect(db.select().from(sessions).all()).toHaveLength(1);
+  });
+  it('blocks member organizer actions and prevents demoting the last organizer', async () => {
+    requestCookies.set(SESSION_COOKIE, validToken);
+    expect((await setMemberRole(userId, 'member')).success).toBe(false);
+    db.update(users).set({ role: 'member' }).run();
+    expect((await setMemberRole(userId, 'admin')).success).toBe(false);
+    expect((await deleteSong('song')).success).toBe(false);
+    expect((await deleteRehearsal('vote')).success).toBe(false);
+    expect((await endVotingNow('vote')).success).toBe(false);
+    expect(db.select().from(songs).all()).toHaveLength(1);
+    expect(db.select().from(rehearsals).get()?.finalizedAt).toBeNull();
+  });
+  it('shares the password-verification budget across password changes and deletion', async () => {
+    requestCookies.set(SESSION_COOKIE, validToken);
+    for (let i = 0; i < 5; i++) await changePassword('wrong', 'new-password-123');
+    expect((await deleteAccount('wrong')).error).toContain('Too many password attempts');
+  });
+  it('upgrades legacy scrypt hashes without changing an existing short password', async () => {
+    const { scryptSync } = await import('node:crypto');
+    const salt = '12'.repeat(16);
+    const legacy = `${salt}:${scryptSync('oldpass8', salt, 64).toString('hex')}`;
+    db.update(users).set({ passwordHash: legacy }).run();
+    expect(await login('member', 'oldpass8')).toEqual({ success: true });
+    const row = db.select().from(users).get()!;
+    expect(row.passwordHash).toMatch(/^\$argon2id\$v=19\$m=65536,t=3,p=1\$/);
+    expect(db.select().from(sessions).all().some(s => s.token === requestCookies.get(SESSION_COOKIE))).toBe(false);
+  });
+});
+
+it('releases voting stream reservations when the session is revoked', async () => {
+  const { GET } = await import('@/app/api/rehearsals/[id]/voting-stream/route');
+  const { resourceLeases } = await import('@/db/schema');
+  requestCookies.set(SESSION_COOKIE, validToken);
+  db.update(rehearsals).set({ votingEndsAt: Date.now() + 60_000 }).run();
+  vi.useFakeTimers();
+  const response = await GET(new Request('http://localhost/api/rehearsals/vote/voting-stream'), { params: Promise.resolve({ id: 'vote' }) });
+  expect(response.status).toBe(200);
+  const reader = response.body!.getReader();
+  await reader.read();
+  expect(db.select().from(resourceLeases).all()).toHaveLength(1);
+  try {
+    db.delete(sessions).run();
+    await vi.advanceTimersByTimeAsync(2100);
+    expect((await reader.read()).done).toBe(true);
+    await reader.cancel();
+    expect(db.select().from(resourceLeases).all()).toHaveLength(0);
+  } finally { vi.useRealTimers(); }
 });

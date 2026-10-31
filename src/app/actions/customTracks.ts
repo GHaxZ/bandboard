@@ -4,9 +4,9 @@ import { db } from "@/db";
 import { customTracks, roleGroups } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { deleteStoredFile } from "@/lib/uploads";
-import { requireAuth, AuthError } from "@/lib/auth";
+import { requireAdminMutation, requireAuth, AuthError } from "@/lib/auth";
 import type { CustomTrack } from "@/types/models";
-import { INSTRUMENT_ROLES, type Role } from "@/lib/constants";
+import { INSTRUMENT_ROLES, INPUT_LIMITS, type Role } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -37,19 +37,19 @@ export async function updateCustomTrack(
   }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireAdminMutation();
     if (
       patch.role !== undefined &&
       !(INSTRUMENT_ROLES as readonly string[]).includes(patch.role)
     ) {
       return { success: false, error: "Invalid role." };
     }
-    if (patch.label !== undefined && !patch.label.trim()) {
+    if (patch.label !== undefined && (typeof patch.label !== "string" || !patch.label.trim() || patch.label.length > INPUT_LIMITS.label)) {
       return { success: false, error: "Label is required." };
     }
     if (
       (patch.startOffset !== undefined && !Number.isFinite(patch.startOffset)) ||
-      (patch.duration !== undefined && !Number.isFinite(patch.duration))
+      (patch.duration !== undefined && (!Number.isFinite(patch.duration) || patch.duration < 0 || patch.duration > 86400))
     ) {
       return { success: false, error: "Invalid numeric value." };
     }
@@ -64,7 +64,7 @@ export async function updateCustomTrack(
       .where(eq(customTracks.id, trackId));
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to update custom track:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -77,7 +77,7 @@ export async function deleteCustomTrack(
   trackId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireAdminMutation();
     const rows = await db
       .select({ storedName: customTracks.storedName })
       .from(customTracks)
@@ -100,10 +100,10 @@ export async function deleteCustomTrack(
         .run();
       tx.delete(customTracks).where(eq(customTracks.id, trackId)).run();
     });
-    deleteStoredFile(rows[0].storedName);
+    await deleteStoredFile(rows[0].storedName);
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to delete custom track:", error);
     return { success: false, error: "Something went wrong" };
   }

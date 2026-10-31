@@ -17,7 +17,7 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    await requireAuth(); // Defense-in-depth behind the proxy gate (no-op when BAND_SECRET is unset)
+    await requireAuth(); // Always validate sessions behind the optimistic proxy gate.
     const { id } = await params;
 
     const rows = await db

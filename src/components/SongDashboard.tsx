@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsOrganizer } from "@/components/PermissionsProvider";
+
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -114,6 +116,7 @@ function MediaPanel({
   isLazyLoading: boolean;
   onOpen: () => void;
 }) {
+  const canEdit = useIsOrganizer();
   return (
     <div className="flex flex-col bg-background border border-border rounded-2xl overflow-hidden shadow-lg">
       <div className="p-4 border-b border-border flex items-center justify-between bg-card/20">
@@ -122,6 +125,7 @@ function MediaPanel({
         </span>
         <Button
           size="sm"
+          disabled={!canEdit}
           onClick={onOpen}
           className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-[10px] font-bold h-8"
         >
@@ -148,6 +152,7 @@ function MediaPanel({
           <div className="text-center py-8">
             <p className="text-xs text-muted-foreground mb-4 font-medium">{emptyText}</p>
             <Button
+              disabled={!canEdit}
               onClick={onOpen}
               className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs rounded-xl"
             >
@@ -170,6 +175,7 @@ export function SongDashboard({
   activeRole,
   onRoleChange,
 }: SongDashboardProps) {
+  const isOrganizer = useIsOrganizer();
   const [activeTrackId, setActiveTrackId] = useState<string>("");
   const [initializedSongId, setInitializedSongId] = useState<string | null>(null);
   const [videoSelectorState, setVideoSelectorState] = useState<{
@@ -501,7 +507,7 @@ export function SongDashboard({
             </div>
           )}
         </div>
-        {onDelete && (
+        {(isOrganizer || deleteTitle?.startsWith("Remove nomination")) && onDelete && (
           <Button
             variant="danger-subtle"
             size="icon"

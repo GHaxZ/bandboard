@@ -1,91 +1,55 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import { eq, lte } from 'drizzle-orm';
 import { db } from '@/db';
-import { loginFailures } from '@/db/schema';
-import {
-  UID_COOKIE,
-  LOGIN_FAILURE_WINDOW_MS,
-  MAX_LOGIN_FAILURES,
-  MAX_ACCOUNT_LOGIN_ATTEMPTS,
-  RATE_LIMITS,
-} from '@/lib/constants';
+import { rateLimits } from '@/db/schema';
+import { UID_COOKIE, LOGIN_FAILURE_WINDOW_MS, MAX_LOGIN_FAILURES, MAX_ACCOUNT_LOGIN_ATTEMPTS, RATE_LIMITS } from './constants';
 
-// ponytail: in-memory fixed-window limiter, fine for LAN scale; move to a
-// persistent store if this ever runs multi-instance or public.
-type Bucket = { count: number; expiresAt: number };
-const buckets = new Map<string, Bucket>();
-
-function sweep(now: number): void {
-  if (buckets.size < 500) return;
-  for (const [k, b] of buckets) {
-    if (now >= b.expiresAt) buckets.delete(k);
-  }
-}
-
-/** Allow one action. Returns false when the fixed window is exhausted. */
-export function rateLimit(key: string, max: number, windowMs: number): boolean {
-  const now = Date.now();
-  sweep(now);
-  const b = buckets.get(key);
-  if (!b || now >= b.expiresAt) {
-    buckets.set(key, { count: 1, expiresAt: now + windowMs });
-    return true;
-  }
-  if (b.count >= max) return false;
-  b.count += 1;
-  return true;
-}
-
-/** Device identity is advisory; account and global budgets resist cookie rotation. */
-export async function getClientKey(): Promise<{ device: string }> {
-  const cookieStore = await cookies();
-  const rawDevice = cookieStore.get(UID_COOKIE)?.value;
-  const device = rawDevice && /^[0-9a-f-]{36}$/i.test(rawDevice) ? rawDevice.toLowerCase() : 'unknown';
-  return { device };
-}
-
-/** Reserve an attempt atomically before password hashing or invite checking.
- * Fixed windows cannot be extended indefinitely by repeated blocked attempts.
- * Reuses the persistent table so limits survive process restarts.
- */
-function reserveAttempts(limits: { key: string; max: number }[], windowMs: number): boolean {
+type Limit = { key: string; max: number; cost?: number };
+/** Persisted, atomic fixed windows. TTLs belong to each counter, not a global sweep policy. */
+export function reserveAttempts(limits: Limit[], windowMs: number): boolean {
   const now = Date.now();
   return db.transaction((tx) => {
-    // Bound retained identities, including old failure counters from earlier versions.
-    tx.delete(loginFailures).where(lte(loginFailures.lastAt,
-      now - Math.max(LOGIN_FAILURE_WINDOW_MS, RATE_LIMITS.register.windowMs))).run();
-    const rows = limits.map(({ key }) => tx.select().from(loginFailures).where(eq(loginFailures.key, key)).get());
-    if (limits.some((limit, i) => rows[i] && now - rows[i]!.lastAt < windowMs && rows[i]!.count >= limit.max)) return false;
-    limits.forEach(({ key }, i) => {
-      const row = rows[i];
-      const active = row && now - row.lastAt < windowMs;
-      const count = active ? row.count + 1 : 1;
-      const lastAt = active ? row.lastAt : now;
-      tx.insert(loginFailures).values({ key, count, lastAt })
-        .onConflictDoUpdate({ target: loginFailures.key, set: { count, lastAt } }).run();
+    tx.delete(rateLimits).where(lte(rateLimits.expiresAt, now)).run();
+    const rows = limits.map(({ key }) => tx.select().from(rateLimits).where(eq(rateLimits.key, key)).get());
+    if (limits.some((limit, i) => (rows[i]?.count ?? 0) + (limit.cost ?? 1) > limit.max)) return false;
+    limits.forEach(({ key, cost = 1 }, i) => {
+      const count = (rows[i]?.count ?? 0) + cost;
+      const expiresAt = rows[i]?.expiresAt ?? now + windowMs;
+      tx.insert(rateLimits).values({ key, count, expiresAt })
+        .onConflictDoUpdate({ target: rateLimits.key, set: { count, expiresAt } }).run();
     });
     return true;
   }, { behavior: 'immediate' });
 }
+export function rateLimit(key: string, max: number, windowMs: number, cost = 1): boolean {
+  return reserveAttempts([{ key, max, cost }], windowMs);
+}
+function digest(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 
-export function reserveLoginAttempt(device: string, username: string): boolean {
+/** Only enable this when a trusted ingress OVERWRITES X-Real-IP and hides the backend. */
+export async function getClientKey(): Promise<{ device: string; source?: string }> {
+  const raw = (await cookies()).get(UID_COOKIE)?.value;
+  const device = raw && /^[0-9a-f-]{36}$/i.test(raw) ? raw.toLowerCase() : 'unknown';
+  const ip = process.env.TRUST_PROXY === 'true' ? (await headers()).get('x-real-ip') : null;
+  return { device, source: ip && isIP(ip) ? digest(ip) : undefined };
+}
+export function reserveLoginAttempt(device: string, username: string, source?: string): boolean {
   return reserveAttempts([
     { key: `login:device:${device}`, max: MAX_LOGIN_FAILURES },
-    { key: 'login:global', max: 200 },
-    { key: `login:account:${username.trim().toLowerCase()}`, max: MAX_ACCOUNT_LOGIN_ATTEMPTS },
+    { key: `login:account:${digest(username.trim().toLowerCase())}`, max: MAX_ACCOUNT_LOGIN_ATTEMPTS },
+    ...(source ? [{ key: `login:source:${source}`, max: 50 }] : []),
   ], LOGIN_FAILURE_WINDOW_MS);
 }
-
 export function clearLoginAttempts(device: string, username: string): void {
-  // A successful login must not reset the global budget for other accounts.
-  for (const key of [`login:device:${device}`, `login:account:${username.trim().toLowerCase()}`]) {
-    db.delete(loginFailures).where(eq(loginFailures.key, key)).run();
+  for (const key of [`login:device:${device}`, `login:account:${digest(username.trim().toLowerCase())}`]) {
+    db.delete(rateLimits).where(eq(rateLimits.key, key)).run();
   }
 }
-
-export function reserveRegistrationAttempt(device: string): boolean {
+export function reserveRegistrationAttempt(device: string, source?: string): boolean {
   return reserveAttempts([
     { key: `register:device:${device}`, max: RATE_LIMITS.register.max },
-    { key: 'register:global', max: 50 },
+    ...(source ? [{ key: `register:source:${source}`, max: 20 }] : []),
   ], RATE_LIMITS.register.windowMs);
 }

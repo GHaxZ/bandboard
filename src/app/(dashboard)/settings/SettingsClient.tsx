@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { saveUserSettings } from "@/app/actions/user";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  logout,
+  logout, logoutOtherSessions, setMemberRole,
   changeUsername,
   changePassword,
   deleteAccount,
@@ -34,13 +34,15 @@ import type { Role } from "@/lib/constants";
 interface SettingsClientProps {
   preferredInstrument: Role;
   username: string;
+  members: { id: string; username: string; role: "admin" | "member" }[];
 }
 
-export function SettingsClient({ preferredInstrument, username }: SettingsClientProps) {
+export function SettingsClient({ preferredInstrument, username, members }: SettingsClientProps) {
   const router = useRouter();
   const [instrument, setInstrument] = useState<Role>(preferredInstrument);
   const [savingInstrument, setSavingInstrument] = useState(false);
 
+  const [updatingMember, setUpdatingMember] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -251,7 +253,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min. 8 chars)..."
+                  placeholder="New password (min. 12 chars)..."
                   aria-label="New password"
                   disabled={savingPassword}
                   autoComplete="new-password"
@@ -259,7 +261,7 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 />
                 <Button
                   type="submit"
-                  disabled={savingPassword || !currentPassword || newPassword.length < 8}
+                  disabled={savingPassword || !currentPassword || newPassword.length < 12}
                   className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground text-xs font-bold px-4 h-10 rounded-xl flex-shrink-0 disabled:opacity-50"
                 >
                   Save
@@ -288,6 +290,12 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
                 Log Out
               </Button>
             </div>
+
+            <Button variant="outline" onClick={async () => {
+              const result = await logoutOtherSessions();
+              if (result.success) toast.success("Other devices have been signed out.");
+              else toast.error(result.error);
+            }}>Sign out other devices</Button>
 
             {/* Danger Zone */}
             <div className="pt-3 border-t border-border">
@@ -324,6 +332,20 @@ export function SettingsClient({ preferredInstrument, username }: SettingsClient
         </Card>
       </div>
 
+      {members.length > 0 && <Card>
+        <CardHeader><CardTitle>Band members</CardTitle><CardDescription>Organizers manage shared media, rehearsals, and member permissions.</CardDescription></CardHeader>
+        <CardContent className="space-y-3">{members.map(member => <div key={member.id} className="flex items-center justify-between gap-3">
+          <span>{member.username} · {member.role === 'admin' ? 'Organizer' : 'Member'}</span>
+          <Button variant="outline" disabled={updatingMember !== null} onClick={async () => {
+            setUpdatingMember(member.id);
+            try {
+              const result = await setMemberRole(member.id, member.role === 'admin' ? 'member' : 'admin');
+              if (!result.success) toast.error(result.error);
+              else { toast.success('Permissions updated.'); router.refresh(); }
+            } finally { setUpdatingMember(null); }
+          }}>{member.role === 'admin' ? 'Make member' : 'Make organizer'}</Button>
+        </div>)}</CardContent>
+      </Card>}
       <ConfirmDialog
         isOpen={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}

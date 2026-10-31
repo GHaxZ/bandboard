@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsOrganizer } from "@/components/PermissionsProvider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +30,7 @@ interface RehearsalsDashboardProps {
 
 export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardProps) {
   const router = useRouter();
+  const isOrganizer = useIsOrganizer();
   const [isAddRehearsalOpen, setIsAddRehearsalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<RehearsalType | "all">("all");
@@ -82,6 +85,7 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
           ))}
         </div>
         <Button
+          disabled={!isOrganizer}
           onClick={() => setIsAddRehearsalOpen(true)}
           variant="secondary"
           className="rounded-xl shadow-md font-bold text-xs shrink-0"
@@ -106,9 +110,10 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
               : "Try a different search or filter."
           }
           action={
-            initialRehearsals.length === 0 ? (
+            isOrganizer && initialRehearsals.length === 0 ? (
               <Button
-                onClick={() => setIsAddRehearsalOpen(true)}
+                disabled={!isOrganizer}
+          onClick={() => setIsAddRehearsalOpen(true)}
                 className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl text-xs font-bold"
               >
                 Schedule

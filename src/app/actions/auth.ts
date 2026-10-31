@@ -4,258 +4,152 @@ import { cookies } from 'next/headers';
 import { randomUUID } from 'node:crypto';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import {
-  sessions,
-  users,
-  userSettings,
-  userSongProgress,
-  rehearsalVotes,
-  commentReads,
-} from '@/db/schema';
-import { authCookieOptions } from '@/lib/auth-cookies';
-import { safeEqual } from '@/lib/utils';
-import { getSessionUser, hashPassword, verifyPassword } from '@/lib/auth';
-import {
-  getClientKey,
-  reserveLoginAttempt,
-  clearLoginAttempts,
-  reserveRegistrationAttempt,
-} from '@/lib/rate-limit';
-import { TEN_YEARS, UID_COOKIE, SESSION_COOKIE } from '@/lib/constants';
+import { sessions, users, userSettings, userSongProgress, rehearsalVotes, commentReads,
+  rehearsalSongComments, rehearsalSongs, storedFiles } from '@/db/schema';
+import { getSessionUser, requireAdmin, requireMutation, sessionDigest, startSession, AuthError } from '@/lib/auth';
+import { hashPassword, verifyPassword, validateNewPassword, validPasswordInput,
+  needsPasswordRehash, upgradePasswordHash, secretEqual, PasswordBusyError } from '@/lib/passwords';
+import { getClientKey, reserveLoginAttempt, clearLoginAttempts, reserveRegistrationAttempt, rateLimit } from '@/lib/rate-limit';
+import { assertCapacity } from '@/lib/capacity';
+import { UID_COOKIE, SESSION_COOKIE, RATE_LIMITS, INPUT_LIMITS } from '@/lib/constants';
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
-
-// Fixed delay on every auth attempt so online brute force can't run fast.
-const BASE_DELAY_MS = 300;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+type Result = { success: boolean; error?: string };
+function failure(error: unknown): Result {
+  if (error instanceof AuthError || error instanceof PasswordBusyError) return { success: false, error: error.message };
+  if (error instanceof Error && error.message.includes('UNIQUE')) return { success: false, error: 'That username is already taken.' };
+  console.error('Account action failed:', error);
+  return { success: false, error: 'Something went wrong' };
 }
-
-/** Create the session row + set the cookie. Called after verified register/login. */
-async function startSession(userId: string): Promise<void> {
-  const token = randomUUID();
-  await db.insert(sessions).values({ token, userId, createdAt: Date.now() });
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    ...authCookieOptions(),
-    maxAge: TEN_YEARS,
-  });
-  // The anonymous identity is now owned by an account — drop it so a future
-  // registration on this device mints a fresh one instead of colliding.
-  cookieStore.delete(UID_COOKIE);
+export async function getRegistrationStatus(): Promise<{ enabled: boolean; inviteRequired: boolean }> {
+  const mode = process.env.REGISTRATION_MODE ?? 'invite';
+  return { enabled: mode === 'open' || (mode === 'invite' && !!process.env.BAND_SECRET), inviteRequired: mode !== 'open' };
 }
-
-/** Whether new registrations need the band invite code (BAND_SECRET). */
-export async function isInviteRequired(): Promise<boolean> {
-  return !!process.env.BAND_SECRET;
-}
-
-export async function register(
-  username: string,
-  password: string,
-  confirmPassword?: string,
-  inviteCode?: string
-): Promise<{ success: boolean; error?: string }> {
+export async function isInviteRequired(): Promise<boolean> { return (await getRegistrationStatus()).inviteRequired; }
+export async function register(username: string, password: string, confirmPassword?: string, inviteCode?: string): Promise<Result> {
   try {
-    const name = username.trim();
-    if (!USERNAME_RE.test(name)) {
-      return {
-        success: false,
-        error: 'Username must be 3–32 characters (letters, numbers, - or _).',
-      };
-    }
-    if (password.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters.' };
-    }
-    if (password !== confirmPassword) {
-      return { success: false, error: 'Passwords do not match.' };
-    }
-
-    const { device } = await getClientKey();
-    if (!reserveRegistrationAttempt(device)) {
-      return { success: false, error: 'Too many attempts. Try again later.' };
-    }
-
-    // BAND_SECRET gates registration only (invite-style deployments). Checked
-    // AFTER the limiter so wrong-code guesses consume attempt budget.
-    const secret = process.env.BAND_SECRET;
-    if (secret && !safeEqual(secret, inviteCode ?? '')) {
-      await sleep(BASE_DELAY_MS);
+    const status = await getRegistrationStatus();
+    if (!status.enabled) return { success: false, error: 'Registration is closed. Contact your band organizer.' };
+    const name = typeof username === 'string' ? username.trim() : '';
+    if (!USERNAME_RE.test(name)) return { success: false, error: 'Username must be 3–32 characters (letters, numbers, - or _).' };
+    const passwordError = validateNewPassword(password);
+    if (passwordError) return { success: false, error: passwordError };
+    if (password !== confirmPassword) return { success: false, error: 'Passwords do not match.' };
+    const { device, source } = await getClientKey();
+    if (!reserveRegistrationAttempt(device, source)) return { success: false, error: 'Too many attempts. Try again later.' };
+    if (status.inviteRequired && (typeof inviteCode !== 'string' || inviteCode.length > 1024 ||
+      !secretEqual(process.env.BAND_SECRET!, inviteCode))) {
       return { success: false, error: 'Incorrect band invite code.' };
     }
-
-    const cookieStore = await cookies();
-    const uid = cookieStore.get(UID_COOKIE)?.value;
-    if (!uid) {
-      return { success: false, error: 'Missing device identity. Reload the page and try again.' };
-    }
-
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, uid)).limit(1);
-    if (existing.length > 0) {
-      return { success: false, error: 'This device already has an account. Log in instead.' };
-    }
-
-    // Adopting the device UUID means all pre-existing settings/progress rows
-    // instantly belong to this account — no data copy needed.
-    await db.insert(users).values({
-      id: uid,
-      username: name,
-      passwordHash: hashPassword(password),
-      createdAt: Date.now(),
-    });
-
-    await startSession(uid);
+    const passwordHash = await hashPassword(password);
+    const id = randomUUID(); // Never adopt an unsigned browser identifier.
+    db.transaction(tx => {
+      assertCapacity(tx, users, INPUT_LIMITS.members);
+      const first = !tx.select({ id: users.id }).from(users).limit(1).get();
+      tx.insert(users).values({ id, username: name, passwordHash, role: first ? 'admin' : 'member', createdAt: Date.now() }).run();
+    }, { behavior: 'immediate' });
+    await startSession(id, passwordHash);
     return { success: true };
-  } catch (error) {
-    // Unique index on lower(username) → race-safe "taken" detection.
-    if (error instanceof Error && error.message.includes('UNIQUE')) {
-      return { success: false, error: 'That username is already taken.' };
-    }
-    console.error('Registration failed:', error);
-    return { success: false, error: 'Something went wrong' };
-  }
+  } catch (error) { return failure(error); }
 }
-
-export async function login(
-  username: string,
-  password: string
-): Promise<{ success: boolean; error?: string }> {
+export async function login(username: string, password: string): Promise<Result> {
   try {
-    // Delay plus atomic attempt reservations limit repeated and concurrent guesses.
-    await sleep(BASE_DELAY_MS);
-
-    const { device } = await getClientKey();
-    const name = username.trim().toLowerCase();
-    if (!reserveLoginAttempt(device, name)) {
-      return { success: false, error: 'Too many attempts. Try again in a few minutes.' };
-    }
-
-    const rows = await db
-      .select({ id: users.id, passwordHash: users.passwordHash })
-      .from(users)
-      .where(sql`lower(${users.username}) = ${name}`)
-      .limit(1);
-
-    const ok = rows[0] ? verifyPassword(password, rows[0].passwordHash) : false;
-    if (!ok || !rows[0]) {
-      return { success: false, error: 'Incorrect username or password.' };
-    }
-
+    const name = typeof username === 'string' && username.length <= 128 ? username.trim().toLowerCase() : '';
+    if (!USERNAME_RE.test(name) || !validPasswordInput(password)) return { success: false, error: 'Incorrect username or password.' };
+    const { device, source } = await getClientKey();
+    if (!reserveLoginAttempt(device, name, source)) return { success: false, error: 'Too many attempts. Try again in a few minutes.' };
+    const row = db.select().from(users).where(sql`lower(${users.username}) = ${name}`).get();
+    if (!await verifyPassword(password, row?.passwordHash) || !row) return { success: false, error: 'Incorrect username or password.' };
+    const newHash = needsPasswordRehash(row.passwordHash) ? await upgradePasswordHash(password) : undefined;
+    await startSession(row.id, row.passwordHash, { newHash });
     clearLoginAttempts(device, name);
-    await startSession(rows[0].id);
     return { success: true };
-  } catch (error) {
-    console.error('Login failed:', error);
-    return { success: false, error: 'Something went wrong' };
-  }
+  } catch (error) { return failure(error); }
 }
-
-/** Delete the current session row + cookie. */
 export async function logout(): Promise<void> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (token) {
-    await db.delete(sessions).where(eq(sessions.token, token));
-  }
-  cookieStore.delete(SESSION_COOKIE);
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) db.delete(sessions).where(eq(sessions.token, sessionDigest(token))).run();
+  store.delete(SESSION_COOKIE);
 }
-
-export async function changeUsername(
-  newUsername: string
-): Promise<{ success: boolean; error?: string }> {
+export async function logoutOtherSessions(): Promise<Result> {
   try {
-    const user = await getSessionUser();
-    if (!user) return { success: false, error: 'Unauthorized' };
-
-    const name = newUsername.trim();
-    if (!USERNAME_RE.test(name)) {
-      return {
-        success: false,
-        error: 'Username must be 3–32 characters (letters, numbers, - or _).',
-      };
-    }
-    await db.update(users).set({ username: name }).where(eq(users.id, user.id));
-    return { success: true };
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('UNIQUE')) {
-      return { success: false, error: 'That username is already taken.' };
-    }
-    console.error('Failed to change username:', error);
-    return { success: false, error: 'Something went wrong' };
-  }
-}
-
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const user = await getSessionUser();
-    if (!user) return { success: false, error: 'Unauthorized' };
-
-    if (newPassword.length < 8) {
-      return { success: false, error: 'New password must be at least 8 characters.' };
-    }
-    const rows = await db
-      .select({ passwordHash: users.passwordHash })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-    if (!rows[0] || !verifyPassword(currentPassword, rows[0].passwordHash)) {
-      return { success: false, error: 'Current password is incorrect.' };
-    }
-    await db
-      .update(users)
-      .set({ passwordHash: hashPassword(newPassword) })
-      .where(eq(users.id, user.id));
-    // Invalidate every other session (other devices/browsers); keep this one.
+    const user = await requireMutation();
     const token = (await cookies()).get(SESSION_COOKIE)?.value;
-    if (token) {
-      await db
-        .delete(sessions)
-        .where(and(eq(sessions.userId, user.id), ne(sessions.token, token)))
-        .run();
-    }
+    if (!token) throw new AuthError();
+    db.delete(sessions).where(and(eq(sessions.userId, user.id), ne(sessions.token, sessionDigest(token)))).run();
     return { success: true };
-  } catch (error) {
-    console.error('Failed to change password:', error);
-    return { success: false, error: 'Something went wrong' };
+  } catch (error) { return failure(error); }
+}
+export async function changeUsername(newUsername: string): Promise<Result> {
+  try {
+    const user = await requireMutation();
+    const name = typeof newUsername === 'string' ? newUsername.trim() : '';
+    if (!USERNAME_RE.test(name)) return { success: false, error: 'Username must be 3–32 characters (letters, numbers, - or _).' };
+    db.update(users).set({ username: name }).where(eq(users.id, user.id)).run();
+    return { success: true };
+  } catch (error) { return failure(error); }
+}
+function reservePasswordAttempt(userId: string): void {
+  if (!rateLimit(`password:${userId}`, RATE_LIMITS.password.max, RATE_LIMITS.password.windowMs)) {
+    throw new AuthError('Too many password attempts. Try again later.');
   }
 }
-
-export async function deleteAccount(
-  password: string
-): Promise<{ success: boolean; error?: string }> {
+export async function changePassword(currentPassword: string, newPassword: string): Promise<Result> {
   try {
-    const user = await getSessionUser();
-    if (!user) return { success: false, error: 'Unauthorized' };
-
-    const rows = await db
-      .select({ passwordHash: users.passwordHash })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-    if (!rows[0] || !verifyPassword(password, rows[0].passwordHash)) {
-      return { success: false, error: 'Password is incorrect.' };
-    }
-
-    db.transaction((tx) => {
-      // user_settings/user_song_progress/rehearsal_votes/comment_reads have no
-      // FK on user_uuid — delete explicitly or orphaned votes keep counting.
+    const user = await requireMutation();
+    reservePasswordAttempt(user.id); // Shared with account deletion, including successful attempts.
+    const err = validateNewPassword(newPassword);
+    if (err) return { success: false, error: err };
+    const row = db.select().from(users).where(eq(users.id, user.id)).get();
+    if (!await verifyPassword(currentPassword, row?.passwordHash) || !row) return { success: false, error: 'Current password is incorrect.' };
+    await startSession(user.id, row.passwordHash, { newHash: await hashPassword(newPassword), revokeAll: true });
+    return { success: true };
+  } catch (error) { return failure(error); }
+}
+export async function deleteAccount(password: string): Promise<Result> {
+  try {
+    const user = await requireMutation();
+    reservePasswordAttempt(user.id);
+    const row = db.select().from(users).where(eq(users.id, user.id)).get();
+    if (!await verifyPassword(password, row?.passwordHash) || !row) return { success: false, error: 'Password is incorrect.' };
+    db.transaction(tx => {
+      const current = tx.select().from(users).where(eq(users.id, user.id)).get();
+      if (!current || current.passwordHash !== row.passwordHash) throw new AuthError('Credentials changed. Please sign in again.');
+      if (current.role === 'admin' && tx.select().from(users).where(eq(users.role, 'admin')).all().length <= 1) {
+        throw new AuthError('Make another member an organizer before deleting your account.');
+      }
       tx.delete(userSongProgress).where(eq(userSongProgress.userUuid, user.id)).run();
       tx.delete(userSettings).where(eq(userSettings.userUuid, user.id)).run();
       tx.delete(rehearsalVotes).where(eq(rehearsalVotes.userUuid, user.id)).run();
       tx.delete(commentReads).where(eq(commentReads.userUuid, user.id)).run();
-      tx.delete(users).where(eq(users.id, user.id)).run(); // sessions cascade via FK
-    });
-
-    const cookieStore = await cookies();
-    cookieStore.delete(SESSION_COOKIE);
-    cookieStore.delete(UID_COOKIE);
+      tx.delete(rehearsalSongComments).where(eq(rehearsalSongComments.userUuid, user.id)).run();
+      tx.update(rehearsalSongs).set({ addedBy: null }).where(eq(rehearsalSongs.addedBy, user.id)).run();
+      tx.update(storedFiles).set({ owner: 'deleted' }).where(eq(storedFiles.owner, user.id)).run();
+      tx.delete(users).where(eq(users.id, user.id)).run();
+    }, { behavior: 'immediate' });
+    const store = await cookies();
+    store.delete(SESSION_COOKIE); store.delete(UID_COOKIE);
     return { success: true };
-  } catch (error) {
-    console.error('Failed to delete account:', error);
-    return { success: false, error: 'Something went wrong' };
-  }
+  } catch (error) { return failure(error); }
+}
+export async function getMembers(): Promise<{ id: string; username: string; role: 'admin' | 'member' }[]> {
+  const user = await getSessionUser();
+  if (user?.role !== 'admin') return [];
+  return db.select({ id: users.id, username: users.username, role: users.role }).from(users).orderBy(users.createdAt).all();
+}
+export async function setMemberRole(id: string, role: 'admin' | 'member'): Promise<Result> {
+  try {
+    await requireAdmin(); await requireMutation();
+    if (role !== 'admin' && role !== 'member') return { success: false, error: 'Invalid role.' };
+    db.transaction(tx => {
+      const target = tx.select().from(users).where(eq(users.id, id)).get();
+      if (!target) throw new AuthError('Member not found.');
+      if (target.role === 'admin' && role === 'member' && tx.select().from(users).where(eq(users.role, 'admin')).all().length <= 1) {
+        throw new AuthError('Keep at least one organizer.');
+      }
+      tx.update(users).set({ role }).where(eq(users.id, id)).run();
+    }, { behavior: 'immediate' });
+    return { success: true };
+  } catch (error) { return failure(error); }
 }

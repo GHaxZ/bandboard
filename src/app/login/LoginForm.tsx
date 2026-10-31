@@ -12,9 +12,10 @@ import { safeNext } from "@/lib/navigation";
 
 interface LoginFormProps {
   inviteRequired: boolean;
+  registrationEnabled: boolean;
 }
 
-export function LoginForm({ inviteRequired }: LoginFormProps) {
+export function LoginForm({ inviteRequired, registrationEnabled }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
@@ -110,7 +111,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
                 required
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 disabled={isSubmitting}
-                placeholder={mode === "register" ? "Minimum 8 characters" : "Your password"}
+                placeholder={mode === "register" ? "Minimum 12 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block h-10 rounded-xl"
@@ -188,7 +189,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
             </Button>
 
             {/* Full-width 44px target — tappable on phones, unlike a text link */}
-            <Button
+            {registrationEnabled && <Button
               type="button"
               variant="outline"
               disabled={isSubmitting}
@@ -202,7 +203,7 @@ export function LoginForm({ inviteRequired }: LoginFormProps) {
               {mode === "login"
                 ? "No account yet? Create one"
                 : "Already have an account? Log in"}
-            </Button>
+            </Button>}
           </form>
         </CardContent>
       </Card>

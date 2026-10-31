@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { userSettings, userSongProgress, songs } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUserUuid, requireAuth, AuthError } from "@/lib/auth";
+import { requireMutation, getUserUuid, AuthError } from "@/lib/auth";
 import {
   DEFAULT_PROGRESS,
   DEFAULT_USER_SETTINGS,
@@ -14,7 +14,7 @@ import {
 } from "@/types/models";
 import type { Role, ProgressStatus } from "@/lib/constants";
 import {
-  AUTOPLAY_TIMEOUT_DEFAULT,
+  AUTOPLAY_TIMEOUT_DEFAULT, INPUT_LIMITS,
 } from "@/lib/constants";
 import {
   clampVolume,
@@ -23,7 +23,7 @@ import {
   validateUserSettings,
   validateSongProgress,
   validatePracticeMarkers,
-  validateStartOffsets,
+  validateStartOffsets, boundedText, validMapKey, boundedMap,
 } from "@/lib/validation";
 
 // ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ export async function saveUserSettings(
   }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
     const err = validateUserSettings(partial);
     if (err) return { success: false, error: err };
 
@@ -104,7 +104,7 @@ export async function saveUserSettings(
       });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to save user settings:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -212,8 +212,8 @@ export async function saveSongProgress(
   }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
-    const err = validateSongProgress({ status: patch.status, speed: patch.speed });
+    await requireMutation();
+    const err = validateSongProgress(patch);
     if (err) return { success: false, error: err };
 
     const uuid = await getUserUuid();
@@ -240,7 +240,7 @@ export async function saveSongProgress(
       });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to save song progress:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -251,7 +251,8 @@ export async function saveScratchpadNotes(
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
+    if (!boundedText(notes, INPUT_LIMITS.notes)) return { success: false, error: "Notes are too long" };
     const uuid = await getUserUuid();
     await db
       .insert(userSongProgress)
@@ -270,7 +271,7 @@ export async function saveScratchpadNotes(
       });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to save scratchpad notes:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -282,7 +283,8 @@ export async function savePracticeMarkers(
   markers: number[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
+    if (!validMapKey(markerKey)) return { success: false, error: "Invalid marker key" };
     const err = validatePracticeMarkers(markers);
     if (err) return { success: false, error: err };
 
@@ -303,6 +305,7 @@ export async function savePracticeMarkers(
         map = {};
       }
     }
+    if (!boundedMap(map, markerKey)) return { success: false, error: "Too many marker groups" };
     map[markerKey] = markers;
     const serialized = JSON.stringify(map);
     await db
@@ -322,7 +325,7 @@ export async function savePracticeMarkers(
       });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to save practice markers:", error);
     return { success: false, error: "Something went wrong" };
   }
@@ -335,7 +338,8 @@ export async function saveStartOffsets(
   tab: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requireMutation();
+    if (!validMapKey(roleGroupId)) return { success: false, error: "Invalid offset key" };
     const err = validateStartOffsets({ backing, tab });
     if (err) return { success: false, error: err };
 
@@ -355,6 +359,7 @@ export async function saveStartOffsets(
         map = {};
       }
     }
+    if (!boundedMap(map, roleGroupId)) return { success: false, error: "Too many offset groups" };
     map[roleGroupId] = { backing, tab };
     const serialized = JSON.stringify(map);
     await db
@@ -374,7 +379,7 @@ export async function saveStartOffsets(
       });
     return { success: true };
   } catch (error) {
-    if (error instanceof AuthError) return { success: false, error: "Unauthorized" };
+    if (error instanceof AuthError) return { success: false, error: error.message };
     console.error("Failed to save start offsets:", error);
     return { success: false, error: "Something went wrong" };
   }

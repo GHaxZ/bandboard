@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsOrganizer } from "@/components/PermissionsProvider";
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -34,6 +36,7 @@ export function OriginalSongDashboard({
   onEdit,
   preferredInstrument,
 }: OriginalSongDashboardProps) {
+  const isOrganizer = useIsOrganizer();
   const { progress: initialProgress, reload: reloadProgress } = useSongProgress(song.id);
 
   const tracks = song.customTracks ?? [];
@@ -81,7 +84,7 @@ export function OriginalSongDashboard({
           {(onPractice || onEdit) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {onPractice && <PracticeButton onClick={onPractice} />}
-              {onEdit && (
+              {isOrganizer && onEdit && (
                 <Button
                   variant="secondary"
                   onClick={onEdit}
@@ -94,7 +97,7 @@ export function OriginalSongDashboard({
             </div>
           )}
         </div>
-        {onDelete && (
+        {(isOrganizer || deleteTitle?.startsWith("Remove nomination")) && onDelete && (
           <Button
             variant="danger-subtle"
             size="icon"
@@ -112,9 +115,9 @@ export function OriginalSongDashboard({
           <EmptyState
             icon={Music}
             title="No Stems Yet"
-            description="This original has no stems. Click Edit to add some."
+            description={isOrganizer ? "This original has no stems. Click Edit to add some." : "This original has no stems yet."}
             action={
-              onEdit && (
+              isOrganizer && onEdit && (
                 <Button
                   onClick={onEdit}
                   className="bg-btn-bg hover:bg-btn-hover border border-dialog-border text-foreground rounded-xl font-bold flex items-center gap-1.5 mx-auto"

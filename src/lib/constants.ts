@@ -178,8 +178,7 @@ export const ALLOWED_UPLOAD_MIMES = [
   'video/x-matroska',
 ];
 
-// ponytail: uploads buffer fully in RAM (route.ts arrayBuffer()); 250MB peaks
-// are fine on LAN hardware. Switch to streamed writes if RAM becomes an issue.
+// Uploads stream to disk with persistent quota and concurrency reservations.
 export const MAX_UPLOAD_BYTES = 250 * 1024 * 1024;
 
 /** File-picker accept value. Extensions listed explicitly because OS pickers
@@ -196,8 +195,6 @@ export const UPLOAD_ACCEPT = [
 export const UPLOAD_LIMITS = {
   stem: MAX_UPLOAD_BYTES,
   coverArt: 5 * 1024 * 1024,
-  // Includes multipart overhead for a file at the advertised 250 MiB limit.
-  proxyCap: '251mb',
 } as const;
 
 export const MULTITRACK_DRIFT_MS = 200;
@@ -219,8 +216,12 @@ export const ROLE_COLORS: Record<Role, string> = {
 // Auth cookies — single source of truth for names/lifetime (proxy.ts and
 // actions/auth.ts must stay in sync; import from here).
 // ---------------------------------------------------------------------------
-export const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
-/** Anonymous pre-registration identity. Registration adopts it as users.id. */
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+export const SESSION_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
+export const SESSION_TOUCH_MS = 5 * 60 * 1000;
+export const PASSWORD_MIN_LENGTH = 12;
+export const PASSWORD_MAX_LENGTH = 1024;
+/** Advisory device identifier for throttling; never selects an account. */
 export const UID_COOKIE = 'bandboard_uid';
 /** Session token → sessions table row. */
 export const SESSION_COOKIE = 'bandboard_session';
@@ -235,6 +236,9 @@ export const RATE_LIMITS = {
   scrape: { max: 20, windowMs: 60 * 1000 },
   /** Registration attempts per device. */
   register: { max: 5, windowMs: 10 * 60 * 1000 },
+  mutations: { max: 120, windowMs: 60 * 1000 },
+  comments: { max: 10, windowMs: 60 * 1000 },
+  password: { max: 5, windowMs: 10 * 60 * 1000 },
 } as const;
 
 export const MAX_LOGIN_FAILURES = 5; // per device (unchanged behavior)
@@ -264,3 +268,20 @@ export function browserCanPlay(mime: string): boolean {
   return el.canPlayType(CANPLAY_ALIAS[mime] ?? mime) !== '';
 }
 export const LOGIN_FAILURE_WINDOW_MS = 5 * 60 * 1000;
+
+// Bounded application input/storage budgets (also enforced on the server).
+export const INPUT_LIMITS = {
+  title: 200, artist: 200, label: 200, notes: 20_000,
+  mapKeys: 64, mapKey: 100, tuning: 100,
+  members: 2000, librarySongs: 2000, rehearsals: 1000, commentsPerSong: 1000,
+} as const;
+export const RESOURCE_LIMITS = {
+  storageBytes: 10 * 1024 ** 3,
+  userStorageBytes: 2 * 1024 ** 3,
+  uploadWindowBytes: 512 * 1024 ** 2,
+  uploads: 2, userUploads: 1,
+  uploadTimeoutMs: 120_000,
+  uploadLeaseMs: 180_000,
+  freeDiskBytes: 512 * 1024 ** 2,
+  streams: 50, userStreams: 3, streamLeaseMs: 90_000,
+} as const;

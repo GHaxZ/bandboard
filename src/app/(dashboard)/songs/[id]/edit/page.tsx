@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/auth";
 import { getSongDetails } from "@/app/actions/songs";
 import { getCustomTracks } from "@/app/actions/customTracks";
 import { getUserSettings, getSongProgress } from "@/app/actions/user";
@@ -12,6 +13,7 @@ interface EditOriginalPageProps {
 
 export default async function EditOriginalPage({ params }: EditOriginalPageProps) {
   const resolvedParams = await params;
+  if ((await getSessionUser())?.role !== "admin") redirect(`/songs/${resolvedParams.id}`);
   const [song, tracks, settings, progress] = await Promise.all([
     getSongDetails(resolvedParams.id),
     getCustomTracks(resolvedParams.id),

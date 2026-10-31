@@ -1,14 +1,22 @@
 import type { NextConfig } from "next";
 
-// Keep in sync with UPLOAD_LIMITS.proxyCap in src/lib/constants.ts.
-const PROXY_BODY_CAP = "251mb";
-
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["better-sqlite3"],
-  experimental: {
-    proxyClientMaxBodySize: PROXY_BODY_CAP,
+  poweredByHeader: false,
+  // Runtime files must never be packaged into the standalone application.
+  outputFileTracingExcludes: {
+    '/*': ['./.env*', './*.db*', './uploads/**/*', './data/**/*', './backups/**/*', './.git/**/*'],
   },
+  async headers() {
+    return [{ source: '/:path*', headers: [
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+    ] }];
+  },
+  serverExternalPackages: ["better-sqlite3", "@node-rs/argon2"],
+
 };
 
 export default nextConfig;
