@@ -66,11 +66,12 @@ export function RehearsalAutoplay({
 
   // Store-backed state
   const currentIndex = usePlayerStore((s) => s.currentIndex);
+  const playbackId = usePlayerStore((s) => s.playbackId);
+  const countdownId = usePlayerStore((s) => s.countdownId);
   const setCurrentIndex = usePlayerStore((s) => s.setCurrentIndex);
   const sessionStarted = usePlayerStore((s) => s.sessionStarted);
-  const startSession = usePlayerStore((s) => s.startSession);
   const finished = usePlayerStore((s) => s.finished);
-  const finish = usePlayerStore((s) => s.finish);
+  const completeCurrentSong = usePlayerStore((s) => s.completeCurrentSong);
   const restart = usePlayerStore((s) => s.restart);
   const countdown = usePlayerStore((s) => s.countdown);
   const countdownPaused = usePlayerStore((s) => s.countdownPaused);
@@ -78,7 +79,6 @@ export function RehearsalAutoplay({
   const setTransitionTimeout = usePlayerStore((s) => s.setTransitionTimeout);
   const autoplayEnabled = usePlayerStore((s) => s.autoplayEnabled);
   const setAutoplayEnabled = usePlayerStore((s) => s.setAutoplayEnabled);
-  const startCountdown = usePlayerStore((s) => s.startCountdown);
   const tickCountdown = usePlayerStore((s) => s.tickCountdown);
   const pauseCountdown = usePlayerStore((s) => s.pauseCountdown);
   const skipCountdown = usePlayerStore((s) => s.skipCountdown);
@@ -87,13 +87,16 @@ export function RehearsalAutoplay({
   const clearSkipReason = usePlayerStore((s) => s.clearSkipReason);
   const reset = usePlayerStore((s) => s.reset);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const setPlaying = usePlayerStore((s) => s.setPlaying);
   const volume = usePlayerStore((s) => s.volume);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const speed = usePlayerStore((s) => s.speed);
   const setSpeed = usePlayerStore((s) => s.setSpeed);
 
   const [instrumentPreference, setInstrumentPreference] = useState<Role>(preferredInstrument);
+  const autoplayPreferenceRef = useRef({ version: 0, savedVersion: 0, saved: autoplayEnabled });
+  const timeoutPreferenceRef = useRef({ version: 0, savedVersion: 0, saved: transitionTimeout });
+  const settingsSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const settingsMountedRef = useRef(false);
 
   // Skip overlay
   const { skipOverlay, triggerSkipOverlay, clearSkipOverlayTimer } = useSkipOverlay();
@@ -102,23 +105,30 @@ export function RehearsalAutoplay({
   // fetch rejects, still bootstrap — otherwise the session sits on the
   // countdown overlay forever with an unhandled rejection.
   useEffect(() => {
+    let canceled = false;
+    settingsMountedRef.current = true;
+    setVolume(readDeviceVolumeClient());
+    setSpeed(readDeviceSpeedClient());
     getUserSettings()
       .then((s) => {
-        setAutoplayEnabled(s.autoplayEnabled);
-        setTransitionTimeout(s.autoplayTimeout);
-        // Hydrate saved volume/speed from device cookies like song practice
-        // does — otherwise a fresh load silently plays at store defaults
-        // until a slider is touched.
-        setVolume(readDeviceVolumeClient());
-        setSpeed(readDeviceSpeedClient());
+        if (canceled) return;
+        // A late settings response must not undo a choice already made here.
+        if (autoplayPreferenceRef.current.savedVersion === 0) autoplayPreferenceRef.current.saved = s.autoplayEnabled;
+        if (timeoutPreferenceRef.current.savedVersion === 0) timeoutPreferenceRef.current.saved = s.autoplayTimeout;
+        if (autoplayPreferenceRef.current.version === 0) setAutoplayEnabled(s.autoplayEnabled);
+        if (timeoutPreferenceRef.current.version === 0) setTransitionTimeout(s.autoplayTimeout);
       })
       .catch(() => {})
       .finally(() => {
-        if (!sessionStarted && countdown === null && !finished) {
-          startCountdown();
+        if (canceled) return;
+        const state = usePlayerStore.getState();
+        if (!state.sessionStarted && state.countdown === null && !state.finished && queue.length > 0) {
+          state.startCountdown();
         }
       });
     return () => {
+      canceled = true;
+      settingsMountedRef.current = false;
       clearSkipOverlayTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,17 +150,12 @@ export function RehearsalAutoplay({
   useEffect(() => {
     if (countdown === null || countdownPaused) return;
     if (countdown <= 0) {
-      if (!sessionStarted) {
-        startSession();
-      } else {
-        skipCountdown(queue.length);
-      }
+      skipCountdown(queue.length, countdownId);
       return;
     }
-    const t = setTimeout(() => tickCountdown(), 1000);
+    const t = setTimeout(() => tickCountdown(countdownId), 1000);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countdown, countdownPaused, sessionStarted, currentIndex, queue.length]);
+  }, [countdown, countdownPaused, countdownId, queue.length, skipCountdown, tickCountdown]);
 
   const currentSong = queue[currentIndex]?.song;
   // The role group matching the requested instrument (covers only).
@@ -212,6 +217,7 @@ export function RehearsalAutoplay({
   const lazyInflightRef = useRef<string | null>(null);
   const lazyAttemptedRef = useRef(new Set<string>());
 
+  // Finishing an earlier song's lookup must also unblock the selected song.
   useEffect(() => {
     if (!currentSong || currentSong.songType !== "cover") return;
     if (lazyInflightRef.current) return;
@@ -225,6 +231,7 @@ export function RehearsalAutoplay({
     const next = ordered.find(
       (rg) =>
         !lazyAttemptedRef.current.has(rg.id) &&
+        !lazyFailedIds.has(rg.id) &&
         (rg.backingTrackLink === null || rg.tabVideoLink === null)
     );
     if (!next) return;
@@ -233,8 +240,7 @@ export function RehearsalAutoplay({
     lazyLoadTrackMedia(next.id)
       .then((res) => {
         if (!res.success) {
-          // e.g. rate-limited: stop showing the spinner; retried on the next
-          // song/instrument trigger (not added to lazyAttemptedRef).
+          // Stop showing the spinner and try the remaining role groups.
           setLazyFailedIds((prev) => new Set(prev).add(next.id));
           return;
         }
@@ -253,7 +259,7 @@ export function RehearsalAutoplay({
         lazyInflightRef.current = null;
         setLazyLoadingRoleId(null);
       });
-  }, [currentSong, instrumentPreference]);
+  }, [currentSong, instrumentPreference, lazyLoadingRoleId, lazyFailedIds]);
 
   const isLazyLoading = lazyLoadingRoleId !== null;
   // Render-time derivation: true the instant the requested instrument's media
@@ -275,22 +281,16 @@ export function RehearsalAutoplay({
 
   // No-video path: 4s timer then advance
   useEffect(() => {
-    if (!sessionStarted || finished) return;
+    if (!sessionStarted || finished || countdown !== null) return;
     if (isMediaSearching) return; // don't force-skip while searching for media
     if (backingMedia.kind !== "none" || skipReason !== "no_video") return;
     const t = setTimeout(() => {
-      // treat as ended
-      if (currentIndex >= queue.length - 1) {
-        finish();
-      } else if (usePlayerStore.getState().autoplayEnabled) {
-        startCountdown();
-      } else {
-        setPlaying(false);
+      if (usePlayerStore.getState().skipReason === "no_video") {
+        completeCurrentSong(queue.length, playbackId);
       }
     }, NO_VIDEO_SKIP_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStarted, finished, backingMedia.kind, skipReason, currentIndex, queue.length, isMediaSearching]);
+  }, [sessionStarted, finished, countdown, backingMedia.kind, skipReason, playbackId, queue.length, isMediaSearching, completeCurrentSong]);
 
   // Detect no-video on song change once session started. skipReason is a dep:
   // when the countdown advances to the next (also media-less) song it resets
@@ -298,36 +298,23 @@ export function RehearsalAutoplay({
   // the re-trigger never fires and the session stalls on the overlay.
   useEffect(() => {
     if (!sessionStarted || finished) return;
-    if (backingMedia.kind === "none" && skipReason !== "no_video" && !isMediaSearching) {
+    if (backingMedia.kind === "none" && skipReason === null && !isMediaSearching) {
       triggerNoVideo();
     } else if ((backingMedia.kind !== "none" || isMediaSearching) && skipReason === "no_video") {
       clearSkipReason();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backingMedia.kind, sessionStarted, skipReason, isMediaSearching]);
-
-  // Multistem autostart: play when session starts or song changes (but don't force-play after a user pause)
-  useEffect(() => {
-    if (sessionStarted && backingMedia.kind === "multistem") {
-      setPlaying(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStarted, backingMedia.kind, currentSong?.id]);
+  }, [backingMedia.kind, sessionStarted, finished, playbackId, skipReason, isMediaSearching]);
 
   const onEnded = () => {
-    if (currentIndex >= queue.length - 1) {
-      finish();
-    } else if (autoplayEnabled) {
-      startCountdown();
-    } else {
-      setPlaying(false);
-    }
+    completeCurrentSong(queue.length, playbackId);
   };
 
   const { playPause, seekBy, seekTo: autoplaySeekTo, getCurrentTime: autoplayGetCurrentTime, getDuration: autoplayGetDuration, renderMedia } = useAutoplayEngine({
     media: backingMedia,
     customTrack,
-    sessionStarted,
+    sessionStarted: sessionStarted && !finished,
+    playbackId,
     onEnded,
     coverArtUrl,
   });
@@ -368,7 +355,7 @@ export function RehearsalAutoplay({
   const handleTogglePlay = () => playPause();
   const handlePrevSong = () => currentIndex > 0 && setCurrentIndex(currentIndex - 1);
   const handleNextSong = () => currentIndex < queue.length - 1 && setCurrentIndex(currentIndex + 1);
-  const handleSkipCountdown = () => skipCountdown(queue.length);
+  const handleSkipCountdown = () => skipCountdown(queue.length, countdownId);
   const handleRestart = () => restart();
 
   const handleInstrumentChange = (role: string) => {
@@ -377,29 +364,46 @@ export function RehearsalAutoplay({
   };
 
   const handleAutoplayEnabledChange = async (val: boolean) => {
-    const prev = autoplayEnabled;
+    const preference = autoplayPreferenceRef.current;
+    const version = ++preference.version;
     setAutoplayEnabled(val);
+    // Serialize writes so rapid toggles are saved in the same order as the UI.
+    const request = settingsSaveQueueRef.current.then(() => saveUserSettings({ autoplayEnabled: val }));
+    settingsSaveQueueRef.current = request.then(() => {}, () => {});
     try {
-      const res = await saveUserSettings({ autoplayEnabled: val });
+      const res = await request;
       if (!res.success) throw new Error(res.error);
-      toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
+      preference.saved = val;
+      preference.savedVersion = version;
+      if (settingsMountedRef.current && preference.version === version) {
+        toast.success(`Autoplay next song ${val ? "enabled" : "disabled"}`);
+      }
     } catch (err) {
       console.error(err);
-      setAutoplayEnabled(prev);
-      toast.error("Failed to save autoplay setting");
+      if (settingsMountedRef.current && preference.version === version) {
+        setAutoplayEnabled(preference.saved);
+        toast.error("Failed to save autoplay setting");
+      }
     }
   };
 
   const handleTimeoutChange = async (val: number) => {
-    const prev = transitionTimeout;
+    const preference = timeoutPreferenceRef.current;
+    const version = ++preference.version;
     setTransitionTimeout(val);
+    const request = settingsSaveQueueRef.current.then(() => saveUserSettings({ autoplayTimeout: val }));
+    settingsSaveQueueRef.current = request.then(() => {}, () => {});
     try {
-      const res = await saveUserSettings({ autoplayTimeout: val, autoplayEnabled });
+      const res = await request;
       if (!res.success) throw new Error(res.error);
+      preference.saved = val;
+      preference.savedVersion = version;
     } catch (err) {
       console.error(err);
-      setTransitionTimeout(prev);
-      toast.error("Failed to save transition timer");
+      if (settingsMountedRef.current && preference.version === version) {
+        setTransitionTimeout(preference.saved);
+        toast.error("Failed to save transition timer");
+      }
     }
   };
 
@@ -572,7 +576,7 @@ export function RehearsalAutoplay({
                     <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
                       Could not find a valid backing track or video link for{" "}
                       <span className="font-bold text-foreground">&quot;{currentSong.title}&quot;</span>.
-                      Skipping in a few seconds...
+                      {autoplayEnabled ? "Skipping in a few seconds..." : "Select another song from the queue to continue."}
                     </p>
                     <div className="flex gap-2 pt-2">
                       <Button
@@ -659,7 +663,7 @@ export function RehearsalAutoplay({
                       variant="outline"
                       size="icon"
                       onClick={handleTogglePlay}
-                      disabled={backingMedia.kind === "none" || !sessionStarted}
+                      disabled={backingMedia.kind === "none" || !sessionStarted || finished}
                       className="h-9 w-9 border-border bg-background/40 hover:bg-muted text-accent-text hover:text-accent-text-strong rounded-lg flex items-center justify-center cursor-pointer"
                       title={isPlaying ? "Pause" : "Play"}
                     >

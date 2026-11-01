@@ -14,6 +14,7 @@ interface UseAutoplayEngineOpts {
   media: BackingMedia;
   customTrack?: CustomTrack;
   sessionStarted: boolean;
+  playbackId: number;
   onEnded?: () => void;
   coverArtUrl?: string | null;
 }
@@ -22,6 +23,7 @@ export function useAutoplayEngine({
   media,
   customTrack,
   sessionStarted,
+  playbackId,
   onEnded,
   coverArtUrl,
 }: UseAutoplayEngineOpts) {
@@ -33,8 +35,12 @@ export function useAutoplayEngine({
     containerId: "autoplay-player-div",
     videoId: media.kind === "youtube" && sessionStarted ? media.videoId : null,
     startOffset: media.kind === "youtube" ? media.offset : 0,
+    playbackKey: playbackId,
     onEnded: media.kind === "youtube" ? onEnded : undefined,
-    isActive: () => true,
+    isActive: () => {
+      const state = usePlayerStore.getState();
+      return state.playbackId === playbackId && state.sessionStarted && !state.finished;
+    },
     autoplay: true,
   });
 
@@ -47,6 +53,7 @@ export function useAutoplayEngine({
     tracks: media.kind === "multistem" ? media.tracks : [],
     mutedTrackIds,
     soloTrackIds: new Set(),
+    playbackKey: playbackId,
   });
 
   // Keep onEnded in a ref for async callbacks
@@ -62,15 +69,26 @@ export function useAutoplayEngine({
 
   const customRefCallback = useCallback(
     (el: HTMLMediaElement | null) => {
+      const previous = customMediaRef.current;
+      if (previous && previous !== el) {
+        previous.onended = null;
+        previous.onplaying = null;
+        previous.onpause = null;
+        previous.pause();
+      }
       customMediaRef.current = el;
       setCustomEl(el);
       if (el) {
-        el.onended = () => onEndedRef.current?.();
-        el.onplaying = () => setPlaying(true);
-        el.onpause = () => setPlaying(false);
+        const isCurrent = () => {
+          const state = usePlayerStore.getState();
+          return customMediaRef.current === el && state.playbackId === playbackId && !state.finished;
+        };
+        el.onended = () => { if (isCurrent()) onEndedRef.current?.(); };
+        el.onplaying = () => { if (isCurrent()) setPlaying(true); };
+        el.onpause = () => { if (isCurrent()) setPlaying(false); };
       }
     },
-    [setPlaying]
+    [playbackId, setPlaying]
   );
 
   // Custom-file media must also honour the store's volume/speed (previously
@@ -78,12 +96,15 @@ export function useAutoplayEngine({
   useMediaStoreSync(() => [customEl], [customEl]);
 
   const mediaCustomTrackId = media.kind === "custom-file" ? media.customTrackId : null;
+  const mediaCustomOffset = media.kind === "custom-file" ? media.offset : 0;
   // Auto-play custom-file when session starts
   useEffect(() => {
     if (media.kind !== "custom-file" || !sessionStarted) return;
     const el = customMediaRef.current;
-    if (el && el.paused) el.play().catch(() => {});
-  }, [media.kind, mediaCustomTrackId, customEl, sessionStarted]);
+    if (!el) return;
+    el.currentTime = mediaCustomOffset;
+    if (el.paused) el.play().catch(() => {});
+  }, [media.kind, mediaCustomTrackId, mediaCustomOffset, customEl, sessionStarted, playbackId]);
 
   // Multistem end detection. Polls `mt.isEnded()` (set by the player's tick
   // when its stop condition fires) instead of subscribing to `mt.currentT`:
@@ -92,28 +113,35 @@ export function useAutoplayEngine({
   // unknown DB durations, where `mt.duration` is 0 and a time-based check
   // would never fire.
   const multistemEndedRef = useRef(false);
-  // Key the latch reset on the track list, not the `media` object: changing
-  // instrumentPreference mid-transition produces a new `media` wrapper (same
-  // `tracks` reference) and previously reset the latch, letting the poll see
-  // isEnded() === true again and fire onEnded a second time.
+  // Use track IDs so refreshing song data or changing instruments doesn't
+  // reset the end latch or restart a paused song. A new selection always does.
   const mediaTracks = media.kind === "multistem" ? media.tracks : null;
+  const mediaTracksKey = mediaTracks?.map((track) => track.id).join(",") ?? "";
+  const isMultistemEnded = mt.isEnded;
   useEffect(() => {
     multistemEndedRef.current = false;
-  }, [mediaTracks]);
+  }, [mediaTracksKey, playbackId]);
+
+  useEffect(() => {
+    if (media.kind === "multistem" && sessionStarted) setPlaying(true);
+  }, [media.kind, mediaTracksKey, playbackId, sessionStarted, setPlaying]);
 
   useEffect(() => {
     if (media.kind !== "multistem" || !sessionStarted) return;
     const interval = setInterval(() => {
-      if (!multistemEndedRef.current && mt.isEnded()) {
+      if (usePlayerStore.getState().playbackId !== playbackId) return;
+      if (!isMultistemEnded()) {
+        multistemEndedRef.current = false;
+      } else if (!multistemEndedRef.current) {
         multistemEndedRef.current = true;
         onEndedRef.current?.();
       }
     }, 250);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [media, sessionStarted]);
+  }, [media.kind, playbackId, sessionStarted, isMultistemEnded]);
 
   const playPause = () => {
+    if (!sessionStarted) return;
     if (media.kind === "youtube") {
       const p = yt.playerRef?.current;
       if (!p) return;
@@ -132,11 +160,14 @@ export function useAutoplayEngine({
       if (el.paused) el.play().catch(() => {});
       else el.pause();
     } else if (media.kind === "multistem") {
+      if (mt.isEnded()) mt.seekTo(0);
       mt.playPause();
     }
   };
 
   const seekBy = (deltaSeconds: number) => {
+    if (!sessionStarted || media.kind === "none") return;
+    usePlayerStore.getState().cancelCountdown();
     if (media.kind === "youtube") {
       const p = yt.playerRef?.current;
       if (!p) return;
@@ -168,6 +199,7 @@ export function useAutoplayEngine({
       if (customTrack.isVideo) {
         return (
           <video
+            key={`${playbackId}:${media.customTrackId}`}
             ref={customRefCallback}
             src={src}
             className="w-full h-full aspect-video"
@@ -178,6 +210,7 @@ export function useAutoplayEngine({
       }
       return (
         <audio
+          key={`${playbackId}:${media.customTrackId}`}
           ref={customRefCallback}
           src={src}
           className="w-full h-full"
@@ -199,15 +232,15 @@ export function useAutoplayEngine({
       );
     }
     // `mt` is a fresh object every render; depend on its stable pieces instead
-    // so this memo actually memoizes.
-    // `mt` is a fresh object every render; depend on its stable pieces instead
     // so this memo actually memoizes. mediaCustomTrackId/mediaTracks stand in
     // for the union-only properties the lint rule can't see through.
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [media.kind, mediaCustomTrackId, mediaTracks, customTrack, customRefCallback, mt.registerRef, coverArtUrl]);
+  }, [media.kind, mediaCustomTrackId, mediaTracks, customTrack, customRefCallback, playbackId, mt.registerRef, coverArtUrl]);
 
   const seekTo = (target: number) => {
+    if (!sessionStarted || media.kind === "none") return;
+    usePlayerStore.getState().cancelCountdown();
     if (media.kind === "youtube") {
       const p = yt.playerRef?.current;
       if (!p) return;

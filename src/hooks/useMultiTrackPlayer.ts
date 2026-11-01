@@ -9,6 +9,7 @@ interface UseMultiTrackPlayerOpts {
   tracks: CustomTrack[];
   mutedTrackIds: Set<string>;
   soloTrackIds: Set<string>;
+  playbackKey?: number;
 }
 
 // ponytail: rAF-driven currentT state updates every frame. Fine for 5–8 tracks
@@ -17,6 +18,7 @@ export function useMultiTrackPlayer({
   tracks,
   mutedTrackIds,
   soloTrackIds,
+  playbackKey,
 }: UseMultiTrackPlayerOpts) {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const setPlaying = usePlayerStore((s) => s.setPlaying);
@@ -197,7 +199,7 @@ export function useMultiTrackPlayer({
     if (usePlayerStore.getState().isPlaying) {
       play();
     }
-  }, [tracksKey, play]);
+  }, [tracksKey, playbackKey, play]);
 
   const pause = useCallback(() => {
     if (rafRef.current !== null) {
@@ -215,6 +217,7 @@ export function useMultiTrackPlayer({
       const dur = durationRef.current;
       const clamped = dur > 0 ? Math.max(0, Math.min(T, dur)) : Math.max(0, T);
       TRef.current = clamped;
+      endedRef.current = false;
       const spd = usePlayerStore.getState().speed;
       clockStartRef.current = performance.now() - (clamped / spd) * 1000;
       setCurrentT(clamped);

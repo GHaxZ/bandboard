@@ -8,6 +8,8 @@ interface UseYouTubePlayerOpts {
   containerId: string;
   videoId: string | null;
   startOffset: number;
+  /** Recreate the player when replaying a queue entry with the same video. */
+  playbackKey?: number;
   /** Called when the active player ends. */
   onEnded?: () => void;
   /** Whether this player is the active (state-syncing) one. */
@@ -31,6 +33,7 @@ export function useYouTubePlayer({
   containerId,
   videoId,
   startOffset,
+  playbackKey,
   onEnded,
   isActive,
   autoplay,
@@ -108,7 +111,9 @@ export function useYouTubePlayer({
               // ignore
             }
             if (autoplayRef.current) {
+              if (!(isActiveRef.current?.() ?? true)) return;
               try {
+                if (startOffset > 0) event.target.seekTo(startOffset, true);
                 event.target.playVideo();
               } catch {
                 // ignore
@@ -216,7 +221,7 @@ export function useYouTubePlayer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiLoaded, videoId, containerId]);
+  }, [apiLoaded, videoId, containerId, playbackKey]);
 
   // Seek on offset change WITHOUT rebuilding the iframe (previously the offset
   // was in the creation effect's deps, so every offset save tore down and
