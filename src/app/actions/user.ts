@@ -113,30 +113,28 @@ export async function saveUserSettings(
 // ---------------------------------------------------------------------------
 // Progress
 // ---------------------------------------------------------------------------
+/** Reads and partial saves must interpret pre-split marker lists identically. */
+function parseStoredMarkers(serialized: string | null): Record<string, number[]> | null {
+  if (!serialized) return null;
+  try {
+    const parsed: unknown = JSON.parse(serialized);
+    if (Array.isArray(parsed)) return { __legacy__: parsed as number[] };
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, number[]>;
+  } catch { /* Invalid stored JSON falls back to no markers. */ }
+  return null;
+}
+
+function parseStoredOffsets(serialized: string | null): Record<string, RoleGroupOffsets> {
+  if (!serialized) return {};
+  try {
+    const parsed: unknown = JSON.parse(serialized);
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, RoleGroupOffsets>;
+  } catch { /* Invalid stored JSON falls back to no per-instrument offsets. */ }
+  return {};
+}
+
 function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
-  let markers: Record<string, number[]> | null = null;
-  if (r.practiceMarkers) {
-    try {
-      const parsed = JSON.parse(r.practiceMarkers);
-      if (Array.isArray(parsed)) {
-        // Pre-split flat list → legacy entry, same fold as offsets.
-        markers = { __legacy__: parsed as number[] };
-      } else if (parsed && typeof parsed === 'object') {
-        markers = parsed as Record<string, number[]>;
-      }
-    } catch {
-      markers = null;
-    }
-  }
-  let offsets: Record<string, RoleGroupOffsets> = {};
-  if (r.offsets) {
-    try {
-      const parsed = JSON.parse(r.offsets);
-      if (parsed && typeof parsed === 'object') offsets = parsed as Record<string, RoleGroupOffsets>;
-    } catch {
-      offsets = {};
-    }
-  }
+  let offsets = parseStoredOffsets(r.offsets);
   // Fold pre-split offsets (saved when one offset was shared across all
   // instruments) into a '__legacy__' entry so resolveOffsets can fall back to
   // them for role groups that haven't been individually set yet.
@@ -152,7 +150,7 @@ function rowToProgress(r: typeof userSongProgress.$inferSelect): UserProgress {
     speed: r.speed,
     notes: r.notes,
     scratchpadNotes: r.scratchpadNotes,
-    practiceMarkers: markers,
+    practiceMarkers: parseStoredMarkers(r.practiceMarkers),
     offsets,
   };
 }
@@ -295,16 +293,7 @@ export async function savePracticeMarkers(
       .from(userSongProgress)
       .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
       .limit(1);
-    let map: Record<string, number[]> = {};
-    if (existing[0]?.practiceMarkers) {
-      try {
-        const parsed = JSON.parse(existing[0].practiceMarkers);
-        if (Array.isArray(parsed)) map = { __legacy__: parsed as number[] };
-        else if (parsed && typeof parsed === 'object') map = parsed as Record<string, number[]>;
-      } catch {
-        map = {};
-      }
-    }
+    const map = parseStoredMarkers(existing[0]?.practiceMarkers ?? null) ?? {};
     if (!boundedMap(map, markerKey)) return { success: false, error: "Too many marker groups" };
     map[markerKey] = markers;
     const serialized = JSON.stringify(map);
@@ -350,15 +339,7 @@ export async function saveStartOffsets(
       .from(userSongProgress)
       .where(and(eq(userSongProgress.userUuid, uuid), eq(userSongProgress.songId, songId)))
       .limit(1);
-    let map: Record<string, RoleGroupOffsets> = {};
-    if (existing[0]?.offsets) {
-      try {
-        const parsed = JSON.parse(existing[0].offsets);
-        if (parsed && typeof parsed === 'object') map = parsed as Record<string, RoleGroupOffsets>;
-      } catch {
-        map = {};
-      }
-    }
+    const map = parseStoredOffsets(existing[0]?.offsets ?? null);
     if (!boundedMap(map, roleGroupId)) return { success: false, error: "Too many offset groups" };
     map[roleGroupId] = { backing, tab };
     const serialized = JSON.stringify(map);

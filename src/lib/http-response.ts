@@ -18,6 +18,3 @@ export async function limitedText(response: Response, limit: number): Promise<st
     return Buffer.concat(chunks).toString('utf8');
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
-export async function limitedJson(response: Response, limit = 1024 * 1024): Promise<unknown> {
-  return JSON.parse(await limitedText(response, limit));
-}

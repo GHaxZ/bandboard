@@ -199,8 +199,6 @@ export function useAutoplayEngine({
       );
     }
     // `mt` is a fresh object every render; depend on its stable pieces instead
-    // so this memo actually memoizes.
-    // `mt` is a fresh object every render; depend on its stable pieces instead
     // so this memo actually memoizes. mediaCustomTrackId/mediaTracks stand in
     // for the union-only properties the lint rule can't see through.
     return null;

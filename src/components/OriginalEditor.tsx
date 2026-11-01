@@ -185,6 +185,9 @@ export function OriginalEditor({
   onRefresh,
 }: OriginalEditorProps) {
   const router = useRouter();
+  // Playback re-renders every frame. Index saved tracks once per server refresh
+  // so dirty checks and draft reconciliation don't repeatedly scan the array.
+  const savedTracksById = useMemo(() => new Map(tracks.map((t) => [t.id, t])), [tracks]);
 
   // --- Draft state (metadata) ---
   const [titleDraft, setTitleDraft] = useState(song.title);
@@ -249,7 +252,7 @@ export function OriginalEditor({
 
   // Keep drafts in sync when server data refreshes (e.g. after upload).
   useEffect(() => {
-    const serverIds = new Set(tracks.map((t) => t.id));
+    const serverIds = new Set(savedTracksById.keys());
     for (const id of serverIds) uploadedStemIdsRef.current.delete(id);
     const uploadedIds = new Set(uploadedStemIdsRef.current);
     setStemDrafts((prev) => {
@@ -258,10 +261,11 @@ export function OriginalEditor({
       const preserved = prev
         .filter((t) => serverIds.has(t.id) || pendingStemIds.has(t.id) || uploadedIds.has(t.id))
         .map((t) => {
-          const server = tracks.find((tt) => tt.id === t.id);
+          const server = savedTracksById.get(t.id);
           return server ? { ...t, duration: server.duration } : t;
         });
-      const newOnes = tracks.filter((t) => !preserved.some((p) => p.id === t.id));
+      const preservedIds = new Set(preserved.map((t) => t.id));
+      const newOnes = tracks.filter((t) => !preservedIds.has(t.id));
       return [...preserved, ...newOnes];
     });
     // Clean up deleted IDs that no longer exist on the server (already deleted).
@@ -272,7 +276,7 @@ export function OriginalEditor({
       }
       return next;
     });
-  }, [tracks, pendingStemIds]);
+  }, [tracks, savedTracksById, pendingStemIds]);
 
   // Clear cover-art draft state only after `song` prop reflects the saved value.
   // This prevents flicker: the blob URL remains visible until the new stored name arrives.
@@ -340,7 +344,7 @@ export function OriginalEditor({
   const stemsDirty = stemDrafts.some((t) => {
     // Pending stems (not yet uploaded) always count as dirty.
     if (pendingStemIds.has(t.id)) return true;
-    const saved = tracks.find((tt) => tt.id === t.id);
+    const saved = savedTracksById.get(t.id);
     if (!saved) return false;
     return (
       t.startOffset !== saved.startOffset ||
@@ -547,7 +551,7 @@ export function OriginalEditor({
       // 3. Stem edits (role, label, startOffset)
       for (const draft of stemDrafts) {
         if (deletedStemIds.has(draft.id)) continue;
-        const saved = tracks.find((tt) => tt.id === draft.id);
+        const saved = savedTracksById.get(draft.id);
         if (!saved) continue;
         const patch: Partial<{ role: Role; label: string; startOffset: number }> = {};
         if (draft.role !== saved.role) patch.role = draft.role;
