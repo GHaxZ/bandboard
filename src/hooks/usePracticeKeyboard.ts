@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 
 interface PracticeKeyboardConfig {
-  onToggleVideo?: () => void;
+  /** Context-specific Tab action; takes priority over focus navigation. */
+  onTab?: () => void;
   onPlayPause?: () => void;
   onSeekBackward?: () => void;
   onSeekForward?: () => void;
@@ -20,14 +21,34 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Tab ALWAYS switches video when a toggle handler exists — regardless
-      // of what is focused (buttons, sliders, inputs). Without a handler
-      // (editor, single-feed covers, autoplay) Tab falls through to default.
+      if (e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+
+      // Tab runs the current surface's action regardless of focus. Without
+      // a handler (editor, single-feed covers), retain normal navigation.
       if (e.key === "Tab") {
-        if (configRef.current.onToggleVideo) {
+        if (configRef.current.onTab) {
           e.preventDefault();
           e.stopPropagation();
-          configRef.current.onToggleVideo();
+          configRef.current.onTab();
+        }
+        return;
+      }
+
+      // Number shortcuts, like Tab, take priority regardless of focus.
+      if (e.key === "0") {
+        if (configRef.current.onJumpToStart) {
+          e.preventDefault();
+          e.stopPropagation();
+          configRef.current.onJumpToStart();
+        }
+        return;
+      }
+      if (e.key >= "1" && e.key <= "9") {
+        if (configRef.current.onMarkerJump) {
+          e.preventDefault();
+          e.stopPropagation();
+          const index = parseInt(e.key, 10) - 1;
+          configRef.current.onMarkerJump(index);
         }
         return;
       }
@@ -80,25 +101,6 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
           configRef.current.onSeekForward();
         }
         return;
-      }
-      if (e.key === "0") {
-        if (configRef.current.onJumpToStart) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (active && active !== document.body) {
-            (active as HTMLElement).blur();
-          }
-          configRef.current.onJumpToStart();
-        }
-        return;
-      }
-      if (e.key >= "1" && e.key <= "9") {
-        if (configRef.current.onMarkerJump) {
-          e.preventDefault();
-          e.stopPropagation();
-          const index = parseInt(e.key, 10) - 1;
-          configRef.current.onMarkerJump(index);
-        }
       }
     };
 

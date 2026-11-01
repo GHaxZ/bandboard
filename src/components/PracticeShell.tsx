@@ -181,7 +181,7 @@ export function PracticeShell({
   // Keyboard shortcuts
   const hasBothVideos = coverState?.hasBothVideos ?? false;
   usePracticeKeyboard({
-    onToggleVideo: capabilities.canToggle && hasBothVideos ? onToggleVideo : undefined,
+    onTab: capabilities.canToggle && hasBothVideos ? onToggleVideo : undefined,
     onPlayPause: () => {
       engine.playPause();
     },

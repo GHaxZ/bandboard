@@ -334,6 +334,9 @@ export function RehearsalAutoplay({
 
   // Keyboard
   usePracticeKeyboard({
+    onTab: () => {
+      void handleAutoplayEnabledChange(!usePlayerStore.getState().autoplayEnabled);
+    },
     onPlayPause: playPause,
     onSeekBackward: () => {
       seekBy(-SEEK_STEP_S);

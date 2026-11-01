@@ -1,51 +1,51 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
- * Blur a focused YouTube iframe and restore window focus. Shared by the blur
- * listener below and the onMouseLeave handlers on the player surfaces — both
- * exist so page-level keyboard shortcuts (usePracticeKeyboard) keep firing
- * after the user interacts with an embed.
+ * Return keyboard focus to the page after interacting with an embed. Focusing
+ * a DOM element is necessary: iframe.blur() and window.focus() can leave the
+ * iframe's browsing context receiving keys even after activeElement changes.
  */
 export function blurActiveIframe() {
   const active = document.activeElement;
-  if (active && active.tagName === "IFRAME") {
-    try {
-      (active as HTMLElement).blur();
-    } catch {
-      // ignore
-    }
-    window.focus();
-  }
+  // Don't pull focus back when the user switches tabs, windows, or apps.
+  if (active?.tagName !== "IFRAME" || !document.hasFocus()) return;
+
+  const body = document.body;
+  const tabIndex = body.getAttribute("tabindex");
+  if (tabIndex === null) body.setAttribute("tabindex", "-1");
+  body.focus({ preventScroll: true });
+  if (tabIndex === null) body.removeAttribute("tabindex");
 }
 
 /**
- * Restore window focus after the user clicks inside a YouTube iframe so the
- * page-level keyboard shortcuts (usePracticeKeyboard) keep firing. We blur the
- * iframe and re-focus the window on every blur; we do NOT dispatch a synthetic
- * Tab keydown — video switching is handled only by the Tab key and the UI
- * toggle buttons (PLAN §3.3).
+ * Cross-origin iframe key events never reach the page's keyboard listener.
+ * Check focus each frame as well as after window blur: browsers can update
+ * activeElement late or refocus an embed without another window blur event.
  */
 export function useIframeFocusGuard() {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    const handleBlur = () => {
-      // Clear any pending timeout first — rapid successive blurs would
-      // otherwise stack timers.
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      // Immediate attempt (activeElement is usually already the iframe) plus
-      // a delayed retry for browsers that update activeElement after the
-      // blur event — shrinks the window where keys silently go to the iframe.
+    let animationFrame: number;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const checkFocus = () => {
       blurActiveIframe();
-      timeoutRef.current = setTimeout(blurActiveIframe, 50);
+      animationFrame = requestAnimationFrame(checkFocus);
     };
 
+    const handleBlur = () => {
+      clearTimeout(timeout);
+      // Wait until the browser finishes moving focus into the iframe.
+      timeout = setTimeout(blurActiveIframe, 0);
+    };
+
+    animationFrame = requestAnimationFrame(checkFocus);
     window.addEventListener("blur", handleBlur);
     return () => {
       window.removeEventListener("blur", handleBlur);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      cancelAnimationFrame(animationFrame);
+      clearTimeout(timeout);
     };
   }, []);
 }
