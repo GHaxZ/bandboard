@@ -56,8 +56,7 @@ export interface Song {
 }
 
 // Discriminated union describing what plays as the "backing track" for a song
-// during practice or setlist autoplay. Phase 0 only declares the shape; later
-// phases populate it.
+// during practice or setlist autoplay.
 export type BackingMedia =
   | { kind: 'youtube'; videoId: string; offset: number }
   | { kind: 'custom-file'; customTrackId: string; offset: number }
@@ -73,6 +72,7 @@ export interface RehearsalSong {
   song: Song;
 }
 
+/** Rehearsal index summary; full setlists are loaded through RehearsalDetails. */
 export interface Rehearsal {
   id: string;
   title: string;
@@ -82,8 +82,8 @@ export interface Rehearsal {
   votingEndsAt: number | null;
   songSelectionCount: number | null;
   finalizedAt: number | null;
-  rehearsalSongs: { song: Song }[];
-  /** Vote rehearsals only: total toggle-votes across all candidates. */
+  songCount: number;
+  /** Vote rehearsals only: total votes, including dormant re-vote history. */
   voteCount?: number;
 }
 

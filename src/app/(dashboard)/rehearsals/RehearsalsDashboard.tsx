@@ -139,8 +139,8 @@ export function RehearsalsDashboard({ initialRehearsals }: RehearsalsDashboardPr
                       <div className="flex items-center justify-between gap-2">
                         <Eyebrow>
                           {voteOpen
-                            ? `${reh.rehearsalSongs?.length || 0} candidates · ${reh.voteCount ?? 0} votes`
-                            : `${reh.rehearsalSongs?.length || 0} songs`}
+                            ? `${reh.songCount} candidates · ${reh.voteCount ?? 0} votes`
+                            : `${reh.songCount} songs`}
                         </Eyebrow>
                         <RehearsalTypeBadge rehearsalType={displayType} />
                       </div>

@@ -25,7 +25,6 @@ export async function getRegistrationStatus(): Promise<{ enabled: boolean; invit
   const mode = process.env.REGISTRATION_MODE ?? 'invite';
   return { enabled: mode === 'open' || (mode === 'invite' && !!process.env.BAND_SECRET), inviteRequired: mode !== 'open' };
 }
-export async function isInviteRequired(): Promise<boolean> { return (await getRegistrationStatus()).inviteRequired; }
 export async function register(username: string, password: string, confirmPassword?: string, inviteCode?: string): Promise<Result> {
   try {
     const status = await getRegistrationStatus();

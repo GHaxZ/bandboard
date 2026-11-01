@@ -3,8 +3,7 @@ import { resolveOffsets } from '@/types/models';
 import { getYouTubeId } from '@/lib/youtube';
 import type { Role } from '@/lib/constants';
 
-/** Minimal shape of a role group needed for slot resolution (both the cover
- *  media resolver and the autoplay video resolver use this ladder). */
+/** Minimal shape of a role group needed for backing/tab slot resolution. */
 export interface SlotRoleGroup {
   id: string;
   role: string;
@@ -19,8 +18,7 @@ export interface SlotRoleGroup {
  *   1. preferred role's backing slot → 2. any role's backing slot
  *   3. preferred role's tab slot → 4. any role's tab slot
  * `resolve` returns the media for a (roleGroup, slot-type) pair, or null to
- * continue down the ladder. Previously hand-mirrored in `resolveBackingMedia`
- * and `getBackingVideoId` (youtube.ts), which had drifted apart.
+ * continue down the ladder.
  */
 function resolveSlotLadder<T>(
   roleGroups: SlotRoleGroup[],
@@ -58,7 +56,7 @@ export function resolveBackingMedia(
     return { kind: 'multistem', tracks, mutedRole: preferredRole };
   }
 
-  // cover — the priority ladder is shared with getBackingVideoId
+  // Covers resolve uploaded files and YouTube links through the same ladder.
   const result = resolveSlotLadder<BackingMedia>(song.roleGroups, preferredRole, (rg, type) => {
     const customId = type === 'backing' ? rg.backingCustomTrackId : rg.tabCustomTrackId;
     if (customId && song.customTracks?.some((t) => t.id === customId)) {

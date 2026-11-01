@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { rehearsals, rehearsalSongs, rehearsalVotes } from "@/db/schema";
-import { eq, asc, and, gt, sql, inArray } from "drizzle-orm";
+import { eq, asc, and, gt, sql, inArray, getTableColumns } from "drizzle-orm";
 import { requireMutation, requireAuth, AuthError } from "@/lib/auth";
 import { INPUT_LIMITS } from "@/lib/constants";
 import { assertCapacity } from "@/lib/capacity";
@@ -183,12 +183,16 @@ export async function getRehearsals(): Promise<Rehearsal[]> {
       .all();
     for (const v of dueVotes) await finalizeIfDue(v.id);
 
-    const rows = await db.query.rehearsals.findMany({
-      orderBy: [asc(rehearsals.date)],
-      with: {
-        rehearsalSongs: { with: { song: { with: { roleGroups: { with: { tracks: true } }, customTracks: true } } } },
-      },
-    });
+    // The index cards only need setlist sizes. Count through the junction's
+    // rehearsalId index instead of loading every song and its media relations.
+    const rows = await db
+      .select({
+        ...getTableColumns(rehearsals),
+        songCount: sql<number>`(SELECT COUNT(*) FROM ${rehearsalSongs}
+          WHERE ${rehearsalSongs.rehearsalId} = ${rehearsals.id})`.mapWith(Number),
+      })
+      .from(rehearsals)
+      .orderBy(asc(rehearsals.date));
 
     // One grouped query for total votes across all vote rehearsals.
     const voteIds = rows.filter((r) => r.type === "vote").map((r) => r.id);
@@ -208,7 +212,6 @@ export async function getRehearsals(): Promise<Rehearsal[]> {
     return rows.map((r) => ({
       ...r,
       ...(r.type === "vote" ? { voteCount: voteCounts.get(r.id) ?? 0 } : {}),
-      rehearsalSongs: r.rehearsalSongs.map((rs) => ({ ...rs, song: mapSong(rs.song) })),
     }));
   } catch (error) {
     console.error("Failed to query rehearsals:", error);

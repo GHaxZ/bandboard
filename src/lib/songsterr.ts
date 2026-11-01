@@ -1,4 +1,5 @@
 import { limitedText } from "./http-response";
+import type { Role } from "./constants";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -20,20 +21,12 @@ export interface SongsterrResult {
 // ---------------------------------------------------------------------------
 // Role classification (PLAN §14.1)
 // ---------------------------------------------------------------------------
-export type ClassifiedRole =
-  | 'Guitar'
-  | 'Bass'
-  | 'Drums'
-  | 'Vocals'
-  | 'Piano/Keyboard'
-  | 'Other';
-
 export function determineRole(
   hash: string,
   instrumentId: number,
   instrument: string,
   trackName: string
-): ClassifiedRole {
+): Role {
   const lowerHash = (hash || '').toLowerCase();
   const lowerInst = (instrument || '').toLowerCase();
   const lowerTrack = (trackName || '').toLowerCase();
@@ -175,8 +168,8 @@ export async function fetchSongsterr(
 /** Group raw Songsterr tracks by classified role, preserving original index. */
 export function groupTracksByRole(
   rawTracks: SongsterrTrack[]
-): Map<ClassifiedRole, { track: SongsterrTrack; index: number }[]> {
-  const grouped = new Map<ClassifiedRole, { track: SongsterrTrack; index: number }[]>();
+): Map<Role, { track: SongsterrTrack; index: number }[]> {
+  const grouped = new Map<Role, { track: SongsterrTrack; index: number }[]>();
   rawTracks.forEach((track, index) => {
     const role = determineRole(
       track.hash || '',

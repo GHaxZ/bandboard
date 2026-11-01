@@ -18,7 +18,7 @@ import { mapSong } from "@/lib/serialize";
 import {
   MAX_COMMENT_LENGTH, INPUT_LIMITS, RATE_LIMITS,
 } from "@/lib/constants";
-import type { Song, SongComment, VotingCandidate, VotingState } from "@/types/models";
+import type { SongComment, VotingCandidate, VotingState } from "@/types/models";
 
 // ---------------------------------------------------------------------------
 // Shared guards
@@ -497,12 +497,13 @@ export async function getVotingState(
 
     const songIds = nominations.map((n) => n.songId);
 
-    // Vote tallies + my votes.
+    // Aggregate total and personal votes together, without loading individual votes.
     const tallyRows = songIds.length
       ? await db
           .select({
             songId: rehearsalVotes.songId,
             votes: sql<number>`COUNT(*)`,
+            votedByMe: sql<number>`MAX(CASE WHEN ${rehearsalVotes.userUuid} = ${myUuid} THEN 1 ELSE 0 END)`,
           })
           .from(rehearsalVotes)
           .where(
@@ -514,60 +515,35 @@ export async function getVotingState(
           .groupBy(rehearsalVotes.songId)
           .all()
       : [];
-    const tallyMap = new Map(tallyRows.map((t) => [t.songId, Number(t.votes)]));
+    const tallyMap = new Map(tallyRows.map((t) => [t.songId, t]));
 
-    const myVoteRows = songIds.length
-      ? await db
-          .select({ songId: rehearsalVotes.songId })
-          .from(rehearsalVotes)
-          .where(
-            and(
-              eq(rehearsalVotes.rehearsalId, rehearsalId),
-              eq(rehearsalVotes.userUuid, myUuid),
-              inArray(rehearsalVotes.songId, songIds)
-            )
-          )
-          .all()
-      : [];
-    const myVotes = new Set(myVoteRows.map((row) => row.songId));
-
-    // Comment counts + unread detection in one pass over lightweight rows.
-    const commentRows = songIds.length
+    // Return one summary per song rather than every comment on each SSE tick.
+    // Read marks are unique per user/rehearsal/song, so the join cannot multiply counts.
+    const commentSummaries = songIds.length
       ? await db
           .select({
             songId: rehearsalSongComments.songId,
-            userUuid: rehearsalSongComments.userUuid,
-            createdAt: rehearsalSongComments.createdAt,
+            count: sql<number>`COUNT(*)`,
+            unread: sql<number>`MAX(CASE WHEN ${rehearsalSongComments.userUuid} <> ${myUuid}
+              AND ${rehearsalSongComments.createdAt} > COALESCE(${commentReads.lastReadAt}, 0)
+              THEN 1 ELSE 0 END)`,
           })
           .from(rehearsalSongComments)
+          .leftJoin(commentReads, and(
+            eq(commentReads.userUuid, myUuid),
+            eq(commentReads.rehearsalId, rehearsalSongComments.rehearsalId),
+            eq(commentReads.songId, rehearsalSongComments.songId)
+          ))
           .where(
             and(
               eq(rehearsalSongComments.rehearsalId, rehearsalId),
               inArray(rehearsalSongComments.songId, songIds)
             )
           )
+          .groupBy(rehearsalSongComments.songId)
           .all()
       : [];
-    const myReads = await db
-      .select({ songId: commentReads.songId, lastReadAt: commentReads.lastReadAt })
-      .from(commentReads)
-      .where(
-        and(
-          eq(commentReads.userUuid, myUuid),
-          eq(commentReads.rehearsalId, rehearsalId),
-          songIds.length ? inArray(commentReads.songId, songIds) : undefined
-        )
-      )
-      .all();
-    const readMap = new Map(myReads.map((row) => [row.songId, row.lastReadAt]));
-    const commentCounts = new Map<string, number>();
-    const unreadSongs = new Set<string>();
-    for (const c of commentRows) {
-      commentCounts.set(c.songId, (commentCounts.get(c.songId) ?? 0) + 1);
-      if (c.userUuid !== myUuid && c.createdAt > (readMap.get(c.songId) ?? 0)) {
-        unreadSongs.add(c.songId);
-      }
-    }
+    const commentMap = new Map(commentSummaries.map((c) => [c.songId, c]));
 
     // Nominator display names (LEFT-JOIN semantics: deleted user → null).
     const nominatorIds = [
@@ -583,13 +559,13 @@ export async function getVotingState(
     const nameById = new Map(nominators.map((u) => [u.id, u.username]));
 
     const candidates: VotingCandidate[] = nominations.map((n) => ({
-      song: mapSong(n.song) as Song,
+      song: mapSong(n.song),
       addedAt: n.addedAt ?? n.sortOrder,
       addedByUsername: n.addedBy ? nameById.get(n.addedBy) ?? null : null,
-      voteCount: tallyMap.get(n.songId) ?? 0,
-      votedByMe: myVotes.has(n.songId),
-      commentCount: commentCounts.get(n.songId) ?? 0,
-      hasUnreadComments: unreadSongs.has(n.songId),
+      voteCount: Number(tallyMap.get(n.songId)?.votes ?? 0),
+      votedByMe: Number(tallyMap.get(n.songId)?.votedByMe ?? 0) > 0,
+      commentCount: Number(commentMap.get(n.songId)?.count ?? 0),
+      hasUnreadComments: Number(commentMap.get(n.songId)?.unread ?? 0) > 0,
     }));
 
     return {

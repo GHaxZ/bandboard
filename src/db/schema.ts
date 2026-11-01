@@ -249,9 +249,8 @@ export const userSongProgress = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
-// users — real accounts. `id` reuses the anonymous device UUID so existing
-// user_settings / user_song_progress rows stay valid when a device registers
-// (no data migration needed).
+// users — real accounts. Registration generates a fresh account ID; device
+// identifiers are advisory rate-limit keys and never select an account.
 // ---------------------------------------------------------------------------
 export const users = sqliteTable(
   'users',
