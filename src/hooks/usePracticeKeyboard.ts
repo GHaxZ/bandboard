@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit",
+]);
+
 interface PracticeKeyboardConfig {
   /** Context-specific Tab action; takes priority over focus navigation. */
   onTab?: () => void;
@@ -34,7 +38,19 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         return;
       }
 
-      // Number shortcuts, like Tab, take priority regardless of focus.
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      // Typing in notes, other text fields, or rich-text editors must keep
+      // numbers and editing keys. Non-text controls still allow marker jumps.
+      if (
+        tag === "TEXTAREA" ||
+        (active as HTMLElement | null)?.isContentEditable ||
+        (tag === "INPUT" && !NON_TEXT_INPUT_TYPES.has((active as HTMLInputElement).type))
+      ) {
+        return;
+      }
+
+      // Number shortcuts take priority everywhere outside text entry.
       if (e.key === "0") {
         if (configRef.current.onJumpToStart) {
           e.preventDefault();
@@ -53,19 +69,9 @@ export function usePracticeKeyboard(config: PracticeKeyboardConfig) {
         return;
       }
 
-      const active = document.activeElement;
-      const tag = active?.tagName;
-      // Exempt only text-entry surfaces for the remaining keys — typing there
-      // must produce characters. Buttons/sliders/tab-triggers are deliberately
-      // NOT exempt: after clicking any control, playback keys must still
-      // respond (preventDefault also stops the focused control re-activating).
-      if (
-        active &&
-        (tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          (active as HTMLElement)?.isContentEditable)
-      ) {
+      // Preserve native editing/navigation for the remaining form controls.
+      // Buttons and tab triggers still respond to playback keys.
+      if (tag === "INPUT" || tag === "SELECT") {
         return;
       }
 

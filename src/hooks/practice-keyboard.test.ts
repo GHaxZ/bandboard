@@ -14,7 +14,7 @@ vi.mock("react", () => ({
 
 let cleanups: Array<() => void>;
 let page: EventTarget;
-let focused: { tagName: string; isContentEditable?: boolean; blur?: () => void };
+let focused: { tagName: string; type?: string; isContentEditable?: boolean; blur?: () => void };
 let pageHasFocus: boolean;
 let bodyTabIndex: string | null;
 let body: {
@@ -86,38 +86,70 @@ afterEach(() => {
 
 describe("practice keyboard shortcuts", () => {
   it.each(["BUTTON", "INPUT", "TEXTAREA", "SELECT", "VIDEO", "DIV"])(
-    "handles Tab and every number key while %s is focused",
+    "handles the configured Tab action while %s is focused",
     (tagName) => {
       const onToggleVideo = vi.fn();
-      const onJumpToStart = vi.fn();
-      const onMarkerJump = vi.fn();
-      usePracticeKeyboard({ onTab: onToggleVideo, onJumpToStart, onMarkerJump });
+      usePracticeKeyboard({ onTab: onToggleVideo });
       mountEffects();
       focused = { tagName, isContentEditable: tagName === "DIV" };
 
       expect(keyDown("Tab").defaultPrevented).toBe(true);
       expect(onToggleVideo).toHaveBeenCalledOnce();
-      expect(keyDown("0").defaultPrevented).toBe(true);
-      expect(onJumpToStart).toHaveBeenCalledOnce();
-      for (let number = 1; number <= 9; number++) {
-        expect(keyDown(String(number)).defaultPrevented).toBe(true);
-        expect(onMarkerJump).toHaveBeenLastCalledWith(number - 1);
-      }
     }
   );
 
-  it("leaves unconfigured shortcuts and ordinary editing keys alone", () => {
-    const onPlayPause = vi.fn();
-    const onSeekForward = vi.fn();
-    usePracticeKeyboard({ onPlayPause, onSeekForward });
+  it.each([
+    ...["BODY", "BUTTON", "A", "SELECT", "VIDEO", "IFRAME", "DIV"].map((tagName) => ({ tagName })),
+    ...["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"].map((type) => ({ tagName: "INPUT", type })),
+  ])("handles every number key outside text fields: %j", (element) => {
+    const onJumpToStart = vi.fn();
+    const onMarkerJump = vi.fn();
+    usePracticeKeyboard({ onJumpToStart, onMarkerJump });
     mountEffects();
-    focused = { tagName: "INPUT" };
+    focused = element;
 
-    for (const key of ["Tab", "0", "1", " ", "ArrowRight", "a"]) {
+    expect(keyDown("0").defaultPrevented).toBe(true);
+    expect(onJumpToStart).toHaveBeenCalledOnce();
+    for (let number = 1; number <= 9; number++) {
+      expect(keyDown(String(number)).defaultPrevented).toBe(true);
+      expect(onMarkerJump).toHaveBeenLastCalledWith(number - 1);
+    }
+    expect(onMarkerJump).toHaveBeenCalledTimes(9);
+  });
+
+  it.each([
+    { tagName: "INPUT" },
+    ...["text", "search", "email", "url", "password", "tel", "number", "date", "datetime-local", "month", "time", "week"].map((type) => ({ tagName: "INPUT", type })),
+    { tagName: "TEXTAREA" },
+    { tagName: "DIV", isContentEditable: true },
+    { tagName: "SPAN", isContentEditable: true },
+  ])("preserves numbers and editing keys in text fields: %j", (element) => {
+    const onJumpToStart = vi.fn();
+    const onMarkerJump = vi.fn();
+    const onPlayPause = vi.fn();
+    const onSeekBackward = vi.fn();
+    const onSeekForward = vi.fn();
+    usePracticeKeyboard({ onJumpToStart, onMarkerJump, onPlayPause, onSeekBackward, onSeekForward });
+    mountEffects();
+    focused = element;
+
+    for (const key of [..."0123456789", " ", "ArrowLeft", "ArrowRight", "a"]) {
       expect(keyDown(key).defaultPrevented).toBe(false);
     }
+    expect(onJumpToStart).not.toHaveBeenCalled();
+    expect(onMarkerJump).not.toHaveBeenCalled();
     expect(onPlayPause).not.toHaveBeenCalled();
+    expect(onSeekBackward).not.toHaveBeenCalled();
     expect(onSeekForward).not.toHaveBeenCalled();
+  });
+
+  it("leaves unconfigured shortcuts alone", () => {
+    usePracticeKeyboard({});
+    mountEffects();
+
+    for (const key of ["Tab", ..."0123456789", " ", "ArrowLeft", "ArrowRight", "a"]) {
+      expect(keyDown(key).defaultPrevented).toBe(false);
+    }
   });
 
   it.each(["altKey", "ctrlKey", "metaKey", "isComposing"])(
@@ -155,6 +187,9 @@ describe("iframe focus recovery", () => {
   });
 
   it("recovers repeated or delayed iframe focus without a window blur event", () => {
+    const onJumpToStart = vi.fn();
+    const onMarkerJump = vi.fn();
+    usePracticeKeyboard({ onJumpToStart, onMarkerJump });
     useIframeFocusGuard();
     mountEffects();
     nextAnimationFrame();
@@ -164,6 +199,21 @@ describe("iframe focus recovery", () => {
       focused = { tagName: "IFRAME" };
       nextAnimationFrame();
       expect(focused).toBe(body);
+      expect(keyDown("0").defaultPrevented).toBe(true);
+      for (let number = 1; number <= 9; number++) {
+        expect(keyDown(String(number)).defaultPrevented).toBe(true);
+        expect(onMarkerJump).toHaveBeenLastCalledWith(number - 1);
+      }
+
+      const textarea = { tagName: "TEXTAREA" };
+      focused = textarea;
+      nextAnimationFrame();
+      expect(focused).toBe(textarea);
+      for (const key of "0123456789") {
+        expect(keyDown(key).defaultPrevented).toBe(false);
+      }
+      expect(onJumpToStart).toHaveBeenCalledTimes(click + 1);
+      expect(onMarkerJump).toHaveBeenCalledTimes((click + 1) * 9);
     }
     expect(body.focus).toHaveBeenCalledTimes(3);
   });
